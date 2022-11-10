@@ -10,6 +10,7 @@ public abstract class IAdvancedPopup : MonoBehaviour
     [Tooltip("Popup unique ID")]
     public string PopupName;
     public PopupLayerEnum PopupLayer;
+    public bool ManualInit;
     
     [Header("REF's")][Space(5)]
     [Tooltip("Root transform")]
@@ -21,7 +22,8 @@ public abstract class IAdvancedPopup : MonoBehaviour
 
     private void Awake()
     {
-        Init();
+        if (!ManualInit)
+            Init();
     }
 
     public virtual void Init()
