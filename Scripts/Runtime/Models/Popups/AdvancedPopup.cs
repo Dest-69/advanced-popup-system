@@ -1,13 +1,26 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 
 public class AdvancedPopup : IAdvancedPopup
 {
+    public CanvasGroup _canvasGroup;
+
+    public override void Init()
+    {
+        _canvasGroup = GetComponent<CanvasGroup>();
+        base.Init();
+    }
+    
     public override async Task Show<T>(bool deepShow = false, CancellationToken cancellationToken = default)
     {
         if (cancellationToken == default)
             cancellationToken = UpdateCancellationTokenSource();
+        
+        _canvasGroup.alpha = 1;
+        _canvasGroup.interactable = true;
+        _canvasGroup.blocksRaycasts = true;
         
         List<Task> tasks = new List<Task>();
         
@@ -30,6 +43,10 @@ public class AdvancedPopup : IAdvancedPopup
         if (cancellationToken == default)
             cancellationToken = UpdateCancellationTokenSource();
         
+        _canvasGroup.alpha = 1;
+        _canvasGroup.interactable = true;
+        _canvasGroup.blocksRaycasts = true;
+        
         List<Task> tasks = new List<Task>();
         
         IAdcencedPopupDisplay popupDisplay = AdvancedPopupSystem.GetDisplay<T>();
@@ -51,6 +68,10 @@ public class AdvancedPopup : IAdvancedPopup
         if (cancellationToken == default)
             cancellationToken = UpdateCancellationTokenSource();
         
+        _canvasGroup.alpha = 1;
+        _canvasGroup.interactable = true;
+        _canvasGroup.blocksRaycasts = true;
+        
         List<Task> tasks = new List<Task>();
         
         IAdcencedPopupDisplay popupDisplay = AdvancedPopupSystem.GetDisplay<T>();
@@ -71,6 +92,10 @@ public class AdvancedPopup : IAdvancedPopup
     {
         if (cancellationToken == default)
             cancellationToken = UpdateCancellationTokenSource();
+        
+        _canvasGroup.alpha = 1;
+        _canvasGroup.interactable = true;
+        _canvasGroup.blocksRaycasts = true;
         
         List<Task> tasks = new List<Task>();
         

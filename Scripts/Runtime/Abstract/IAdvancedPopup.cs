@@ -9,7 +9,7 @@ public abstract class IAdvancedPopup : MonoBehaviour
     [Header("Settings")]
     [Tooltip("Popup unique ID")]
     public string PopupName;
-    public int Layer;
+    public PopupLayerEnum PopupLayer;
     
     [Header("REF's")][Space(5)]
     [Tooltip("Root transform")]

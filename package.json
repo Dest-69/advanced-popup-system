@@ -1,6 +1,7 @@
 {
   "name": "com.dest-69.advanced-popup-system",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "url": "https://github.com/Dest-69/advanced-popup-system",
   "displayName": "Advanced Popup",
   "description": "Advanced Popup System - is a free flexible popup system.\nYou can add and change functionality depending on your needs.",
   "type": "library",

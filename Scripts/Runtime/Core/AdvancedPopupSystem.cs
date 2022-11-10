@@ -1,132 +1,200 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using UnityEngine;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using UnityEngine;
 
-public static class AdvancedPopupSystem
-{
-    private static readonly List<IAdvancedPopup> _popups = new List<IAdvancedPopup>();
-    private static readonly List<IAdcencedPopupDisplay> _displays = new List<IAdcencedPopupDisplay>();
-    
-    private static CancellationTokenSource _source;
+    public static class AdvancedPopupSystem
+    {
+        private static readonly List<IAdvancedPopup> _popups = new List<IAdvancedPopup>();
+        private static readonly List<IAdcencedPopupDisplay> _displays = new List<IAdcencedPopupDisplay>();
+        
+        private static CancellationTokenSource _source;
 
-    public static void InitAdcencedPopup<T>(T popup) where T : IAdvancedPopup
-    {
-        if (!_popups.Contains(popup))
-            _popups.Add(popup);
-    }
-    
-    public static IAdcencedPopupDisplay GetDisplay<T>() where T : IAdcencedPopupDisplay, new()
-    {
-        IAdcencedPopupDisplay display = _displays.FirstOrDefault(popupDisplay => popupDisplay is T);
-        if (display == default)
+        public static void InitAdcencedPopup<T>(T popup) where T : IAdvancedPopup
         {
-            display = new T();
-            display.Init();
+            if (!_popups.Contains(popup))
+                _popups.Add(popup);
+        }
+        
+        public static IAdcencedPopupDisplay GetDisplay<T>() where T : IAdcencedPopupDisplay, new()
+        {
+            IAdcencedPopupDisplay display = _displays.FirstOrDefault(popupDisplay => popupDisplay is T);
+            if (display == default)
+            {
+                display = new T();
+                display.Init();
+                
+                _displays.Add(display);
+            }
+
+            return display;
+        }
+
+        #region FORCE SHOW
+        public static async void ForceShow<T>(string popupName, int layer = 0, bool deepShow = false, bool deepHide = true) where T : IAdcencedPopupDisplay, new()
+        {
+            IAdvancedPopup _popup = _popups.FirstOrDefault(popup => popup.PopupName == popupName);
+            if (_popup == default)
+            {
+                Debug.LogError($"AdvancedPopupSystem not found popup with name '{popupName}'!");
+                return;
+            }
+
+            CancellationToken cToken = UpdateCancellationTokenSource();
+
+            List<Task> tasks = new List<Task>();
+            foreach (IAdvancedPopup popup in _popups.Where(popup => popup != _popup))
+            {
+                if (_popup.ContainsDeepPopup(popup))
+                    continue;
+                
+                tasks.Add(popup.Hide<T>(deepHide, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
             
-            _displays.Add(display);
-        }
-
-        return display;
-    }
-
-    #region FORCE SHOW
-    public static async void ForceShow<T>(string popupName, int layer = 0, bool deepShow = false, bool deepHide = false) where T : IAdcencedPopupDisplay, new()
-    {
-        IAdvancedPopup _popup = _popups.FirstOrDefault(popup => popup.PopupName == popupName);
-        if (_popup == default)
-        {
-            Debug.LogError($"AdvancedPopupSystem not found popup with name '{popupName}' not found!");
-            return;
-        }
-
-        CancellationToken cToken = UpdateCancellationTokenSource();
-
-        List<Task> tasks = new List<Task>();
-        foreach (IAdvancedPopup popup in _popups.Where(popup => popup != _popup && popup.Layer >= layer))
-        {
-            if (_popup.ContainsDeepPopup(popup))
-                continue;
+            if (cToken.IsCancellationRequested)
+                return;
             
-            tasks.Add(popup.Hide<T>(deepHide, cancellationToken: cToken));
+            await _popup.Show<T>(deepShow, cancellationToken: cToken);
         }
-        if (tasks.Count > 0)
-            await Task.WhenAll(tasks);
-        
-        if (cToken.IsCancellationRequested)
-            return;
-        
-        await _popup.Show<T>(deepShow, cancellationToken: cToken);
-    }
 
-    public static async void ForceShow<T, J>(string popupName, int layer = 0, bool deepShow = true, bool deepHide = true)
-        where T : IAdcencedPopupDisplay, new() where J : IAdcencedPopupDisplay, new()
-    {
-        IAdvancedPopup _popup = _popups.FirstOrDefault(popup => popup.PopupName == popupName);
-        if (_popup == default)
+        public static async void ForceShow<T, J>(string popupName, bool deepShow = false, bool deepHide = true)
+            where T : IAdcencedPopupDisplay, new() where J : IAdcencedPopupDisplay, new()
         {
-            Debug.LogError($"AdvancedPopupSystem not found popup with name '{popupName}' not found!");
-            return;
-        }
-        
-        CancellationToken cToken = UpdateCancellationTokenSource();
-        
-        List<Task> tasks = new List<Task>();
-        foreach (IAdvancedPopup popup in _popups.Where(popup => popup != _popup && popup.Layer >= layer))
-        {
-            if (_popup.ContainsDeepPopup(popup))
-                continue;
+            IAdvancedPopup _popup = _popups.FirstOrDefault(popup => popup.PopupName == popupName);
+            if (_popup == default)
+            {
+                Debug.LogError($"AdvancedPopupSystem not found popup with name '{popupName}'!");
+                return;
+            }
             
-            tasks.Add(popup.Hide<T, J>(deepHide, cancellationToken: cToken));
-        }
-        if (tasks.Count > 0)
-            await Task.WhenAll(tasks);
-        
-        if (cToken.IsCancellationRequested)
-            return;
+            CancellationToken cToken = UpdateCancellationTokenSource();
+            
+            List<Task> tasks = new List<Task>();
+            foreach (IAdvancedPopup popup in _popups.Where(popup => popup != _popup))
+            {
+                if (_popup.ContainsDeepPopup(popup))
+                    continue;
+                
+                tasks.Add(popup.Hide<T, J>(deepHide, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+            
+            if (cToken.IsCancellationRequested)
+                return;
 
-        await _popup.Show<T, J>(deepShow, cancellationToken: cToken);
-    }
-    #endregion
+            await _popup.Show<T, J>(deepShow, cancellationToken: cToken);
+        }
+        public static async void LayerShow<T>(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true) where T : IAdcencedPopupDisplay, new()
+        {
+            List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer == layer);
+            if (_popup.Count <= 0)
+            {
+                Debug.LogError($"AdvancedPopupSystem not found popup/s by '{layer}' layer!");
+                return;
+            }
 
-    #region HIDE ALL
-    public static async void HideAll<T>(bool deepHide = false) where T : IAdcencedPopupDisplay, new()
-    {
-        CancellationToken cToken = UpdateCancellationTokenSource();
+            CancellationToken cToken = UpdateCancellationTokenSource();
+
+            List<Task> tasks = new List<Task>();
+            foreach (IAdvancedPopup popup in _popups.Where(popup => popup.PopupLayer != layer))
+            {
+                tasks.Add(popup.Hide<T>(deepHide, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+            
+            if (cToken.IsCancellationRequested)
+                return;
+            
+            tasks.Clear();
+            foreach (IAdvancedPopup popup in _popup)
+            {
+                tasks.Add(popup.Show<T>(deepShow, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+            
+            if (cToken.IsCancellationRequested)
+                return;
+        }
+
+        public static async void LayerShow<T, J>(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true)
+            where T : IAdcencedPopupDisplay, new() where J : IAdcencedPopupDisplay, new()
+        {
+            List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer == layer);
+            if (_popup.Count <= 0)
+            {
+                Debug.LogError($"AdvancedPopupSystem not found popup/s by '{layer}' layer!");
+                return;
+            }
+
+            CancellationToken cToken = UpdateCancellationTokenSource();
+
+            List<Task> tasks = new List<Task>();
+            foreach (IAdvancedPopup popup in _popups.Where(popup => popup.PopupLayer != layer))
+            {
+                tasks.Add(popup.Hide<T, J>(deepHide, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+            
+            if (cToken.IsCancellationRequested)
+                return;
+            
+            tasks.Clear();
+            foreach (IAdvancedPopup popup in _popup)
+            {
+                tasks.Add(popup.Show<T, J>(deepShow, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+            
+            if (cToken.IsCancellationRequested)
+                return;
+        }
+        #endregion
+
+        #region HIDE ALL
+        public static async void HideAll<T>(bool deepHide = false) where T : IAdcencedPopupDisplay, new()
+        {
+            CancellationToken cToken = UpdateCancellationTokenSource();
+            
+            List<Task> tasks = new List<Task>();
+            foreach (IAdvancedPopup popup in _popups)
+            {
+                tasks.Add(popup.Hide<T>(deepHide, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+        }
         
-        List<Task> tasks = new List<Task>();
-        foreach (IAdvancedPopup popup in _popups)
+        public static async void HideAll<T, J>(bool deepHide = true) where T : IAdcencedPopupDisplay, new()
+            where J : IAdcencedPopupDisplay, new()
         {
-            tasks.Add(popup.Hide<T>(deepHide, cancellationToken: cToken));
+            CancellationToken cToken = UpdateCancellationTokenSource();
+            
+            List<Task> tasks = new List<Task>();
+            foreach (IAdvancedPopup popup in _popups)
+            {
+                tasks.Add(popup.Hide<T, J>(deepHide, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
         }
-        if (tasks.Count > 0)
-            await Task.WhenAll(tasks);
-    }
-    
-    public static async void HideAll<T, J>(bool deepHide = true) where T : IAdcencedPopupDisplay, new()
-        where J : IAdcencedPopupDisplay, new()
-    {
-        CancellationToken cToken = UpdateCancellationTokenSource();
+        #endregion
         
-        List<Task> tasks = new List<Task>();
-        foreach (IAdvancedPopup popup in _popups)
+        private static CancellationToken UpdateCancellationTokenSource()
         {
-            tasks.Add(popup.Hide<T, J>(deepHide, cancellationToken: cToken));
+            if (_source != null)
+            {
+                _source.Cancel();
+                _source.Dispose();
+            }
+            _source = new CancellationTokenSource();
+            return _source.Token;
         }
-        if (tasks.Count > 0)
-            await Task.WhenAll(tasks);
     }
-    #endregion
-    
-    private static CancellationToken UpdateCancellationTokenSource()
-    {
-        if (_source != null)
-        {
-            _source.Cancel();
-            _source.Dispose();
-        }
-        _source = new CancellationTokenSource();
-        return _source.Token;
-    }
-}
