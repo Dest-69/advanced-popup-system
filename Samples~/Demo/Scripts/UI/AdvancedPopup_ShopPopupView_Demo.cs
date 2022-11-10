@@ -8,7 +8,7 @@ public class AdvancedPopup_ShopPopupView_Demo : AdvancedPopup
     {
         base.Init();
         PopupName = "Shop";
-        Layer = 1;
+        PopupLayer = PopupLayerEnum.FOURTH_NAME;
     }
 
     private void Start()

@@ -8,7 +8,7 @@ public class AdvancedPopup_InventoryPopupView_Demo : AdvancedPopup
     {
         base.Init();
         PopupName = "Inventory";
-        Layer = 1;
+        PopupLayer = PopupLayerEnum.FIFTH_NAME | PopupLayerEnum.FIRST_NAME;
     }
 
     private void Start()

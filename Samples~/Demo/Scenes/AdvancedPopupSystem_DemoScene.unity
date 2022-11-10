@@ -455,6 +455,7 @@ GameObject:
   - component: {fileID: 384054416}
   - component: {fileID: 384054415}
   - component: {fileID: 384054414}
+  - component: {fileID: 384054417}
   m_Layer: 5
   m_Name: Shop
   m_TagString: Untagged
@@ -539,14 +540,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PopupName: 
-  Layer: 0
+  PopupLayer: 0
   RootTransform: {fileID: 0}
   DeepPopups:
   - {fileID: 1321425347}
   - {fileID: 1994837166}
   - {fileID: 1627948376}
   - {fileID: 577933995}
+  _canvasGroup: {fileID: 0}
   CloseBut: {fileID: 1220526652}
+--- !u!225 &384054417
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 384054412}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 0
+  m_BlocksRaycasts: 0
+  m_IgnoreParentGroups: 0
 --- !u!1 &409403288
 GameObject:
   m_ObjectHideFlags: 0
@@ -805,6 +819,7 @@ GameObject:
   - component: {fileID: 577933995}
   - component: {fileID: 577933994}
   - component: {fileID: 577933993}
+  - component: {fileID: 577933996}
   m_Layer: 5
   m_Name: Info_1 (3)
   m_TagString: Untagged
@@ -884,9 +899,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PopupName: 
-  Layer: 0
+  PopupLayer: 0
   RootTransform: {fileID: 0}
   DeepPopups: []
+  _canvasGroup: {fileID: 0}
+--- !u!225 &577933996
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 577933991}
+  m_Enabled: 1
+  m_Alpha: 0
+  m_Interactable: 0
+  m_BlocksRaycasts: 0
+  m_IgnoreParentGroups: 0
 --- !u!1 &605055826
 GameObject:
   m_ObjectHideFlags: 0
@@ -1387,6 +1415,7 @@ GameObject:
   - component: {fileID: 1321425347}
   - component: {fileID: 1321425346}
   - component: {fileID: 1321425345}
+  - component: {fileID: 1321425348}
   m_Layer: 5
   m_Name: Info_1
   m_TagString: Untagged
@@ -1466,9 +1495,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PopupName: 
-  Layer: 0
+  PopupLayer: 0
   RootTransform: {fileID: 0}
   DeepPopups: []
+  _canvasGroup: {fileID: 0}
+--- !u!225 &1321425348
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1321425343}
+  m_Enabled: 1
+  m_Alpha: 0
+  m_Interactable: 0
+  m_BlocksRaycasts: 0
+  m_IgnoreParentGroups: 0
 --- !u!1 &1391203649
 GameObject:
   m_ObjectHideFlags: 0
@@ -1481,6 +1523,7 @@ GameObject:
   - component: {fileID: 1391203653}
   - component: {fileID: 1391203652}
   - component: {fileID: 1391203651}
+  - component: {fileID: 1391203654}
   m_Layer: 5
   m_Name: Inventory
   m_TagString: Untagged
@@ -1561,10 +1604,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PopupName: Inventory
-  Layer: 0
+  PopupLayer: 0
   RootTransform: {fileID: 1391203650}
   DeepPopups: []
+  _canvasGroup: {fileID: 0}
   CloseBut: {fileID: 1742187213}
+--- !u!225 &1391203654
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1391203649}
+  m_Enabled: 1
+  m_Alpha: 0
+  m_Interactable: 0
+  m_BlocksRaycasts: 0
+  m_IgnoreParentGroups: 0
 --- !u!1 &1517405087
 GameObject:
   m_ObjectHideFlags: 0
@@ -1680,6 +1736,7 @@ GameObject:
   - component: {fileID: 1627948376}
   - component: {fileID: 1627948375}
   - component: {fileID: 1627948374}
+  - component: {fileID: 1627948377}
   m_Layer: 5
   m_Name: Info_1 (2)
   m_TagString: Untagged
@@ -1759,9 +1816,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PopupName: 
-  Layer: 0
+  PopupLayer: 0
   RootTransform: {fileID: 0}
   DeepPopups: []
+  _canvasGroup: {fileID: 0}
+--- !u!225 &1627948377
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1627948372}
+  m_Enabled: 1
+  m_Alpha: 0
+  m_Interactable: 0
+  m_BlocksRaycasts: 0
+  m_IgnoreParentGroups: 0
 --- !u!1 &1676173002
 GameObject:
   m_ObjectHideFlags: 0
@@ -2298,6 +2368,7 @@ GameObject:
   - component: {fileID: 1994837166}
   - component: {fileID: 1994837165}
   - component: {fileID: 1994837164}
+  - component: {fileID: 1994837167}
   m_Layer: 5
   m_Name: Info_1 (1)
   m_TagString: Untagged
@@ -2377,9 +2448,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PopupName: 
-  Layer: 0
+  PopupLayer: 0
   RootTransform: {fileID: 0}
   DeepPopups: []
+  _canvasGroup: {fileID: 0}
+--- !u!225 &1994837167
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1994837162}
+  m_Enabled: 1
+  m_Alpha: 0
+  m_Interactable: 0
+  m_BlocksRaycasts: 0
+  m_IgnoreParentGroups: 0
 --- !u!1 &2077023854
 GameObject:
   m_ObjectHideFlags: 0
