@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
+[RequireComponent(typeof(CanvasGroup))]
 public class AdvancedPopup : IAdvancedPopup
 {
     public CanvasGroup _canvasGroup;
