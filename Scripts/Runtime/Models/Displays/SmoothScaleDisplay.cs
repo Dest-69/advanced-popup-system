@@ -10,13 +10,18 @@ public class SmoothScaleDisplay : IAdcencedPopupDisplay
     
     public override void Init()
     {
-        _animationSpeed = 0.01f;
+        _animationSpeed = 0.022f;
         _showScale = Vector3.one;
         _hideScale = Vector3.zero;
     }
 
     public override async Task Show(Transform transform, CancellationToken cancellationToken = default)
     {
+        CanvasGroup canvasGroup = transform.GetComponent<CanvasGroup>();
+        canvasGroup.alpha = 1;
+        canvasGroup.interactable = true;
+        canvasGroup.blocksRaycasts = true;
+        
         Vector3 step = (_showScale - transform.localScale) * _animationSpeed;
         float stepProgress = Vector3.Distance(step, Vector3.zero);
         float targetProgress = Vector3.Distance(_showScale, transform.localScale);
@@ -30,7 +35,7 @@ public class SmoothScaleDisplay : IAdcencedPopupDisplay
             if (cancellationToken.IsCancellationRequested)
                 return;
             
-            await Task.Delay(1);
+            await Task.Yield();
         }
         
         transform.localScale = _showScale;
@@ -52,9 +57,13 @@ public class SmoothScaleDisplay : IAdcencedPopupDisplay
             if (cancellationToken.IsCancellationRequested)
                 return;
             
-            await Task.Delay(1);
+            await Task.Yield();
         }
         
         transform.localScale = _hideScale;
+        CanvasGroup canvasGroup = transform.GetComponent<CanvasGroup>();
+        canvasGroup.alpha = 0;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
     }
 }

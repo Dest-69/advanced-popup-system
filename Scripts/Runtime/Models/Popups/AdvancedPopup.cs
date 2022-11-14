@@ -19,10 +19,6 @@ public class AdvancedPopup : IAdvancedPopup
         if (cancellationToken == default)
             cancellationToken = UpdateCancellationTokenSource();
         
-        _canvasGroup.alpha = 1;
-        _canvasGroup.interactable = true;
-        _canvasGroup.blocksRaycasts = true;
-        
         List<Task> tasks = new List<Task>();
         
         IAdcencedPopupDisplay popupDisplay = AdvancedPopupSystem.GetDisplay<T>();
@@ -43,10 +39,6 @@ public class AdvancedPopup : IAdvancedPopup
     {
         if (cancellationToken == default)
             cancellationToken = UpdateCancellationTokenSource();
-        
-        _canvasGroup.alpha = 1;
-        _canvasGroup.interactable = true;
-        _canvasGroup.blocksRaycasts = true;
         
         List<Task> tasks = new List<Task>();
         
@@ -69,10 +61,6 @@ public class AdvancedPopup : IAdvancedPopup
         if (cancellationToken == default)
             cancellationToken = UpdateCancellationTokenSource();
         
-        _canvasGroup.alpha = 1;
-        _canvasGroup.interactable = true;
-        _canvasGroup.blocksRaycasts = true;
-        
         List<Task> tasks = new List<Task>();
         
         IAdcencedPopupDisplay popupDisplay = AdvancedPopupSystem.GetDisplay<T>();
@@ -93,10 +81,6 @@ public class AdvancedPopup : IAdvancedPopup
     {
         if (cancellationToken == default)
             cancellationToken = UpdateCancellationTokenSource();
-        
-        _canvasGroup.alpha = 1;
-        _canvasGroup.interactable = true;
-        _canvasGroup.blocksRaycasts = true;
         
         List<Task> tasks = new List<Task>();
         

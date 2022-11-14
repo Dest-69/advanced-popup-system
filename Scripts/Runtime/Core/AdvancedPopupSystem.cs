@@ -32,7 +32,7 @@
         }
 
         #region FORCE SHOW
-        public static async void ForceShow<T>(string popupName, int layer = 0, bool deepShow = false, bool deepHide = true) where T : IAdcencedPopupDisplay, new()
+        public static async void ForceShow<T>(string popupName, bool deepShow = false, bool deepHide = true) where T : IAdcencedPopupDisplay, new()
         {
             IAdvancedPopup _popup = _popups.FirstOrDefault(popup => popup.PopupName == popupName);
             if (_popup == default)
@@ -90,7 +90,7 @@
         }
         public static async void LayerShow<T>(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true) where T : IAdcencedPopupDisplay, new()
         {
-            List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer == layer);
+            List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer.HasFlag(layer));
             if (_popup.Count <= 0)
             {
                 Debug.LogError($"AdvancedPopupSystem not found popup/s by '{layer}' layer!");
@@ -100,7 +100,7 @@
             CancellationToken cToken = UpdateCancellationTokenSource();
 
             List<Task> tasks = new List<Task>();
-            foreach (IAdvancedPopup popup in _popups.Where(popup => popup.PopupLayer != layer))
+            foreach (IAdvancedPopup popup in _popups.Where(popup => !popup.PopupLayer.HasFlag(layer)))
             {
                 tasks.Add(popup.Hide<T>(deepHide, cancellationToken: cToken));
             }
@@ -125,7 +125,7 @@
         public static async void LayerShow<T, J>(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true)
             where T : IAdcencedPopupDisplay, new() where J : IAdcencedPopupDisplay, new()
         {
-            List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer == layer);
+            List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer.HasFlag(layer));
             if (_popup.Count <= 0)
             {
                 Debug.LogError($"AdvancedPopupSystem not found popup/s by '{layer}' layer!");
@@ -135,7 +135,7 @@
             CancellationToken cToken = UpdateCancellationTokenSource();
 
             List<Task> tasks = new List<Task>();
-            foreach (IAdvancedPopup popup in _popups.Where(popup => popup.PopupLayer != layer))
+            foreach (IAdvancedPopup popup in _popups.Where(popup => !popup.PopupLayer.HasFlag(layer)))
             {
                 tasks.Add(popup.Hide<T, J>(deepHide, cancellationToken: cToken));
             }
