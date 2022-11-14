@@ -61,6 +61,7 @@ public class SmoothScaleDisplay : IAdcencedPopupDisplay
         }
         
         transform.localScale = _hideScale;
+        
         CanvasGroup canvasGroup = transform.GetComponent<CanvasGroup>();
         canvasGroup.alpha = 0;
         canvasGroup.interactable = false;

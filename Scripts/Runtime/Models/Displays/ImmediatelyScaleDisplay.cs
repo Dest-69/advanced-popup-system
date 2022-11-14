@@ -14,11 +14,21 @@ public class ImmediatelyScaleDisplay : IAdcencedPopupDisplay
 
     public override async Task Show(Transform transform, CancellationToken cancellationToken = default)
     {
+        CanvasGroup canvasGroup = transform.GetComponent<CanvasGroup>();
+        canvasGroup.alpha = 1;
+        canvasGroup.interactable = true;
+        canvasGroup.blocksRaycasts = true;
+        
         transform.localScale = _showScale;
     }
 
     public override async Task Hide(Transform transform, CancellationToken cancellationToken = default)
     {
         transform.localScale = _hideScale;
+        
+        CanvasGroup canvasGroup = transform.GetComponent<CanvasGroup>();
+        canvasGroup.alpha = 0;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
     }
 }
