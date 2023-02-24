@@ -2,64 +2,67 @@
 using System.Threading.Tasks;
 using UnityEngine;
 
-public class SmoothFadeDisplay : IAdcencedPopupDisplay
+namespace AdvancedPS.Core
 {
-    private int maxValue;
-    private int minValue;
-    private float _animationSpeed;
-    
-    public override void Init()
+    public class SmoothFadeDisplay : IAdvancedPopupDisplay
     {
-        maxValue = 1;
-        minValue = 0;
-        _animationSpeed = 0.017f;
-    }
+        private int maxValue;
+        private int minValue;
+        private float _animationSpeed;
     
-    public override async Task Show(Transform transform, CancellationToken cancellationToken = default)
-    {
-        CanvasGroup canvasGroup = transform.gameObject.GetComponent<CanvasGroup>();
-        float step = _animationSpeed;
-        float targetProgress = maxValue;
-        float progress = canvasGroup.alpha;
-        
-        while (progress < targetProgress)
+        public override void Init()
         {
-            canvasGroup.alpha += step;
-            progress += step;
+            maxValue = 1;
+            minValue = 0;
+            _animationSpeed = 0.017f;
+        }
+    
+        public override async Task Show(Transform transform, CancellationToken cancellationToken = default)
+        {
+            CanvasGroup canvasGroup = transform.gameObject.GetComponent<CanvasGroup>();
+            float step = _animationSpeed;
+            float targetProgress = maxValue;
+            float progress = canvasGroup.alpha;
+        
+            while (progress < targetProgress)
+            {
+                canvasGroup.alpha += step;
+                progress += step;
             
             
-            if (cancellationToken.IsCancellationRequested)
-                return;
+                if (cancellationToken.IsCancellationRequested)
+                    return;
             
-            await Task.Yield();
+                await Task.Yield();
+            }
+
+            canvasGroup.alpha = targetProgress;
+            canvasGroup.interactable = true;
+            canvasGroup.blocksRaycasts = true;
         }
 
-        canvasGroup.alpha = targetProgress;
-        canvasGroup.interactable = true;
-        canvasGroup.blocksRaycasts = true;
-    }
-
-    public override async Task Hide(Transform transform, CancellationToken cancellationToken = default)
-    {
-        CanvasGroup canvasGroup = transform.gameObject.GetComponent<CanvasGroup>();
-        float step = -_animationSpeed;
-        float targetProgress = minValue;
-        float progress = canvasGroup.alpha;
-        
-        while (progress > targetProgress)
+        public override async Task Hide(Transform transform, CancellationToken cancellationToken = default)
         {
-            canvasGroup.alpha += step;
-            progress += step;
+            CanvasGroup canvasGroup = transform.gameObject.GetComponent<CanvasGroup>();
+            float step = -_animationSpeed;
+            float targetProgress = minValue;
+            float progress = canvasGroup.alpha;
+        
+            while (progress > targetProgress)
+            {
+                canvasGroup.alpha += step;
+                progress += step;
             
             
-            if (cancellationToken.IsCancellationRequested)
-                return;
+                if (cancellationToken.IsCancellationRequested)
+                    return;
             
-            await Task.Yield();
-        }
+                await Task.Yield();
+            }
 
-        canvasGroup.alpha = targetProgress;
-        canvasGroup.interactable = false;
-        canvasGroup.blocksRaycasts = false;
+            canvasGroup.alpha = targetProgress;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+        }
     }
 }
