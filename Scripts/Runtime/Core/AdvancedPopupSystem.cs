@@ -35,6 +35,40 @@ namespace AdvancedPS.Core
         }
 
         #region Layer systems
+        public static async void LayerShow(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true)
+        {
+            List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer.HasFlag(layer));
+            if (_popup.Count <= 0)
+            {
+                Debug.LogError($"AdvancedPopupSystem not found popup/s by '{layer}' layer!");
+                return;
+            }
+
+            CancellationToken cToken = UpdateCancellationTokenSource();
+
+            List<Task> tasks = new List<Task>();
+            foreach (IAdvancedPopup popup in _popups.Where(popup => !popup.PopupLayer.HasFlag(layer)))
+            {
+                tasks.Add(popup.Hide(deepHide, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+            
+            if (cToken.IsCancellationRequested)
+                return;
+            
+            tasks.Clear();
+            foreach (IAdvancedPopup popup in _popup)
+            {
+                tasks.Add(popup.Show(deepShow, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+            
+            if (cToken.IsCancellationRequested)
+                return;
+        }
+        
         public static async void LayerShow<T>(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true) where T : IAdvancedPopupDisplay, new()
         {
             List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer.HasFlag(layer));
@@ -106,6 +140,19 @@ namespace AdvancedPS.Core
         #endregion
 
         #region HIDE ALL
+        public static async void HideAll(bool deepHide = false)
+        {
+            CancellationToken cToken = UpdateCancellationTokenSource();
+            
+            List<Task> tasks = new List<Task>();
+            foreach (IAdvancedPopup popup in _popups)
+            {
+                tasks.Add(popup.Hide(deepHide, cancellationToken: cToken));
+            }
+            if (tasks.Count > 0)
+                await Task.WhenAll(tasks);
+        }
+        
         public static async void HideAll<T>(bool deepHide = false) where T : IAdvancedPopupDisplay, new()
         {
             CancellationToken cToken = UpdateCancellationTokenSource();

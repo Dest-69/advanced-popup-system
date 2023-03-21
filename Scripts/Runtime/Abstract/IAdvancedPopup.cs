@@ -40,17 +40,25 @@ namespace AdvancedPS.Core
         /// <summary>
         /// Change CachedDisplay value if need it by "AdvancedPopupSystem.GetDisplay" - for better performance.
         /// </summary>
-        protected IAdvancedPopupDisplay CachedDisplay;
+        protected IAdvancedPopupDisplay CachedDisplay { get; private set; }
         
         private CancellationTokenSource _source;
 
         private void Awake()
         {
             // Change CachedDisplay value if need it, like below - for better performance
-            CachedDisplay = AdvancedPopupSystem.GetDisplay<ImmediatelyScaleDisplay>();
+            SetCachedDisplay<ImmediatelyScaleDisplay>();
             
             if (!ManualInit)
                 Init();
+        }
+
+        /// <summary>
+        /// Change CachedDisplay value by "AdvancedPopupSystem.GetDisplay" inside - for better performance.
+        /// </summary>
+        public void SetCachedDisplay<T>() where T : IAdvancedPopupDisplay, new()
+        {
+            CachedDisplay = AdvancedPopupSystem.GetDisplay<T>();
         }
 
         /// <summary>
