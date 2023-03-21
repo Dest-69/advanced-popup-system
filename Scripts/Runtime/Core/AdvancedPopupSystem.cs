@@ -14,12 +14,18 @@ namespace AdvancedPS.Core
         
         private static CancellationTokenSource _source;
 
-        public static void InitAdcencedPopup<T>(T popup) where T : IAdvancedPopup
+        /// <summary>
+        /// Push popup entity into AdvancedPopupSystem for caching, without it AdvancedPopupSystem will not use popup in our logic.
+        /// </summary>
+        public static void InitAdvancedPopup<T>(T popup) where T : IAdvancedPopup
         {
             if (!_popups.Contains(popup))
                 _popups.Add(popup);
         }
         
+        /// <summary>
+        /// Get display entity with caching in AdvancedPopupSystem for better performance, because we don't need duplicate entity.
+        /// </summary>
         public static IAdvancedPopupDisplay GetDisplay<T>() where T : IAdvancedPopupDisplay, new()
         {
             IAdvancedPopupDisplay display = _displays.FirstOrDefault(popupDisplay => popupDisplay is T);
@@ -33,6 +39,13 @@ namespace AdvancedPS.Core
 
             return display;
         }
+
+        /// <summary>
+        /// Show all popup's with layer by CachedDisplay type.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="deepShow"> true - show all "DeepPopups" with layer </param>
+        /// <param name="deepHide"> true - hide all "DeepPopups" without layer </param>
 
         #region Layer systems
         public static async void LayerShow(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true)
@@ -69,6 +82,12 @@ namespace AdvancedPS.Core
                 return;
         }
         
+        /// <summary>
+        /// Show all popup's with layer by IAdvancedPopupDisplay generic T type for all popup's.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="deepShow"> true - show all "DeepPopups" with layer </param>
+        /// <param name="deepHide"> true - hide all "DeepPopups" without layer </param>
         public static async void LayerShow<T>(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true) where T : IAdvancedPopupDisplay, new()
         {
             List<IAdvancedPopup> _popup = _popups.FindAll(popup => popup.PopupLayer.HasFlag(layer));
@@ -103,6 +122,12 @@ namespace AdvancedPS.Core
                 return;
         }
 
+        /// <summary>
+        /// Show all popup's with layer by IAdvancedPopupDisplay generic T type for this popup and J type for "DeepPopups".
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="deepShow"> true - show all "DeepPopups" with layer </param>
+        /// <param name="deepHide"> true - hide all "DeepPopups" without layer </param>
         public static async void LayerShow<T, J>(PopupLayerEnum layer, bool deepShow = false, bool deepHide = true)
             where T : IAdvancedPopupDisplay, new() where J : IAdvancedPopupDisplay, new()
         {
@@ -140,6 +165,10 @@ namespace AdvancedPS.Core
         #endregion
 
         #region HIDE ALL
+        /// <summary>
+        /// Hide all popup's by CachedDisplay type.
+        /// </summary>
+        /// <param name="deepHide"> true - hide all "DeepPopups" without layer </param>
         public static async void HideAll(bool deepHide = false)
         {
             CancellationToken cToken = UpdateCancellationTokenSource();
@@ -153,6 +182,10 @@ namespace AdvancedPS.Core
                 await Task.WhenAll(tasks);
         }
         
+        /// <summary>
+        /// Hide all popup's by IAdvancedPopupDisplay generic T type for all popup's.
+        /// </summary>
+        /// <param name="deepHide"> true - hide all "DeepPopups" </param>
         public static async void HideAll<T>(bool deepHide = false) where T : IAdvancedPopupDisplay, new()
         {
             CancellationToken cToken = UpdateCancellationTokenSource();
@@ -166,6 +199,10 @@ namespace AdvancedPS.Core
                 await Task.WhenAll(tasks);
         }
         
+        /// <summary>
+        /// Hide all popup's by IAdvancedPopupDisplay generic T type for this popup and J type for "DeepPopups".
+        /// </summary>
+        /// <param name="deepHide"> true - hide all "DeepPopups" </param>
         public static async void HideAll<T, J>(bool deepHide = true) where T : IAdvancedPopupDisplay, new()
             where J : IAdvancedPopupDisplay, new()
         {
@@ -181,6 +218,9 @@ namespace AdvancedPS.Core
         }
         #endregion
         
+        /// <summary>
+        /// Stop previous task's and start new.
+        /// </summary>
         private static CancellationToken UpdateCancellationTokenSource()
         {
             if (_source != null)

@@ -66,7 +66,7 @@ namespace AdvancedPS.Core
         /// </summary>
         public virtual void Init()
         {
-            AdvancedPopupSystem.InitAdcencedPopup(this);
+            AdvancedPopupSystem.InitAdvancedPopup(this);
 
             if (RootTransform == null)
                 RootTransform = transform;
