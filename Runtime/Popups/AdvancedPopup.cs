@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using AdvancedPS.Core.System;
 using UnityEngine;
 using UnityEngine.UI;
+using Random = UnityEngine.Random;
 
 namespace AdvancedPS.Core
 {
@@ -27,6 +28,8 @@ namespace AdvancedPS.Core
         [Header("REF's")]
         [Tooltip("This field can be null")]
         public Button closeButton;
+
+        private bool isSubscribed;
         #endregion
 
         /// <summary>
@@ -42,6 +45,9 @@ namespace AdvancedPS.Core
         /// </summary>
         protected virtual void Subscribe()
         {
+            if (isSubscribed) return;
+            isSubscribed = true;
+            
             if (closeButton) closeButton.onClick.AddListener(OnCloseButtonPress);
             OnShowing?.Invoke();
         }
@@ -51,6 +57,9 @@ namespace AdvancedPS.Core
         /// </summary>
         protected virtual void Unsubscribe()
         {
+            if (!isSubscribed) return;
+            isSubscribed = false;
+            
             if (closeButton) closeButton.onClick.RemoveListener(OnCloseButtonPress);
             OnHided?.Invoke();
         }

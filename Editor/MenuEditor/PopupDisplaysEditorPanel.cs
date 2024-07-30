@@ -227,6 +227,13 @@ namespace AdvancedPS.Core
         }}
 
         /// <summary>
+        /// Checks if operation already cancelled.
+        /// </summary>
+        /// <param name=""cancellationToken""></param>
+        /// <returns></returns>
+        private bool OperationCancelled(CancellationToken cancellationToken) => cancellationToken.IsCancellationRequested || !Application.isPlaying;
+
+        /// <summary>
         /// Get the CanvasGroup component from the transform.
         /// </summary>
         /// <param name=""transform"">The transform of the popup.</param>
