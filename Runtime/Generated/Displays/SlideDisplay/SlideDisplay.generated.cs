@@ -30,7 +30,7 @@ namespace AdvancedPS.Core
 
             while (elapsedTime < settingsLocal.Duration)
             {
-                if (cancellationToken.IsCancellationRequested || !Application.isPlaying)
+                if (OperationCancelled(cancellationToken))
                     return;
 
                 float t = elapsedTime / settingsLocal.Duration;
@@ -41,6 +41,9 @@ namespace AdvancedPS.Core
                 elapsedTime += Time.deltaTime;
                 await Task.Yield();
             }
+
+            if (OperationCancelled(cancellationToken))
+                return;
 
             // Ensure the final position is set correctly
             transform.localPosition = targetPos;
@@ -66,7 +69,7 @@ namespace AdvancedPS.Core
 
             while (elapsedTime < settingsLocal.Duration)
             {
-                if (cancellationToken.IsCancellationRequested || !Application.isPlaying)
+                if (OperationCancelled(cancellationToken))
                     return;
 
                 float t = elapsedTime / settingsLocal.Duration;
@@ -76,6 +79,9 @@ namespace AdvancedPS.Core
                 elapsedTime += Time.deltaTime;
                 await Task.Yield();
             }
+
+            if (OperationCancelled(cancellationToken))
+                return;
 
             // Ensure the final position is set correctly
             transform.localPosition = targetPos;
@@ -112,6 +118,13 @@ namespace AdvancedPS.Core
             canvasGroup.interactable = state;
             canvasGroup.blocksRaycasts = state;
         }
+        
+        /// <summary>
+        /// Checks if operation already cancelled.
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        private bool OperationCancelled(CancellationToken cancellationToken) => cancellationToken.IsCancellationRequested || !Application.isPlaying;
         
         private static Vector3 GetStartPosition(RectTransform transform, SlideSettings settings)
         {

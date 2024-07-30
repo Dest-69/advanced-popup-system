@@ -27,7 +27,7 @@ namespace AdvancedPS.Core
 
             while (elapsedTime < settingsLocal.Duration)
             {
-                if (cancellationToken.IsCancellationRequested || !Application.isPlaying)
+                if (OperationCancelled(cancellationToken))
                     return;
                 
                 float t = elapsedTime / settingsLocal.Duration;
@@ -38,6 +38,9 @@ namespace AdvancedPS.Core
                 elapsedTime += Time.deltaTime;
                 await Task.Yield();
             }
+
+            if (OperationCancelled(cancellationToken))
+                return;
 
             // Ensure the final scale is set correctly
             transform.localScale = settingsLocal.ShowScale;
@@ -61,7 +64,7 @@ namespace AdvancedPS.Core
 
             while (elapsedTime < settingsLocal.Duration)
             {
-                if (cancellationToken.IsCancellationRequested || !Application.isPlaying)
+                if (OperationCancelled(cancellationToken))
                     return;
                 
                 float t = elapsedTime / settingsLocal.Duration;
@@ -73,6 +76,9 @@ namespace AdvancedPS.Core
                 await Task.Yield();
             }
 
+            if (OperationCancelled(cancellationToken))
+                return;
+
             // Ensure the final scale is set correctly
             transform.localScale = settingsLocal.HideScale;
 
@@ -80,7 +86,7 @@ namespace AdvancedPS.Core
             SetCanvasGroupState(canvasGroup, false);
             settingsLocal.OnAnimationEnd?.Invoke();
         }
-        
+
         /// <summary>
         /// Get the CanvasGroup component from the transform.
         /// </summary>
@@ -95,6 +101,13 @@ namespace AdvancedPS.Core
             }
             return canvasGroup;
         }
+
+        /// <summary>
+        /// Checks if operation already cancelled.
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        private bool OperationCancelled(CancellationToken cancellationToken) => cancellationToken.IsCancellationRequested || !Application.isPlaying;
 
         /// <summary>
         /// Set the state of the CanvasGroup.

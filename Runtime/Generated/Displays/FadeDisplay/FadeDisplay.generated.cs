@@ -27,7 +27,7 @@ namespace AdvancedPS.Core
 
             while (elapsedTime < settingsLocal.Duration)
             {
-                if (cancellationToken.IsCancellationRequested || !Application.isPlaying)
+                if (OperationCancelled(cancellationToken))
                     return;
                 
                 float t = elapsedTime / settingsLocal.Duration;
@@ -37,7 +37,10 @@ namespace AdvancedPS.Core
 
                 elapsedTime += Time.deltaTime;
                 await Task.Yield();
-            }   
+            }
+
+            if (OperationCancelled(cancellationToken))
+                return;
 
             // Ensure the final alpha is set correctly
             SetCanvasGroupState(canvasGroup, settingsLocal, true);
@@ -61,7 +64,7 @@ namespace AdvancedPS.Core
 
             while (elapsedTime < settingsLocal.Duration)
             {
-                if (cancellationToken.IsCancellationRequested || !Application.isPlaying)
+                if (OperationCancelled(cancellationToken))
                     return;
                 
                 float t = elapsedTime / settingsLocal.Duration;
@@ -72,6 +75,9 @@ namespace AdvancedPS.Core
                 elapsedTime += Time.deltaTime;
                 await Task.Yield();
             }
+
+            if (OperationCancelled(cancellationToken))
+                return;
 
             // Ensure the final alpha is set correctly
             SetCanvasGroupState(canvasGroup, settingsLocal, false);
@@ -92,6 +98,13 @@ namespace AdvancedPS.Core
             }
             return canvasGroup;
         }
+
+        /// <summary>
+        /// Checks if operation already cancelled.
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        private bool OperationCancelled(CancellationToken cancellationToken) => cancellationToken.IsCancellationRequested || !Application.isPlaying;
 
         /// <summary>
         /// Set the state of the CanvasGroup.
