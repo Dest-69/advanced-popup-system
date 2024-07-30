@@ -24,7 +24,10 @@ namespace AdvancedPS.Editor
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label("Custom icons:", GUILayout.ExpandWidth(false));
-            bool newCustomIconsEnabled = GUILayout.Toggle(_customIconsEnabled, _customIconsEnabled ? "[x]" : "[ ]", APSEditorStyles.ToggleStyle);
+            string toggleLable = "";
+            if (EditorGUIUtility.isProSkin)
+                toggleLable = _customIconsEnabled ? "[x]" : "[ ]";
+            bool newCustomIconsEnabled = GUILayout.Toggle(_customIconsEnabled, toggleLable, APSEditorStyles.ToggleStyle);
             if (newCustomIconsEnabled != _customIconsEnabled)
             {
                 _customIconsEnabled = newCustomIconsEnabled;
@@ -35,7 +38,9 @@ namespace AdvancedPS.Editor
             
             GUILayout.BeginHorizontal();
             GUILayout.Label("Key Event Tracking:", GUILayout.ExpandWidth(false));
-            bool newKeyEventSystemEnabled = GUILayout.Toggle(_keyEventSystemEnabled, _keyEventSystemEnabled ? "[x]" : "[ ]", APSEditorStyles.ToggleStyle);
+            if (EditorGUIUtility.isProSkin)
+                toggleLable = _keyEventSystemEnabled ? "[x]" : "[ ]";
+            bool newKeyEventSystemEnabled = GUILayout.Toggle(_keyEventSystemEnabled, toggleLable, APSEditorStyles.ToggleStyle);
             if (newKeyEventSystemEnabled != _keyEventSystemEnabled)
             {
                 _keyEventSystemEnabled = newKeyEventSystemEnabled;

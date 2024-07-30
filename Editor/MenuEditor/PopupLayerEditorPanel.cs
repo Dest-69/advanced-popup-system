@@ -89,7 +89,10 @@ namespace AdvancedPS.Editor
             GUILayout.FlexibleSpace();
             
             GUILayout.Label("Auto-Save", GUILayout.ExpandWidth(false));
-            bool newAutoSave = GUILayout.Toggle(autoSave, autoSave ? "[x]" : "[ ]", APSEditorStyles.ToggleStyle);
+            string toggleLable = "";
+            if (EditorGUIUtility.isProSkin)
+                toggleLable = autoSave ? "[x]" : "[ ]";
+            bool newAutoSave = GUILayout.Toggle(autoSave, toggleLable, APSEditorStyles.ToggleStyle);
             if (newAutoSave != autoSave)
             {
                 autoSave = newAutoSave;

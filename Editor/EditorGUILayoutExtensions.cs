@@ -9,7 +9,10 @@ namespace AdvancedPS.Editor
         public static void DrawHorizontalLine(Color color = default, float thickness = 1f, float padding = 5f, float margin = 0f)
         {
             if (color == default)
-                color = new Color(1, 1, 1, 0.2f);
+            {
+                color = EditorGUIUtility.isProSkin ? new Color(1, 1, 1, 0.2f) :
+                    new Color(0.1f, 0.1f, 0.1f, 0.5f);
+            }
             
             thickness -= 0.1f;
             Rect rect = EditorGUILayout.GetControlRect(false, thickness + padding);
@@ -23,7 +26,10 @@ namespace AdvancedPS.Editor
         public static void DrawVerticalLine(Color color = default, float thickness = 1f, float padding = 0f, float margin = 0f)
         {
             if (color == default)
-                color = new Color(1, 1, 1, 0.2f);
+            {
+                color = EditorGUIUtility.isProSkin ? new Color(1, 1, 1, 0.2f) :
+                    new Color(0.1f, 0.1f, 0.1f, 0.5f);
+            }
             
             Rect rect = EditorGUILayout.GetControlRect(false, 0, APSEditorStyles.LineStyle, GUILayout.ExpandHeight(true));
             rect.x += rect.width / 2f - thickness / 2f + padding / 2f;

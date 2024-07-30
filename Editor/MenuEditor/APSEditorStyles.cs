@@ -1,3 +1,4 @@
+using UnityEditor;
 using UnityEngine;
 
 namespace AdvancedPS.Editor.Styles
@@ -16,11 +17,8 @@ namespace AdvancedPS.Editor.Styles
         
         static APSEditorStyles()
         {
-            ToggleStyle = new GUIStyle(GUI.skin.toggle)
-            {
-                fontSize = 13,
-                contentOffset = new Vector2(-10, 0)
-            };
+            bool isDarkTheme = EditorGUIUtility.isProSkin;
+            
             Texture2D selectedTexture = new Texture2D(1, 1);
             selectedTexture.SetPixel(0, 0, Color.white);
             selectedTexture.Apply();
@@ -30,12 +28,22 @@ namespace AdvancedPS.Editor.Styles
             normalTexture.Apply();
             
             Texture2D normalTextureInspector = new Texture2D(1, 1);
-            normalTextureInspector.SetPixel(0, 0, new Color(0.23f, 0.23f, 0.23f, 1f));
+            normalTextureInspector.SetPixel(0, 0, isDarkTheme ? 
+                new Color(0.23f, 0.23f, 0.23f, 1f) : 
+                new Color(0.8f, 0.8f, 0.8f, 1f));
             normalTextureInspector.Apply();
             
             Texture2D backgroundTexture = new Texture2D(1, 1);
-            backgroundTexture.SetPixel(0, 0, new Color(0.19f, 0.19f, 0.19f, 1f));
+            backgroundTexture.SetPixel(0, 0, isDarkTheme ? 
+                new Color(0.19f, 0.19f, 0.19f, 1f) : 
+                new Color(0.7f, 0.7f, 0.7f, 1f));
             backgroundTexture.Apply();
+
+            ToggleStyle = new GUIStyle(GUI.skin.toggle)
+            {
+                fontSize = 13,
+                contentOffset = new Vector2(-10, 0)
+            };
             
             LineStyle = new GUIStyle
             {
@@ -65,10 +73,7 @@ namespace AdvancedPS.Editor.Styles
             {
                 fontStyle = FontStyle.Bold,
                 padding = new RectOffset(4, 4, 4, 4),
-                normal = { background = selectedTexture, textColor = Color.white },
-                focused = { background = selectedTexture, textColor = Color.white },
-                active = { background = selectedTexture, textColor = Color.white },
-                hover = { background = selectedTexture, textColor = Color.white },
+                normal = { background = selectedTexture, textColor = Color.white }
             };
             
             BoldButtonStyle = new GUIStyle(GUI.skin.button)
@@ -85,10 +90,7 @@ namespace AdvancedPS.Editor.Styles
             NormalTabStyle = new GUIStyle(GUI.skin.button)
             {
                 border = new RectOffset(2, 2, 2, 2),
-                normal = { background = normalTexture, textColor = Color.gray },
-                focused = { background = normalTexture, textColor = Color.gray },
-                active = { background = normalTexture, textColor = Color.gray },
-                hover = { background = normalTexture, textColor = Color.gray },
+                normal = { background = normalTexture, textColor = Color.gray }
             };
             
             ScrollViewStyle = new GUIStyle(GUI.skin.scrollView)

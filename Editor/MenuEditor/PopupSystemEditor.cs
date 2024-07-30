@@ -15,7 +15,7 @@ namespace AdvancedPS.Editor
         }
         private string imagesPath;
 
-        private const string Version = "1.9.0";
+        private const string Version = "1.9.2";
         
         private static Tab currentTab = Tab.Layers;
         
@@ -67,9 +67,12 @@ namespace AdvancedPS.Editor
 
         private void OnGUI()
         {
-            GUI.backgroundColor = Color.black;
-            GUI.contentColor = Color.white;
-            EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), Color.black);
+            bool isDarkTheme = EditorGUIUtility.isProSkin;
+            GUI.backgroundColor = isDarkTheme ? Color.black : Color.white;
+            GUI.contentColor = isDarkTheme ? Color.white : Color.black;
+            
+            if (isDarkTheme)
+                EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), Color.black);
 
             DrawTabs();
             
