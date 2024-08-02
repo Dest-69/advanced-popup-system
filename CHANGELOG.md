@@ -1,4 +1,23 @@
 # Changelog
+## [1.9.3] - 2024-08-2
+### Rework
+- Smoother animation by increasing pre-calculated easing steps
+### Added
+- Logging operation errors
+- Some settings for configuring popups
+- Start animation event for display settings
+### Fixed
+- Caching settings and displays
+- Incorrect executing `DeepPopups`
+
+## [1.9.2] - 2024-07-30
+### Fixed
+- Newtonsoft Json dependency
+- Inpector for unity white theme
+- Validation of Popup Layers and Displays
+- Bug with show/hide popup every frame
+- Subscribtion/unsubscription
+
 ## [1.9.1] - 2024-07-30
 ### Fixed
 - APS Key Event System initialization
