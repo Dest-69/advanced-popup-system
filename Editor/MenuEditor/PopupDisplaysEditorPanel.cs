@@ -208,6 +208,12 @@ namespace AdvancedPS.Core
             {settingsName} settingsLocal = settings as {settingsName};
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
 
+            settingsLocal.OnAnimationStart?.Invoke();
+
+            /* Your code here */
+            
+            settingsLocal.OnAnimationEnd?.Invoke();
+
             return Task.CompletedTask;
         }}
         
@@ -222,6 +228,12 @@ namespace AdvancedPS.Core
         {{
             {settingsName} settingsLocal = settings as {settingsName};
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
+
+            settingsLocal.OnAnimationStart?.Invoke();
+
+            /* Your code here */
+            
+            settingsLocal.OnAnimationEnd?.Invoke();
 
             return Task.CompletedTask;
         }}

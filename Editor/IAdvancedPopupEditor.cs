@@ -128,15 +128,16 @@ namespace AdvancedPS.Editor
             GUILayout.EndHorizontal();
             EditorGUILayoutExtensions.DrawHorizontalLine();
             
-            DrawBoolPropertiesInGrid();
+            DrawBoolPropertiesInGrid(new string[] { "AutoHideOnInit", "ManualInit"});
             DrawDeepPopupsProperty();
             EditorGUILayout.EndVertical();
 
             DrawDefaultInspectorExcept(new string[]
             {
                 "PopupLayer", "m_Script", "DeepPopups", "inspectorShowDisplay", "inspectorHideDisplay",
-                "HotKeyShow", "HotKeyHide", "cachedShowSettings", "cachedHideSettings"
-            }.Concat(GetBoolPropertyNames()).ToArray());
+                "HotKeyShow", "HotKeyHide", "cachedShowSettings", "cachedHideSettings", "AnyHotKeyHide",
+                "AnyHotKeyShow", "AutoHideOnInit", "ManualInit"
+            });
 
             serializedObject.ApplyModifiedProperties();
         }
@@ -186,6 +187,8 @@ namespace AdvancedPS.Editor
 
         private void DrawPopupSettings()
         {
+            IAdvancedPopup popup = (IAdvancedPopup)target;
+            
             float width = Screen.width / 4.3f;
             EditorGUILayoutExtensions.DrawHorizontalLine();
             GUILayout.BeginHorizontal();
@@ -214,14 +217,33 @@ namespace AdvancedPS.Editor
             GUILayout.EndHorizontal();
             
             GUI.enabled = true;
-            // Draw Settings based on the selected button
             if (isShowSettings)
             {
-                DrawSettingsColumn("HotKeyShow", "inspectorShowDisplay", "cachedShowSettings");
+                EditorGUILayout.BeginHorizontal();
+                popup.AnyHotKeyShow = EditorGUILayout.Toggle(popup.AnyHotKeyShow, GUILayout.Width(15));
+                EditorGUILayout.LabelField("Show by any key");
+                EditorGUILayout.EndHorizontal();
+                if (!popup.AnyHotKeyShow)
+                {
+                    EditorGUI.indentLevel++;
+                    SerializedProperty hotKeyShow = serializedObject.FindProperty("HotKeyShow");
+                    EditorGUILayout.PropertyField(hotKeyShow, true);
+                    EditorGUI.indentLevel--;
+                }
             }
             else if (isHideSettings)
             {
-                DrawSettingsColumn("HotKeyHide", "inspectorHideDisplay", "cachedHideSettings");
+                EditorGUILayout.BeginHorizontal();
+                popup.AnyHotKeyHide = EditorGUILayout.Toggle(popup.AnyHotKeyHide, GUILayout.Width(15));
+                EditorGUILayout.LabelField("Hide by any key");
+                EditorGUILayout.EndHorizontal();
+                if (!popup.AnyHotKeyHide)
+                {
+                    EditorGUI.indentLevel++;
+                    SerializedProperty hotKeyHide = serializedObject.FindProperty("HotKeyHide");
+                    EditorGUILayout.PropertyField(hotKeyHide, true);
+                    EditorGUI.indentLevel--;
+                }
             }
             
             EditorGUILayoutExtensions.DrawHorizontalLine();
@@ -334,40 +356,21 @@ namespace AdvancedPS.Editor
             }
         }
         
-        private void DrawBoolPropertiesInGrid()
+        private void DrawBoolPropertiesInGrid(string[] names)
         {
             SerializedProperty property = serializedObject.GetIterator();
             property.NextVisible(true);
 
             do
             {
-                if (property.propertyType == SerializedPropertyType.Boolean)
-                {
-                    EditorGUILayout.BeginHorizontal();
-                    property.boolValue = EditorGUILayout.Toggle(property.boolValue, GUILayout.Width(15));
-                    EditorGUILayout.LabelField(property.displayName, GUILayout.Width(100));
-                    EditorGUILayout.EndHorizontal();
-                }
+                if (!names.Any(s => s.Equals(property.name))) continue;
+                
+                EditorGUILayout.BeginHorizontal();
+                property.boolValue = EditorGUILayout.Toggle(property.boolValue, GUILayout.Width(15));
+                EditorGUILayout.LabelField(property.displayName, GUILayout.Width(100));
+                EditorGUILayout.EndHorizontal();
             }
             while (property.NextVisible(false));
-        }
-        
-        private string[] GetBoolPropertyNames()
-        {
-            SerializedProperty property = serializedObject.GetIterator();
-            property.NextVisible(true);
-            var boolPropertyNames = new System.Collections.Generic.List<string>();
-
-            do
-            {
-                if (property.propertyType == SerializedPropertyType.Boolean)
-                {
-                    boolPropertyNames.Add(property.name);
-                }
-            }
-            while (property.NextVisible(false));
-
-            return boolPropertyNames.ToArray();
         }
  
         protected override void OnHeaderGUI()

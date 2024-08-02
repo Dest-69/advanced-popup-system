@@ -20,10 +20,12 @@ namespace AdvancedPS.Core
             SlideSettings settingsLocal = settings as SlideSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
+            settingsLocal.OnAnimationStart?.Invoke();
+            
             SetCanvasGroupState(canvasGroup, true);
             transform.localScale = Vector3.one;
 
-            Vector3 startPos = GetStartPosition(transform, settingsLocal);
+            Vector3 startPos = GetPosition(transform, settingsLocal);
             Vector3 targetPos = settingsLocal.TargetPosition;
 
             float elapsedTime = 0;
@@ -62,8 +64,10 @@ namespace AdvancedPS.Core
             SlideSettings settingsLocal = settings as SlideSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
+            settingsLocal.OnAnimationStart?.Invoke();
+            
             Vector3 startPos = transform.localPosition;
-            Vector3 targetPos = GetStartPosition(transform, settingsLocal);
+            Vector3 targetPos = settingsLocal.TargetPosition == null ? GetPosition(transform, settingsLocal) : settingsLocal.TargetPosition;
 
             float elapsedTime = 0;
 
@@ -126,7 +130,7 @@ namespace AdvancedPS.Core
         /// <returns></returns>
         private bool OperationCancelled(CancellationToken cancellationToken) => cancellationToken.IsCancellationRequested || !Application.isPlaying;
         
-        private static Vector3 GetStartPosition(RectTransform transform, SlideSettings settings)
+        private static Vector3 GetPosition(RectTransform transform, SlideSettings settings)
         {
             Canvas canvas = transform.GetComponentInParent<Canvas>();
             if (canvas == null)

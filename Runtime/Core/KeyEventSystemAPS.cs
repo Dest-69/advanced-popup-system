@@ -11,7 +11,7 @@ namespace AdvancedPS.Core
     {
         public static bool IsEnabled = true;
         
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void Initialize()
         {
             IsEnabled = SettingsManager.Settings.KeyEventSystemEnabled;
@@ -48,7 +48,7 @@ namespace AdvancedPS.Core
             if (!IsEnabled || !Input.anyKeyDown) return;
             foreach (var popup in AdvancedPopupSystem.AllPopups)
             {
-                if (!popup.IsBeVisible && popup.HotKeyShow.Any(Input.GetKeyDown))
+                if (!popup.IsBeVisible && (popup.AnyHotKeyShow || popup.HotKeyShow.Any(Input.GetKeyDown)))
                 {
                     if (AreParentsVisible(popup))
                     {
@@ -57,7 +57,7 @@ namespace AdvancedPS.Core
                     }
                 }
                 
-                if (popup.IsBeVisible && popup.HotKeyHide.Any(Input.GetKeyDown))
+                if (popup.IsBeVisible && (popup.AnyHotKeyHide || popup.HotKeyHide.Any(Input.GetKeyDown)))
                 {
                     popup.Hide();
                     break;

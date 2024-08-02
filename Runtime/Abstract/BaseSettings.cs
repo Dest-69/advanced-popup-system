@@ -15,9 +15,13 @@ namespace AdvancedPS.Core.System
         /// </summary>
         public EasingType Easing;
         /// <summary>
+        /// Event should Invoke when animation will start.
+        /// </summary>
+        public Action OnAnimationStart;
+        /// <summary>
         /// Event should Invoke when animation will end completely.
         /// </summary>
-        public UnityEvent OnAnimationEnd;
+        public Action OnAnimationEnd;
         
         /// <summary>
         /// Setting default values.

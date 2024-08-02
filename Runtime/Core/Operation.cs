@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace AdvancedPS.Core.System
 {
@@ -27,8 +28,16 @@ namespace AdvancedPS.Core.System
 
         private async Task ExecuteAsync()
         {
-            await _operation(_source.Token);
-
+            try
+            {
+                await _operation(_source.Token);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+                throw;
+            }
+            
             if (!_source.Token.IsCancellationRequested)
             {
                 _onComplete?.Invoke();

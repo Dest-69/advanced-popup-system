@@ -20,6 +20,8 @@ namespace AdvancedPS.Core
             FadeSettings settingsLocal = settings as FadeSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
+            settingsLocal.OnAnimationStart?.Invoke();
+            
             transform.localScale = Vector3.one;
 
             float initialAlpha = canvasGroup.alpha;
@@ -58,6 +60,8 @@ namespace AdvancedPS.Core
         {
             FadeSettings settingsLocal = settings as FadeSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settingsLocal.OnAnimationStart?.Invoke();
 
             float initialAlpha = canvasGroup.alpha;
             float elapsedTime = 0;

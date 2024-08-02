@@ -90,7 +90,7 @@ namespace AdvancedPS.Core
             {
                 CachedShowDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings, token)
             };
-            tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync(token, settings)));
+            tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync(token)));
 
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
@@ -125,7 +125,7 @@ namespace AdvancedPS.Core
             IDisplay popupDisplay = AdvancedPopupSystem.GetDisplay<T>();
             tasks.Add(popupDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings, token));
 
-            tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync<T>(token, settings)));
+            tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync<T>(token)));
 
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
@@ -158,8 +158,8 @@ namespace AdvancedPS.Core
                 CachedHideDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings, token)
             };
             
-            tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync(token, settings)));
-
+            tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync(token)));
+            
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
 
@@ -192,7 +192,7 @@ namespace AdvancedPS.Core
             IDisplay popupDisplay = AdvancedPopupSystem.GetDisplay<T>();
             tasks.Add(popupDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings, token));
 
-            tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync<T>(token, settings)));
+            tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync<T>(token)));
 
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);

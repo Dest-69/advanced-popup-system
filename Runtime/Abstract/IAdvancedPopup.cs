@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -20,6 +21,11 @@ namespace AdvancedPS.Core.System
         /// </summary>
         [Tooltip("true - if need manual initialize popup via Init() func for better resources control.")]
         public bool ManualInit;
+        /// <summary>
+        /// Recommended 'False' only for UI what should face player on startup scene.
+        /// </summary>
+        [Tooltip("Recommended 'False' only for UI what should face player on startup scene.")]
+        public bool AutoHideOnInit = true;
         /// <summary>
         /// Root transform.
         /// </summary>
@@ -42,12 +48,24 @@ namespace AdvancedPS.Core.System
         [Tooltip("Child or dependent popups of the current one, use if you need more control via Show/Hide.")] [Space]
         public List<IAdvancedPopup> DeepPopups = new List<IAdvancedPopup>();
         /// <summary>
+        /// Allow to show popup by pressing any key.
+        /// </summary>
+        [Tooltip("Allow to show popup by pressing any key.")] 
+        public bool AnyHotKeyShow = false;
+        /// <summary>
+        /// Allow to show popup by pressing any key.
+        /// </summary>
+        [Tooltip("Allow to hide popup by pressing any key.")] 
+        public bool AnyHotKeyHide = false;
+        /// <summary>
         /// Keys witch using for showing popup.
         /// </summary>
+        [Tooltip("Keys witch using for showing popup.")] 
         public List<KeyCode> HotKeyShow = new List<KeyCode>();
         /// <summary>
         /// Keys witch using for hiding popup.
         /// </summary>
+        [Tooltip("Keys witch using for hiding popup.")] 
         public List<KeyCode> HotKeyHide = new List<KeyCode>();
         #endregion
         
@@ -88,16 +106,6 @@ namespace AdvancedPS.Core.System
         private CancellationTokenSource _source;
         #endregion
 
-        private void Awake()
-        {
-            if (!ManualInit)
-                Init();
-        }
-        private void OnDestroy()
-        {
-            AdvancedPopupSystem.DeactivateAdvancedPopup(this);
-        }
-        
 #if UNITY_EDITOR
         private void Reset()
         {
@@ -118,6 +126,16 @@ namespace AdvancedPS.Core.System
             }
         }
 #endif
+        
+        private void Awake()
+        {
+            if (!ManualInit)
+                Init();
+        }
+        private void OnDestroy()
+        {
+            AdvancedPopupSystem.DeactivateAdvancedPopup(this);
+        }
 
         /// <summary>
         /// Method invoking manual or from Awake if "ManualInit" - false. Please keep base.Init() first of all when override.
@@ -125,22 +143,61 @@ namespace AdvancedPS.Core.System
         /// </summary>
         public virtual void Init()
         {
-            SetCachedDisplay<ScaleDisplay, ScaleDisplay>();
+            SetupCache();
             
             if (RootTransform == null)
                 RootTransform = GetComponent<RectTransform>();
-            
-            transform.localScale = Vector3.zero;
-            
-            canvasGroup = GetComponent<CanvasGroup>();
-            canvasGroup.alpha = 0;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
 
-            IsBeVisible = false;
-            IsVisible = false;
+            canvasGroup = GetComponent<CanvasGroup>();
+            
+            if (AutoHideOnInit)
+            {
+                transform.localScale = Vector3.zero;
+                
+                canvasGroup.alpha = 0;
+                canvasGroup.interactable = false;
+                canvasGroup.blocksRaycasts = false;
+
+                IsBeVisible = false;
+                IsVisible = false;
+            }
+
+            if (transform.localScale != Vector3.zero && canvasGroup.alpha != 0)
+            {
+                IsBeVisible = true;
+                IsVisible = true;
+            }
             
             AdvancedPopupSystem.InitAdvancedPopup(this);
+        }
+
+        /// <summary>
+        /// Initializes null caches of displays with appropriate types.
+        /// </summary>
+        private void SetupCache()
+        {
+            if (CachedShowDisplay == null)
+            {
+                Type hideDisplayType = CachedHideDisplay?.GetType();
+                if (hideDisplayType == null)
+                {
+                    SetCachedDisplay<ScaleDisplay, ScaleDisplay>();
+                }
+                else
+                {
+                    MethodInfo method = typeof(IAdvancedPopup).GetMethod("SetCachedDisplay");
+                    MethodInfo generic = method!.MakeGenericMethod(typeof(ScaleDisplay), hideDisplayType);
+                    generic.Invoke(this, new object[] { null, CachedHideSettings });
+                }
+            }
+            else if (CachedHideDisplay == null)
+            {
+                Type showDisplayType = CachedShowDisplay.GetType();
+
+                MethodInfo method = typeof(IAdvancedPopup).GetMethod("SetCachedDisplay");
+                MethodInfo generic = method!.MakeGenericMethod(showDisplayType, typeof(ScaleDisplay));
+                generic.Invoke(this, new object[] { CachedShowSettings, null });
+            }
         }
         
         /// <summary>

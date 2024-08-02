@@ -5,7 +5,7 @@ namespace AdvancedPS.Core.System
 {
     public static class EasingFunctions
     {
-        private const int Steps = 10;
+        private const int Steps = 20;
         private static readonly float[,] CachedValues;
 
         static EasingFunctions()
@@ -13,7 +13,7 @@ namespace AdvancedPS.Core.System
             CachedValues = new float[Enum.GetValues(typeof(EasingType)).Length, Steps + 1];
         }
 
-        [RuntimeInitializeOnLoadMethod]
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Initialize()
         {
             for (int i = 0; i <= Steps; i++)

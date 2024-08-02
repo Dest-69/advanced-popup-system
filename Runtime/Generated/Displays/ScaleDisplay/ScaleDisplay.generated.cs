@@ -20,6 +20,8 @@ namespace AdvancedPS.Core
             ScaleSettings settingsLocal = settings as ScaleSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
+            settingsLocal.OnAnimationStart?.Invoke();
+            
             SetCanvasGroupState(canvasGroup, true);
 
             Vector3 initialScale = transform.localScale;
@@ -58,6 +60,8 @@ namespace AdvancedPS.Core
         {
             ScaleSettings settingsLocal = settings as ScaleSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settingsLocal.OnAnimationStart?.Invoke();
             
             Vector3 initialScale = transform.localScale;
             float elapsedTime = 0;
