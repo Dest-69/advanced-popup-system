@@ -1,4 +1,11 @@
 # Changelog
+## [1.9.4] - 2024-08-5
+### Fixed
+- Editor bugs
+- Operation bug
+- Editor optimization
+- Refactoring
+
 ## [1.9.3] - 2024-08-2
 ### Rework
 - Smoother animation by increasing pre-calculated easing steps
