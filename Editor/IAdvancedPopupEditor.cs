@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using AdvancedPS.Core;
 using AdvancedPS.Core.System;
 using AdvancedPS.Core.Utils;
 using AdvancedPS.Editor.Styles;
@@ -21,6 +22,11 @@ namespace AdvancedPS.Editor
         private static Texture2D popupBunner;
         private Dictionary<Type, List<Type>> cachedTypes;
 
+        private SerializedProperty popupLayerProperty;
+        private SerializedProperty hotKeyShow;
+        private SerializedProperty hotKeyHide;
+        private SerializedProperty deepPopupsProperty;
+        
         private bool isSettings;
         private bool isShowSettings;
         private bool isHideSettings;
@@ -55,6 +61,11 @@ namespace AdvancedPS.Editor
             {
                 isSettings = PlayerPrefs.GetInt(IsSettingsKey) == 1;
             }
+            
+            popupLayerProperty = serializedObject.FindProperty("PopupLayer");
+            hotKeyShow = serializedObject.FindProperty("HotKeyShow");
+            hotKeyHide = serializedObject.FindProperty("HotKeyHide");
+            deepPopupsProperty = serializedObject.FindProperty("DeepPopups");
             
             //CacheTypes();
         }
@@ -93,8 +104,7 @@ namespace AdvancedPS.Editor
             
             EditorGUILayout.BeginVertical(APSEditorStyles.DarkBackgroundStyle);
             EditorGUILayout.BeginHorizontal();
-            SerializedProperty popupLayerProperty = serializedObject.FindProperty("PopupLayer");
-            EditorGUILayout.PropertyField(popupLayerProperty, new GUIContent("Popup Layer"));
+            popupLayerProperty.intValue = (int)(PopupLayerEnum)EditorGUILayout.EnumFlagsField("Popup Layer", (PopupLayerEnum)popupLayerProperty.intValue);
 
             if (GUILayout.Button("Edit Layers", new GUILayoutOption[] { GUILayout.Width(100), GUILayout.ExpandHeight(true) }))
             {
@@ -226,7 +236,6 @@ namespace AdvancedPS.Editor
                 if (!popup.AnyHotKeyShow)
                 {
                     EditorGUI.indentLevel++;
-                    SerializedProperty hotKeyShow = serializedObject.FindProperty("HotKeyShow");
                     EditorGUILayout.PropertyField(hotKeyShow, true);
                     EditorGUI.indentLevel--;
                 }
@@ -240,7 +249,6 @@ namespace AdvancedPS.Editor
                 if (!popup.AnyHotKeyHide)
                 {
                     EditorGUI.indentLevel++;
-                    SerializedProperty hotKeyHide = serializedObject.FindProperty("HotKeyHide");
                     EditorGUILayout.PropertyField(hotKeyHide, true);
                     EditorGUI.indentLevel--;
                 }
@@ -349,7 +357,6 @@ namespace AdvancedPS.Editor
         
         private void DrawDeepPopupsProperty()
         {
-            SerializedProperty deepPopupsProperty = serializedObject.FindProperty("DeepPopups");
             if (deepPopupsProperty != null)
             {
                 EditorGUILayout.PropertyField(deepPopupsProperty, true);

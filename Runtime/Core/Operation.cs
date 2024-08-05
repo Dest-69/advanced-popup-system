@@ -11,7 +11,7 @@ namespace AdvancedPS.Core.System
         private Action _onComplete;
         private readonly CancellationTokenSource _source;
 
-        public Operation(Func<CancellationToken, Task> operation, CancellationTokenSource source = null)
+        public Operation(Func<CancellationToken, Task> operation = null, CancellationTokenSource source = null)
         {
             if (operation == null) return;
             

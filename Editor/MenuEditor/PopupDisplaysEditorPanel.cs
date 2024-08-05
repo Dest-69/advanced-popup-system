@@ -203,7 +203,7 @@ namespace AdvancedPS.Core
         /// <param name=""settings""> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name=""cancellationToken""></param>
         /// <returns></returns>
-        public Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken = default)
+        public Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {{
             {settingsName} settingsLocal = settings as {settingsName};
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
@@ -224,7 +224,7 @@ namespace AdvancedPS.Core
         /// <param name=""settings""> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name=""cancellationToken""></param>
         /// <returns></returns> 
-        public Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken = default)
+        public Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {{
             {settingsName} settingsLocal = settings as {settingsName};
             CanvasGroup canvasGroup = GetCanvasGroup(transform);

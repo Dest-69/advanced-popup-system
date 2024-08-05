@@ -69,7 +69,7 @@ namespace AdvancedPS.Core
         /// </summary>
         public override Operation Show(BaseSettings settings = null)
         {
-            if (IsBeVisible) return new Operation(token => null);
+            if (IsBeVisible) return new Operation();
             
             return new Operation(async token =>
             {
@@ -103,7 +103,7 @@ namespace AdvancedPS.Core
         /// </summary>
         public override Operation Show<T>(BaseSettings settings = null)
         {
-            if (IsBeVisible) return new Operation(token => null);
+            if (IsBeVisible) return new Operation();
             
             return new Operation(async token =>
             {
@@ -138,7 +138,7 @@ namespace AdvancedPS.Core
         /// </summary>
         public override Operation Hide(BaseSettings settings = null)
         {
-            if (!IsBeVisible) return new Operation(token => null);
+            if (!IsBeVisible) return new Operation();
             
             return new Operation(async token =>
             {
@@ -172,7 +172,7 @@ namespace AdvancedPS.Core
         /// </summary>
         public override Operation Hide<T>(BaseSettings settings = null)
         {
-            if (!IsBeVisible) return new Operation(token => null);
+            if (!IsBeVisible) return new Operation();
             
             return new Operation(async token =>
             {

@@ -9,8 +9,7 @@ namespace AdvancedPS.Core.System
         /// <param name="showSettings">The settings for the showing animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T>(FadeSettings showSettings = null) where T : FadeDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new FadeSettings();
+           showSettings ??= new FadeSettings();
             SetCachedDisplayInternal<T>(showSettings);
         }
         /// <summary>
@@ -22,10 +21,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(FadeSettings showSettings = null, FadeSettings hideSettings = null) where T : FadeDisplay, new() where J : FadeDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new FadeSettings();
-            if (hideSettings == null)
-                hideSettings = new FadeSettings();
+           showSettings ??= new FadeSettings();
+           hideSettings ??= new FadeSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
         /// <summary>
@@ -37,10 +34,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(FadeSettings showSettings = null, ScaleSettings hideSettings = null) where T : FadeDisplay, new() where J : ScaleDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new FadeSettings();
-            if (hideSettings == null)
-                hideSettings = new ScaleSettings();
+           showSettings ??= new FadeSettings();
+           hideSettings ??= new ScaleSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
         /// <summary>
@@ -52,10 +47,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(FadeSettings showSettings = null, SlideSettings hideSettings = null) where T : FadeDisplay, new() where J : SlideDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new FadeSettings();
-            if (hideSettings == null)
-                hideSettings = new SlideSettings();
+           showSettings ??= new FadeSettings();
+           hideSettings ??= new SlideSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
         /// <summary>
@@ -65,8 +58,7 @@ namespace AdvancedPS.Core.System
         /// <param name="showSettings">The settings for the showing animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T>(ScaleSettings showSettings = null) where T : ScaleDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new ScaleSettings();
+           showSettings ??= new ScaleSettings();
             SetCachedDisplayInternal<T>(showSettings);
         }
         /// <summary>
@@ -78,10 +70,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(ScaleSettings showSettings = null, FadeSettings hideSettings = null) where T : ScaleDisplay, new() where J : FadeDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new ScaleSettings();
-            if (hideSettings == null)
-                hideSettings = new FadeSettings();
+           showSettings ??= new ScaleSettings();
+           hideSettings ??= new FadeSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
         /// <summary>
@@ -93,10 +83,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(ScaleSettings showSettings = null, ScaleSettings hideSettings = null) where T : ScaleDisplay, new() where J : ScaleDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new ScaleSettings();
-            if (hideSettings == null)
-                hideSettings = new ScaleSettings();
+           showSettings ??= new ScaleSettings();
+           hideSettings ??= new ScaleSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
         /// <summary>
@@ -108,10 +96,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(ScaleSettings showSettings = null, SlideSettings hideSettings = null) where T : ScaleDisplay, new() where J : SlideDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new ScaleSettings();
-            if (hideSettings == null)
-                hideSettings = new SlideSettings();
+           showSettings ??= new ScaleSettings();
+           hideSettings ??= new SlideSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
         /// <summary>
@@ -121,8 +107,7 @@ namespace AdvancedPS.Core.System
         /// <param name="showSettings">The settings for the showing animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T>(SlideSettings showSettings = null) where T : SlideDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new SlideSettings();
+           showSettings ??= new SlideSettings();
             SetCachedDisplayInternal<T>(showSettings);
         }
         /// <summary>
@@ -134,10 +119,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(SlideSettings showSettings = null, FadeSettings hideSettings = null) where T : SlideDisplay, new() where J : FadeDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new SlideSettings();
-            if (hideSettings == null)
-                hideSettings = new FadeSettings();
+           showSettings ??= new SlideSettings();
+           hideSettings ??= new FadeSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
         /// <summary>
@@ -149,10 +132,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(SlideSettings showSettings = null, ScaleSettings hideSettings = null) where T : SlideDisplay, new() where J : ScaleDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new SlideSettings();
-            if (hideSettings == null)
-                hideSettings = new ScaleSettings();
+           showSettings ??= new SlideSettings();
+           hideSettings ??= new ScaleSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
         /// <summary>
@@ -164,10 +145,8 @@ namespace AdvancedPS.Core.System
         /// <param name="hideSettings">The settings for the hiding animation. If not provided, the default settings will be used.</param>
         public void SetCachedDisplay<T,J>(SlideSettings showSettings = null, SlideSettings hideSettings = null) where T : SlideDisplay, new() where J : SlideDisplay, new()
         {
-            if (showSettings == null)
-                showSettings = new SlideSettings();
-            if (hideSettings == null)
-                hideSettings = new SlideSettings();
+           showSettings ??= new SlideSettings();
+           hideSettings ??= new SlideSettings();
             SetCachedDisplayInternal<T,J>(showSettings, hideSettings);
         }
     }

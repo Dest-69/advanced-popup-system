@@ -15,7 +15,7 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken = default)
+        public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
             FadeSettings settingsLocal = settings as FadeSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
@@ -56,7 +56,7 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken = default)
+        public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
             FadeSettings settingsLocal = settings as FadeSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);

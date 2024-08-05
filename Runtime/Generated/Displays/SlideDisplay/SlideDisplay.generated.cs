@@ -15,7 +15,7 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken = default)
+        public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
             SlideSettings settingsLocal = settings as SlideSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
@@ -59,7 +59,7 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken = default)
+        public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
             SlideSettings settingsLocal = settings as SlideSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
@@ -151,10 +151,10 @@ namespace AdvancedPS.Core
             var localPosition = transform.localPosition;
             Vector3 startPos = settings.SlideEnum switch
             {
-                SlideEnum.Up => new Vector3(localPosition.x, size.y, localPosition.z),
-                SlideEnum.Down => new Vector3(localPosition.x, -size.y, localPosition.z),
-                SlideEnum.Left => new Vector3(-size.x, localPosition.y, localPosition.z),
-                SlideEnum.Right => new Vector3(size.x, localPosition.y, localPosition.z),
+                SlideEnum.Up => new Vector3(localPosition.x, size.y + 50, localPosition.z),
+                SlideEnum.Down => new Vector3(localPosition.x, -size.y - 50, localPosition.z),
+                SlideEnum.Left => new Vector3(-size.x - 50, localPosition.y, localPosition.z),
+                SlideEnum.Right => new Vector3(size.x + 50, localPosition.y, localPosition.z),
                 _ => Vector3.zero,
             };
             
