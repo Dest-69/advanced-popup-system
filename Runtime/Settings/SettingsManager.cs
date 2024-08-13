@@ -1,45 +1,63 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using AdvancedPS.Core.Utils;
 using Newtonsoft.Json;
+using UnityEngine;
 
 namespace AdvancedPS.Core.System
 {
-    public class SettingsManager
+    public static class SettingsManager
     {
         public static PopupSettings Settings { get; private set; }
-        private static readonly string SettingsFilePath;
 
         static SettingsManager()
         {
-            SettingsFilePath = FileSearcher.SettingsFilePath;
             LoadSettings();
         }
 
         public static void SaveSettings()
         {
-            File.WriteAllText(SettingsFilePath, JsonConvert.SerializeObject(Settings));
+            string directoryPath = Path.Combine(Application.dataPath, "Resources");
+            if (!Directory.Exists(directoryPath))
+                Directory.CreateDirectory(directoryPath);
+            
+            try
+            {
+                string path = Path.Combine(Application.dataPath, "Resources", "AP_Settings.json");
+                File.WriteAllText(path, JsonConvert.SerializeObject(Settings));
 #if UNITY_EDITOR
-            UnityEditor.AssetDatabase.Refresh();
+                UnityEditor.AssetDatabase.Refresh();
 #endif
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Failed to save settings: {ex.Message}");
+            }
         }
 
         public static PopupSettings LoadSettings()
         {
-            if (File.Exists(SettingsFilePath))
+            try
             {
-                Settings = JsonConvert.DeserializeObject<PopupSettings>(File.ReadAllText(SettingsFilePath));
+                TextAsset jsonText = Resources.Load<TextAsset>("AP_Settings");
+                if (jsonText != null) 
+                    return Settings = JsonConvert.DeserializeObject<PopupSettings>(jsonText.text);
             }
-            else
+            catch (Exception ex)
             {
-                Settings = new PopupSettings
-                {
-                    CustomIconsEnabled = true,
-                    KeyEventSystemEnabled = true,
-                    LogType = "Warning"
-                };
-                SaveSettings();
+                Debug.LogError($"Failed to load settings: {ex.Message}");
+                throw;
             }
-
+            
+            Settings = new PopupSettings
+            {
+                CustomIconsEnabled = true,
+                KeyEventSystemEnabled = true,
+                LogType = "Warning"
+            };
+            
+            SaveSettings();
+            
             return Settings;
         }
     }

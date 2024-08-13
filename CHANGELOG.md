@@ -1,4 +1,10 @@
 # Changelog
+## [1.9.5] - 2024-08-13
+### Fixed
+- Settings json loading in build
+- Freeze when hidding same poup at same frame multiple times
+- Refactoring
+
 ## [1.9.4] - 2024-08-5
 ### Fixed
 - Editor bugs

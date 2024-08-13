@@ -94,6 +94,12 @@ namespace AdvancedPS.Core
 
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
+            
+            if (token.IsCancellationRequested)
+            {
+                IsBeVisible = false;
+                return;
+            }
 
             IsVisible = true;
         }
@@ -130,6 +136,12 @@ namespace AdvancedPS.Core
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
             
+            if (token.IsCancellationRequested)
+            {
+                IsBeVisible = false;
+                return;
+            }
+            
             IsVisible = true;
         }
 
@@ -162,6 +174,12 @@ namespace AdvancedPS.Core
             
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
+            
+            if (token.IsCancellationRequested)
+            {
+                IsBeVisible = true;
+                return;
+            }
 
             Unsubscribe();
             IsVisible = false;
@@ -196,6 +214,12 @@ namespace AdvancedPS.Core
 
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
+
+            if (token.IsCancellationRequested)
+            {
+                IsBeVisible = true;
+                return;
+            }
 
             Unsubscribe();
             IsVisible = false;

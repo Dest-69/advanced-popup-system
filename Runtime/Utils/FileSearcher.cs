@@ -10,46 +10,19 @@ namespace AdvancedPS.Core.Utils
         
         private const string DisplaysPath = "Runtime/Generated/Displays/";
         private const string LayersEnumPath = "Runtime/Generated/";
-        private const string SettingsPath = "Runtime/Settings/";
         private const string ImagesPath = "Runtime/Images/";
        
         private const string LayersEnumFileName = "PopupLayerEnum.generated.cs";
-        private const string SettingsFileName = "AP_Settings.json";
        
-        public static readonly string SettingsFilePath;
         public static readonly string ImagesFolderPath;
         public static readonly string DisplaysFolderPath;
         public static readonly string LayersEnumFilePath;
 
         static FileSearcher()
         {
-            SettingsFilePath = GetSettingsFilePathInternal().Replace(@"\", "/");
             ImagesFolderPath = GetImagesFolderPathInternal().Replace(@"\", "/");
             DisplaysFolderPath = GetDisplaysFolderPathInternal().Replace(@"\", "/");
             LayersEnumFilePath = GetLayersEnumFilePathInternal().Replace(@"\", "/");
-        }
-        
-        private static string GetSettingsFilePathInternal()
-        {
-            string folderPath = FindProtectedFolderPath();
-            if (string.IsNullOrEmpty(folderPath))
-            {
-                throw new DirectoryNotFoundException($"The folder '{PackageFolderName}' was not found.");
-            }
-
-            string settingsFolderPath = Path.Combine(folderPath, SettingsPath);
-            if (!Directory.Exists(settingsFolderPath))
-            {
-                Directory.CreateDirectory(settingsFolderPath);
-            }
-
-            string settingsFilePath = Path.Combine(settingsFolderPath, SettingsFileName);
-            if (!File.Exists(settingsFilePath))
-            {
-                GenerateBaseSettingsFile(settingsFilePath);
-            }
-
-            return settingsFilePath;
         }
         
         private static string GetImagesFolderPathInternal()

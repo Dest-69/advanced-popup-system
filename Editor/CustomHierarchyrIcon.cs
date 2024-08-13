@@ -6,14 +6,14 @@ using UnityEngine;
 namespace AdvancedPS.Editor
 {
     [InitializeOnLoad]
-    public static class CustomInspectorIcon
+    public static class CustomInspectorIconEditor
     {
         private static readonly PopupSettings Settings;
         
         private static string imagesPath;
         private static Texture2D popupIcon;
 
-        static CustomInspectorIcon()
+        static CustomInspectorIconEditor()
         {
             Settings = SettingsManager.Settings;
             imagesPath = FileSearcher.ImagesFolderPath;
