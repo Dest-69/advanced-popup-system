@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -15,96 +14,59 @@ namespace AdvancedPS.Editor
     [CustomEditor(typeof(IAdvancedPopup), true)]
     public class IAdvancedPopupEditor : UnityEditor.Editor
     {
-        private PopupSettings Settings;
+        private PopupSettings _settings;
         
-        private static string imagesPath;
-        private static Texture2D popupIcon;
-        private static Texture2D popupBunner;
-        private Dictionary<Type, List<Type>> cachedTypes;
+        private static string _imagesPath;
+        private static Texture2D _popupIcon;
+        private static Texture2D _popupBunner;
 
-        private SerializedProperty popupLayerProperty;
-        private SerializedProperty hotKeyShow;
-        private SerializedProperty hotKeyHide;
-        private SerializedProperty deepPopupsProperty;
+        private SerializedProperty _popupLayerProperty;
+        private SerializedProperty _deepPopupsProperty;
+        private SerializedProperty _keyBindingSettings;
+        private SerializedProperty _anyHotKey;
+        private SerializedProperty _hotKeys;
+        private SerializedProperty _layers;
+        private SerializedProperty _popups;
+        private SerializedProperty _actions;
         
-        private bool isSettings;
-        private bool isShowSettings;
-        private bool isHideSettings;
-        private const string IsSettingsKey = "APS_AutoSaveEnabled";
+        private bool _isHideSettings;
+
+        private const string IsHideKeySettings = "APS_HideKeySettingsEnabled";
         
         private void OnEnable()
         {
-            if (Settings == null)
-            {
-                Settings = SettingsManager.Settings;
-            }
+            _settings ??= SettingsManager.Settings;
             
-            if (popupIcon == null)
-            {
-                imagesPath = FileSearcher.ImagesFolderPath;
-                popupIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(imagesPath + "AP_LogoBlack32.png");
-            }
-
-            if (popupBunner == null)
-            {
-                popupBunner = AssetDatabase.LoadAssetAtPath<Texture2D>(imagesPath + "AP_Banner.png");
-            }
-
-            isShowSettings = true;
+            _imagesPath = FileSearcher.ImagesFolderPath;
+            _popupIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_LogoBlack32.png");
+            _popupBunner = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_Banner.png");
             
-            if (!PlayerPrefs.HasKey(IsSettingsKey))
-            {
-                PlayerPrefs.SetInt(IsSettingsKey, 1);
-                isSettings = true;
-            }
+            _popupLayerProperty = serializedObject.FindProperty("PopupLayer");
+            _deepPopupsProperty = serializedObject.FindProperty("DeepPopups");
+
+            if (!PlayerPrefs.HasKey(IsHideKeySettings))
+                PlayerPrefs.SetInt(IsHideKeySettings, 0);
             else
-            {
-                isSettings = PlayerPrefs.GetInt(IsSettingsKey) == 1;
-            }
+                _isHideSettings = PlayerPrefs.GetInt(IsHideKeySettings) == 1;
             
-            popupLayerProperty = serializedObject.FindProperty("PopupLayer");
-            hotKeyShow = serializedObject.FindProperty("HotKeyShow");
-            hotKeyHide = serializedObject.FindProperty("HotKeyHide");
-            deepPopupsProperty = serializedObject.FindProperty("DeepPopups");
-            
-            //CacheTypes();
-        }
-        
-        private void CacheTypes()
-        {
-            cachedTypes = new Dictionary<Type, List<Type>>();
-            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-
-            foreach (var assembly in assemblies)
-            {
-                var types = assembly.GetTypes();
-                foreach (var type in types)
-                {
-                    if (type.IsClass && !type.IsAbstract)
-                    {
-                        foreach (var baseType in type.GetInterfaces().Concat(new[] { type.BaseType }).Where(t => t != null))
-                        {
-                            if (!cachedTypes.ContainsKey(baseType))
-                            {
-                                cachedTypes[baseType] = new List<Type>();
-                            }
-                            cachedTypes[baseType].Add(type);
-                        }
-                    }
-                }
-            }
+            _keyBindingSettings = serializedObject.FindProperty(_isHideSettings ? "KeyBindingHideSettings" : "KeyBindingShowSettings");
+            _anyHotKey = _keyBindingSettings.FindPropertyRelative("AnyHotKey");
+            _hotKeys = _keyBindingSettings.FindPropertyRelative("HotKeys");
+            _layers = _keyBindingSettings.FindPropertyRelative("Layers");
+            _popups = _keyBindingSettings.FindPropertyRelative("Popups");
+            _actions = _keyBindingSettings.FindPropertyRelative("OnTrigger");
         }
         
         public override void OnInspectorGUI()
         {
-            if (Settings.CustomIconsEnabled)
+            if (_settings.CustomIconsEnabled)
                 OnHeaderGUI();
             
             serializedObject.Update();
             
             EditorGUILayout.BeginVertical(APSEditorStyles.DarkBackgroundStyle);
             EditorGUILayout.BeginHorizontal();
-            popupLayerProperty.intValue = (int)(PopupLayerEnum)EditorGUILayout.EnumFlagsField("Popup Layer", (PopupLayerEnum)popupLayerProperty.intValue);
+            _popupLayerProperty.intValue = (int)(PopupLayerEnum)EditorGUILayout.EnumFlagsField("Popup Layer", (PopupLayerEnum)_popupLayerProperty.intValue);
 
             if (GUILayout.Button("Edit Layers", new GUILayoutOption[] { GUILayout.Width(100), GUILayout.ExpandHeight(true) }))
             {
@@ -115,12 +77,6 @@ namespace AdvancedPS.Editor
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             GUI.enabled = false;
-            isSettings = false;
-            if (GUILayout.Button(isSettings ? "Hide settings" : "Show settings", GUILayout.Width(100)))
-            {
-                isSettings = !isSettings;
-                PlayerPrefs.SetInt(IsSettingsKey, isSettings ? 1 : 0);
-            }
             if (GUILayout.Button(new GUIContent("Preview", 
                         EditorGUIUtility.IconContent("console.warnicon.sml").image, 
                         "-Experimental-\nPreview show & hide animation in editor."), APSEditorStyles.ExperimentalButtonStyle))
@@ -138,15 +94,15 @@ namespace AdvancedPS.Editor
             GUILayout.EndHorizontal();
             EditorGUILayoutExtensions.DrawHorizontalLine();
             
-            DrawBoolPropertiesInGrid(new string[] { "AutoHideOnInit", "ManualInit"});
+            DrawBoolPropertiesInGrid(new[] { "AutoHideOnInit", "ManualInit"});
             DrawDeepPopupsProperty();
             EditorGUILayout.EndVertical();
 
-            DrawDefaultInspectorExcept(new string[]
+            DrawDefaultInspectorExcept(new []
             {
                 "PopupLayer", "m_Script", "DeepPopups", "inspectorShowDisplay", "inspectorHideDisplay",
-                "HotKeyShow", "HotKeyHide", "cachedShowSettings", "cachedHideSettings", "AnyHotKeyHide",
-                "AnyHotKeyShow", "AutoHideOnInit", "ManualInit"
+                "cachedShowSettings", "cachedHideSettings", "AutoHideOnInit", "ManualInit", "KeyBindingShowSettings",
+                "KeyBindingHideSettings"
             });
 
             serializedObject.ApplyModifiedProperties();
@@ -197,148 +153,67 @@ namespace AdvancedPS.Editor
 
         private void DrawPopupSettings()
         {
-            IAdvancedPopup popup = (IAdvancedPopup)target;
-            
             float width = Screen.width / 4.3f;
             EditorGUILayoutExtensions.DrawHorizontalLine();
             GUILayout.BeginHorizontal();
 
             GUILayout.BeginVertical(GUILayout.Width(width));
             // Show Settings Button
-            GUI.enabled = isHideSettings;
+            GUI.enabled = _isHideSettings;
             if (GUILayout.Button("Show Settings"))
             {
-                isShowSettings = true;
-                isHideSettings = false;
+                PlayerPrefs.SetInt(IsHideKeySettings, 0);
+                _isHideSettings = false;
+                _keyBindingSettings = serializedObject.FindProperty("KeyBindingShowSettings");
+                _anyHotKey = _keyBindingSettings.FindPropertyRelative("AnyHotKey");
+                _hotKeys = _keyBindingSettings.FindPropertyRelative("HotKeys");
+                _layers = _keyBindingSettings.FindPropertyRelative("Layers");
+                _popups = _keyBindingSettings.FindPropertyRelative("Popups");
+                _actions = _keyBindingSettings.FindPropertyRelative("OnTrigger");
             }
             GUILayout.EndVertical();
 
             EditorGUILayoutExtensions.DrawVerticalLine();
 
             GUILayout.BeginVertical(GUILayout.Width(width));
-            GUI.enabled = isShowSettings;
+            GUI.enabled = !_isHideSettings;
             // Hide Settings Button
             if (GUILayout.Button("Hide Settings"))
             {
-                isShowSettings = false;
-                isHideSettings = true;
+                PlayerPrefs.SetInt(IsHideKeySettings, 1);
+                _isHideSettings = true;
+                _keyBindingSettings = serializedObject.FindProperty("KeyBindingHideSettings");
+                _anyHotKey = _keyBindingSettings.FindPropertyRelative("AnyHotKey");
+                _hotKeys = _keyBindingSettings.FindPropertyRelative("HotKeys");
+                _layers = _keyBindingSettings.FindPropertyRelative("Layers");
+                _popups = _keyBindingSettings.FindPropertyRelative("Popups");
+                _actions = _keyBindingSettings.FindPropertyRelative("OnTrigger");
             }
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
             
             GUI.enabled = true;
-            if (isShowSettings)
-            {
-                EditorGUILayout.BeginHorizontal();
-                popup.AnyHotKeyShow = EditorGUILayout.Toggle(popup.AnyHotKeyShow, GUILayout.Width(15));
-                EditorGUILayout.LabelField("Show by any key");
-                EditorGUILayout.EndHorizontal();
-                if (!popup.AnyHotKeyShow)
-                {
-                    EditorGUI.indentLevel++;
-                    EditorGUILayout.PropertyField(hotKeyShow, true);
-                    EditorGUI.indentLevel--;
-                }
-            }
-            else if (isHideSettings)
-            {
-                EditorGUILayout.BeginHorizontal();
-                popup.AnyHotKeyHide = EditorGUILayout.Toggle(popup.AnyHotKeyHide, GUILayout.Width(15));
-                EditorGUILayout.LabelField("Hide by any key");
-                EditorGUILayout.EndHorizontal();
-                if (!popup.AnyHotKeyHide)
-                {
-                    EditorGUI.indentLevel++;
-                    EditorGUILayout.PropertyField(hotKeyHide, true);
-                    EditorGUI.indentLevel--;
-                }
-            }
-            
+            DrawPopupKeyBindingSettings();
+
             EditorGUILayoutExtensions.DrawHorizontalLine();
-        }
-
-        private void DrawSettingsColumn(string hotKeyProperty, string dropdownProperty, string settingsProperty)
-        {
-            GUILayout.BeginVertical();
-            EditorGUILayoutExtensions.DrawHorizontalLine();
-            EditorGUILayout.BeginVertical(APSEditorStyles.BackgroundStyle);
-
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(hotKeyProperty));
-
-            if (isSettings)
-            {
-                GUILayout.Space(5);
-                DrawTypeDropdown(dropdownProperty, "Display:", typeof(IDisplay), settingsProperty);
-                EditorGUILayout.EndVertical();
-                GUILayout.Space(5);
-                EditorGUILayout.BeginVertical(APSEditorStyles.BackgroundStyle);
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(settingsProperty),
-                    new GUIContent("Display Settings"), true);
-                GUILayout.Space(15);
-            }
-
-            EditorGUILayout.EndVertical();
-            GUILayout.EndVertical();
         }
         
-        private void DrawMiniSettingsColumn(float width)
+        private void DrawPopupKeyBindingSettings()
         {
-            GUILayout.BeginVertical();
-            EditorGUILayoutExtensions.DrawHorizontalLine();
-            EditorGUILayout.BeginVertical(APSEditorStyles.BackgroundStyle, GUILayout.ExpandHeight(true));
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.BeginHorizontal(GUILayout.ExpandHeight(true));
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.LabelField("Hided", GUILayout.Width(50));
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndHorizontal();
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndVertical();
-            GUILayout.EndVertical();
-        }
+            _anyHotKey.boolValue = EditorGUILayout.Toggle("Any Hot Key", _anyHotKey.boolValue);
 
-        private void DrawTypeDropdown(string propertyName, string label, Type baseType, string settingsProperty)
-        {
-            var property = serializedObject.FindProperty(propertyName);
-            if (property == null)
+            if (!_anyHotKey.boolValue)
             {
-                Debug.LogError($"Property {propertyName} not found.");
-                return;
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(_hotKeys, new GUIContent("Hot Keys"), true);
+                EditorGUI.indentLevel--;
             }
 
-            if (!cachedTypes.TryGetValue(baseType, out var types) || types.Count == 0)
-            {
-                Debug.LogError($"No types found inheriting from {baseType}.");
-                return;
-            }
-
-            var typeNames = types.Select(t => t.Name).ToList();
-
-            // Ensure property has a valid default value if it's null or empty
-            if (string.IsNullOrEmpty(property.stringValue) || types.All(t => t.FullName != property.stringValue))
-            {
-                property.stringValue = types[0].FullName;
-            }
-            
-            int selectedIndex = types.FindIndex(t => t.FullName == property.stringValue);
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.Label(label, GUILayout.Width(50));
-            EditorGUILayout.Popup(selectedIndex, typeNames.ToArray());
-            EditorGUILayout.EndHorizontal();
-        }
-        
-        private void UpdateCachedSettings(IAdvancedPopup popup, string displayProperty, string settingsProperty)
-        {
-            SerializedProperty displayProp = serializedObject.FindProperty(displayProperty);
-            SerializedProperty settingsProp = serializedObject.FindProperty(settingsProperty);
-
-            Type displayType = Type.GetType(displayProp.stringValue);
-            if (displayType != null)
-            {
-                Type settingsType = TypeHelper.GetTypeByName(TypeHelper.RemoveDisplaySuffix(displayType.Name) + "Settings");
-                settingsProp.managedReferenceValue = Activator.CreateInstance(settingsType);
-                serializedObject.ApplyModifiedProperties();
-            }
+            EditorGUILayout.PropertyField(_layers, new GUIContent("Layers"));
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(_popups, new GUIContent("Popups"));
+            EditorGUI.indentLevel--;
+            EditorGUILayout.PropertyField(_actions, new GUIContent("OnTrigger"));
         }
 
         private void DrawDefaultInspectorExcept(string[] propertyNamesToExclude)
@@ -357,9 +232,9 @@ namespace AdvancedPS.Editor
         
         private void DrawDeepPopupsProperty()
         {
-            if (deepPopupsProperty != null)
+            if (_deepPopupsProperty != null)
             {
-                EditorGUILayout.PropertyField(deepPopupsProperty, true);
+                EditorGUILayout.PropertyField(_deepPopupsProperty, true);
             }
         }
         
@@ -382,27 +257,29 @@ namespace AdvancedPS.Editor
  
         protected override void OnHeaderGUI()
         {
-            if (popupIcon != null)
+            float availableWidth = Screen.width;
+            float bannerHeight = 0;
+            
+            if (_popupBunner != null)
             {
-                float availableWidth = Screen.width;
-                float aspectRatio = (float)popupBunner.width / popupBunner.height;
-                float bannerHeight = availableWidth / aspectRatio - 75;
+                float aspectRatio = (float)_popupBunner.width / _popupBunner.height;
+                bannerHeight = availableWidth / aspectRatio - 75;
                 
                 var rectBanner = EditorGUILayout.GetControlRect(false, bannerHeight, GUILayout.ExpandWidth(true));
                 rectBanner.y -= 5;
                 rectBanner.height += 30;
-                
-                GUI.DrawTexture(rectBanner, popupBunner, ScaleMode.ScaleToFit);
-                
+
+                GUI.DrawTexture(rectBanner, _popupBunner, ScaleMode.ScaleToFit);
+            }
+
+            if (_popupIcon != null)
+            {
                 var rectIcon = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
                 rectIcon.y -= 26 + bannerHeight;
                 rectIcon.x = 18;
                 rectIcon.xMax = 36;
-                EditorGUI.DrawPreviewTexture(rectIcon, popupIcon);
-            }
-            else
-            {
-                base.OnHeaderGUI();
+                
+                EditorGUI.DrawPreviewTexture(rectIcon, _popupIcon);
             }
         }
     }

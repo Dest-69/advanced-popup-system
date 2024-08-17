@@ -1,4 +1,12 @@
 # Changelog
+## [1.9.7] - 2024-08-17
+### Rework
+- Incode documentation
+### Added
+- Deep controls for popup show/hide key bindings.
+- CMD show/hide functions.
+- Some global states and info in AdvancedPopupSystem.cs
+
 ## [1.9.5] - 2024-08-13
 ### Fixed
 - Settings json loading in build

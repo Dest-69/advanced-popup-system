@@ -16,9 +16,25 @@ namespace AdvancedPS.Core
     public static partial class AdvancedPopupSystem
     {
         #region VARIABLES
+        /// <summary>
+        /// All popups. (In scene)
+        /// </summary>
         public static readonly List<IAdvancedPopup> AllPopups = new List<IAdvancedPopup>();
-        private static readonly List<IDisplay> AllDisplays = new List<IDisplay>();
-
+        /// <summary>
+        /// All isVisible popups. (In scene)
+        /// </summary>
+        public static readonly List<IAdvancedPopup> ActivePopups = new List<IAdvancedPopup>();
+        /// <summary>
+        /// Instances of IDisplay which was used. (using for reduce allocations)
+        /// </summary>
+        private static readonly HashSet<IDisplay> AllDisplays = new HashSet<IDisplay>();
+        /// <summary>
+        /// Changed flags only by AdvancedPopupSystem. (if you show/hide popups manually it will effect only at 'ActivePopups' field)
+        /// </summary>
+        public static PopupLayerEnum ActiveLayer;
+        /// <summary>
+        /// For thread control.
+        /// </summary>
         private static CancellationTokenSource _source;
         #endregion
 
@@ -41,6 +57,8 @@ namespace AdvancedPS.Core
         {
             if (AllPopups.Contains(popup))
                 AllPopups.Remove(popup);
+            if (ActivePopups.Contains(popup))
+                ActivePopups.Remove(popup);
         }
         
         private static void SortPopups()
@@ -63,7 +81,6 @@ namespace AdvancedPS.Core
             AllPopups.AddRange(activeScenePopups);
             AllPopups.AddRange(otherScenesPopups);
         }
-
         private static int GetHierarchyDepth(Transform transform)
         {
             int depth = 0;
@@ -106,6 +123,7 @@ namespace AdvancedPS.Core
                     if (token.IsCancellationRequested || !Application.isPlaying)
                         return;
 
+                    ActiveLayer |= layer;
                     await ShowPopupsAsync(token, GetPopupsByLayer(layer), null);
                 }
                 catch (Exception ex)
@@ -129,6 +147,7 @@ namespace AdvancedPS.Core
                     if (token.IsCancellationRequested || !Application.isPlaying)
                         return;
 
+                    ActiveLayer |= layer;
                     await ShowPopupsAsync<T>(token, GetPopupsByLayer(layer), settings);
                 }
                 catch (Exception ex)
@@ -153,6 +172,7 @@ namespace AdvancedPS.Core
                     if (token.IsCancellationRequested || !Application.isPlaying)
                         return;
 
+                    ActiveLayer &= ~layer;
                     await HidePopupsAsync(token, GetPopupsByLayer(layer), null);
                 }
                 catch (Exception ex)
@@ -176,6 +196,7 @@ namespace AdvancedPS.Core
                     if (token.IsCancellationRequested || !Application.isPlaying)
                         return;
 
+                    ActiveLayer &= ~layer;
                     await HidePopupsAsync<T>(token, GetPopupsByLayer(layer), settings);
                 }
                 catch (Exception ex)
@@ -198,11 +219,13 @@ namespace AdvancedPS.Core
             {
                 try
                 {
+                    ActiveLayer &= ~layer;
                     await HidePopupsAsync(token, GetPopupsExcludingLayer(layer), null);
 
                     if (token.IsCancellationRequested || !Application.isPlaying)
                         return;
 
+                    ActiveLayer |= layer;
                     await ShowPopupsAsync(token, GetPopupsByLayer(layer), null);
                 }
                 catch (Exception ex)
@@ -223,11 +246,13 @@ namespace AdvancedPS.Core
             {
                 try
                 {
+                    ActiveLayer &= ~layer;
                     await HidePopupsAsync<T>(token, GetPopupsExcludingLayer(layer), settings);
                     
                     if (token.IsCancellationRequested || !Application.isPlaying)
                         return;
 
+                    ActiveLayer |= layer;
                     await ShowPopupsAsync<T>(token, GetPopupsByLayer(layer), settings);
                 }
                 catch (Exception ex)
@@ -250,11 +275,13 @@ namespace AdvancedPS.Core
             {
                 try
                 {
+                    ActiveLayer &= ~layer;
                     await HidePopupsAsync<J>(token, GetPopupsExcludingLayer(layer), hideSettings);
                     
                     if (token.IsCancellationRequested || !Application.isPlaying)
                         return;
 
+                    ActiveLayer |= layer;
                     await ShowPopupsAsync<T>(token, GetPopupsByLayer(layer), showSettings);
                 }
                 catch (Exception ex)
@@ -277,6 +304,7 @@ namespace AdvancedPS.Core
             {
                 try
                 {
+                    ActiveLayer = 0;
                     await HideAllPopupsAsync(token, null);
                 }
                 catch (Exception ex)
@@ -296,6 +324,7 @@ namespace AdvancedPS.Core
             {
                 try
                 {
+                    ActiveLayer = 0;
                     await HideAllPopupsAsync<T>(token, settings);
                 }
                 catch (Exception ex)

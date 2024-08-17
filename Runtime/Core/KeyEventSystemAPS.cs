@@ -46,20 +46,32 @@ namespace AdvancedPS.Core
         private static void Update()
         {
             if (!IsEnabled || !Input.anyKeyDown) return;
+            
+            KeyCode pressedKey = GetPressedKey();
+            if (pressedKey == default) return;
+            
             foreach (var popup in AdvancedPopupSystem.AllPopups)
             {
-                if (!popup.IsBeVisible && (popup.AnyHotKeyShow || popup.HotKeyShow.Any(Input.GetKeyDown)))
+                if (!popup.IsBeVisible &&
+                    (popup.KeyBindingShowSettings.AnyHotKey || popup.KeyBindingShowSettings.HotKeys.Contains(pressedKey)) && 
+                    (popup.KeyBindingShowSettings.Layers == default || popup.KeyBindingShowSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
+                    (popup.KeyBindingShowSettings.Popups.Count == 0 || popup.KeyBindingShowSettings.Popups.Any(p => AdvancedPopupSystem.ActivePopups.Contains(p))))
                 {
                     if (AreParentsVisible(popup))
                     {
                         popup.Show();
+                        popup.KeyBindingShowSettings.OnTrigger?.Invoke();
                         break;
                     }
                 }
                 
-                if (popup.IsBeVisible && (popup.AnyHotKeyHide || popup.HotKeyHide.Any(Input.GetKeyDown)))
+                if (popup.IsBeVisible &&
+                    (popup.KeyBindingHideSettings.AnyHotKey || popup.KeyBindingHideSettings.HotKeys.Contains(pressedKey)) && 
+                    (popup.KeyBindingHideSettings.Layers == default || popup.KeyBindingHideSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
+                    (popup.KeyBindingHideSettings.Popups.Count == 0 || popup.KeyBindingHideSettings.Popups.Any(p => AdvancedPopupSystem.ActivePopups.Contains(p))))
                 {
                     popup.Hide();
+                    popup.KeyBindingHideSettings.OnTrigger?.Invoke();
                     break;
                 }
             }
@@ -84,6 +96,11 @@ namespace AdvancedPS.Core
             }
 
             return true;
+        }
+        
+        private static KeyCode GetPressedKey()
+        {
+            return Enum.GetValues(typeof(KeyCode)).Cast<KeyCode>().FirstOrDefault(Input.GetKeyDown);
         }
     }
 }

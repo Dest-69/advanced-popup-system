@@ -6,6 +6,11 @@ namespace AdvancedPS.Core
 {
     public class AdvancedPopupInstantiate : IAdvancedPopup
     {
+        public override void Cmd_Show()
+        {
+            return;
+        }
+
         public override Operation Show(BaseSettings settings = null)
         {
             return null;
@@ -24,6 +29,11 @@ namespace AdvancedPS.Core
         public override Task ShowAsync<T>(CancellationToken token = default, BaseSettings settings = null)
         {
             return Task.CompletedTask;
+        }
+
+        public override void Cmd_Hide()
+        {
+            return;
         }
 
         public override Operation Hide(BaseSettings settings = null)

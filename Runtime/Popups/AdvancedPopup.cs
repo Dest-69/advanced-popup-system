@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using AdvancedPS.Core.System;
 using UnityEngine;
 using UnityEngine.UI;
-using Random = UnityEngine.Random;
 
 namespace AdvancedPS.Core
 {
@@ -28,9 +27,9 @@ namespace AdvancedPS.Core
         [Header("REF's")]
         [Tooltip("This field can be null")]
         public Button closeButton;
-
-        private bool isSubscribed;
         #endregion
+        
+        private bool _isSubscribed;
 
         /// <summary>
         /// Handler for close button press event.
@@ -45,11 +44,13 @@ namespace AdvancedPS.Core
         /// </summary>
         protected virtual void Subscribe()
         {
-            if (isSubscribed) return;
-            isSubscribed = true;
+            if (_isSubscribed) return;
+            _isSubscribed = true;
             
             if (closeButton) closeButton.onClick.AddListener(OnCloseButtonPress);
             OnShowing?.Invoke();
+            
+            AdvancedPopupSystem.ActivePopups.Add(this);
         }
 
         /// <summary>
@@ -57,16 +58,27 @@ namespace AdvancedPS.Core
         /// </summary>
         protected virtual void Unsubscribe()
         {
-            if (!isSubscribed) return;
-            isSubscribed = false;
+            if (!_isSubscribed) return;
+            _isSubscribed = false;
             
             if (closeButton) closeButton.onClick.RemoveListener(OnCloseButtonPress);
             OnHided?.Invoke();
+            
+            AdvancedPopupSystem.ActivePopups.Remove(this);
         }
 
+        #region SHOW
         /// <summary>
-        /// Show the popup.
+        /// Show popup command, mostly used for UnityEvent attachments in inspector.
         /// </summary>
+        public override void Cmd_Show()
+        {
+            Show();
+        }
+        /// <summary>
+        /// Show popup by CachedDisplay type without await.
+        /// </summary>
+        /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override Operation Show(BaseSettings settings = null)
         {
             if (IsBeVisible) return new Operation();
@@ -76,13 +88,18 @@ namespace AdvancedPS.Core
                 await ShowAsync(token, settings);
             }, UpdateCancellationTokenSource());
         }
+        /// <summary>
+        /// Show popup by CachedDisplay type.
+        /// </summary>
+        /// <param name="token"></param>
+        /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task ShowAsync(CancellationToken token = default, BaseSettings settings = null)
         {
             if (IsBeVisible) return;
             IsBeVisible = true;
 
             if (token == default)
-                UpdateCancellationTokenSource();
+                token = UpdateCancellationTokenSource().Token;
             
             Subscribe();
             
@@ -100,13 +117,13 @@ namespace AdvancedPS.Core
                 IsBeVisible = false;
                 return;
             }
-
+            
             IsVisible = true;
         }
-
         /// <summary>
-        /// Show the popup with a specific display type.
+        /// Show popup by IAdvancedPopupDisplay generic T type for all popup's without await.
         /// </summary>
+        /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override Operation Show<T>(BaseSettings settings = null)
         {
             if (IsBeVisible) return new Operation();
@@ -116,13 +133,18 @@ namespace AdvancedPS.Core
                 await ShowAsync<T>(token, settings);
             }, UpdateCancellationTokenSource());
         }
+        /// <summary>
+        /// Show popup by IAdvancedPopupDisplay generic T type for all popup's.
+        /// </summary>
+        /// <param name="token"></param>
+        /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task ShowAsync<T>(CancellationToken token = default, BaseSettings settings = null)
         {
             if (IsBeVisible) return;
             IsBeVisible = true;
                 
             if (token == default)
-                UpdateCancellationTokenSource();
+                token = UpdateCancellationTokenSource().Token;
             
             Subscribe();
 
@@ -144,10 +166,20 @@ namespace AdvancedPS.Core
             
             IsVisible = true;
         }
-
+        #endregion
+        
+        #region HIDE
         /// <summary>
-        /// Hide the popup.
+        /// Hide popup command, mostly used for UnityEvent attachments in inspector.
         /// </summary>
+        public override void Cmd_Hide()
+        {
+            Hide();
+        }
+        /// <summary>
+        /// Hide popup by CachedDisplay type without await.
+        /// </summary>
+        /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override Operation Hide(BaseSettings settings = null)
         {
             if (!IsBeVisible) return new Operation();
@@ -157,13 +189,20 @@ namespace AdvancedPS.Core
                 await HideAsync(token, settings);
             }, UpdateCancellationTokenSource());
         }
+        /// <summary>
+        /// Hide popup by CachedDisplay type.
+        /// </summary>
+        /// <param name="token"></param>
+        /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task HideAsync(CancellationToken token = default, BaseSettings settings = null)
         {
             if (!IsBeVisible) return;
             IsBeVisible = false;
             
             if (token == default)
-                UpdateCancellationTokenSource();
+                token = UpdateCancellationTokenSource().Token;
+            
+            Unsubscribe();
             
             List<Task> tasks = new List<Task>
             {
@@ -180,14 +219,13 @@ namespace AdvancedPS.Core
                 IsBeVisible = true;
                 return;
             }
-
-            Unsubscribe();
+            
             IsVisible = false;
         }
-
         /// <summary>
-        /// Hide the popup with a specific display type.
+        /// Hide popup by IAdvancedPopupDisplay generic T type for all popup's without await.
         /// </summary>
+        /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override Operation Hide<T>(BaseSettings settings = null)
         {
             if (!IsBeVisible) return new Operation();
@@ -197,13 +235,20 @@ namespace AdvancedPS.Core
                 await HideAsync<T>(token, settings);
             }, UpdateCancellationTokenSource());
         }
+        /// <summary>
+        /// Hide popup by IAdvancedPopupDisplay generic T type for all popup's.
+        /// </summary>
+        /// <param name="token"></param>
+        /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task HideAsync<T>(CancellationToken token = default, BaseSettings settings = null)
         {
             if (!IsBeVisible) return;
             IsBeVisible = false;
             
             if (token == default)
-                UpdateCancellationTokenSource();
+                token = UpdateCancellationTokenSource().Token;
+            
+            Unsubscribe();
 
             List<Task> tasks = new List<Task>();
 
@@ -220,9 +265,9 @@ namespace AdvancedPS.Core
                 IsBeVisible = true;
                 return;
             }
-
-            Unsubscribe();
+            
             IsVisible = false;
         }
+        #endregion
     }
 }

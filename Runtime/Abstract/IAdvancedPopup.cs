@@ -48,25 +48,15 @@ namespace AdvancedPS.Core.System
         [Tooltip("Child or dependent popups of the current one, use if you need more control via Show/Hide.")] [Space]
         public List<IAdvancedPopup> DeepPopups = new List<IAdvancedPopup>();
         /// <summary>
-        /// Allow to show popup by pressing any key.
+        /// Settings for showing popup by key binding.
         /// </summary>
-        [Tooltip("Allow to show popup by pressing any key.")] 
-        public bool AnyHotKeyShow = false;
+        [Tooltip("Settings for showing popup by key binding.")]
+        public PopupKeyBinding KeyBindingShowSettings;
         /// <summary>
-        /// Allow to show popup by pressing any key.
+        /// Settings for hiding popup by key binding.
         /// </summary>
-        [Tooltip("Allow to hide popup by pressing any key.")] 
-        public bool AnyHotKeyHide = false;
-        /// <summary>
-        /// Keys witch using for showing popup.
-        /// </summary>
-        [Tooltip("Keys witch using for showing popup.")] 
-        public List<KeyCode> HotKeyShow = new List<KeyCode>();
-        /// <summary>
-        /// Keys witch using for hiding popup.
-        /// </summary>
-        [Tooltip("Keys witch using for hiding popup.")] 
-        public List<KeyCode> HotKeyHide = new List<KeyCode>();
+        [Tooltip("Settings for hiding popup by key binding.")]
+        public PopupKeyBinding KeyBindingHideSettings;
         #endregion
         
         #region Protected
@@ -227,40 +217,6 @@ namespace AdvancedPS.Core.System
             CachedHideDisplay = AdvancedPopupSystem.GetDisplay<J>();
             CachedHideSettings = hideSettings;
         }
-        
-        //public bool SetCachedDisplayFromString()
-        //{
-        //    Type showDisplayType = Type.GetType(inspectorShowDisplay);
-        //    Type hideDisplayType = Type.GetType(inspectorHideDisplay);
-        //
-        //    if (showDisplayType == null)
-        //    {
-        //        Debug.LogWarning($"Show type {inspectorShowDisplay} not found.");
-        //        return false;
-        //    }
-        //    if (hideDisplayType == null)
-        //    {
-        //        Debug.LogWarning($"Hide type {inspectorHideDisplay} not found.");
-        //        return false;
-        //    }
-        //
-        //    var method = typeof(IAdvancedPopup).GetMethods(BindingFlags.Public | BindingFlags.Instance)
-        //        .Where(m => m.Name == nameof(SetCachedDisplay) 
-        //                    && m.IsGenericMethodDefinition 
-        //                    && m.GetGenericArguments().Length == 2).FirstOrDefault();
-        //    if (method == null)
-        //    {
-        //        Debug.LogWarning($"Method {nameof(SetCachedDisplay)} not found or ambiguous in {typeof(IAdvancedPopup)}");
-        //        return false;
-        //    }
-        //    MethodInfo genericMethod = method.MakeGenericMethod(showDisplayType, hideDisplayType);
-        //    
-        //    CachedShowSettings = (BaseSettings)Activator.CreateInstance(TypeHelper.GetTypeByName(TypeHelper.RemoveDisplaySuffix(showDisplayType.Name) + "Settings"));
-        //    CachedHideSettings = (BaseSettings)Activator.CreateInstance(TypeHelper.GetTypeByName(TypeHelper.RemoveDisplaySuffix(hideDisplayType.Name) + "Settings"));
-        //    
-        //    genericMethod.Invoke(this, new object[] { CachedShowSettings, CachedHideSettings });
-        //    return true;
-        //}
 
         /// <summary>
         /// Check if popup exist in deep of this popup.
@@ -272,6 +228,10 @@ namespace AdvancedPS.Core.System
         }
 
         #region SHOW
+        /// <summary>
+        /// Show popup command, mostly used for UnityEvent attachments in inspector.
+        /// </summary>
+        public abstract void Cmd_Show();
         /// <summary>
         /// Show popup by CachedDisplay type without await.
         /// </summary>
@@ -302,6 +262,10 @@ namespace AdvancedPS.Core.System
 
         #region HIDE
         /// <summary>
+        /// Hide popup command, mostly used for UnityEvent attachments in inspector.
+        /// </summary>
+        public abstract void Cmd_Hide();
+        /// <summary>
         /// Hide popup by CachedDisplay type without await.
         /// </summary>
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
@@ -312,14 +276,12 @@ namespace AdvancedPS.Core.System
         /// <param name="token"></param>
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public abstract Task HideAsync(CancellationToken token = default, BaseSettings settings = null);
-        
         /// <summary>
         /// Hide popup by IAdvancedPopupDisplay generic T type for all popup's without await.
         /// </summary>
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public abstract Operation Hide<T>(BaseSettings settings = null)
             where T : IDisplay, new();
-
         /// <summary>
         /// Hide popup by IAdvancedPopupDisplay generic T type for all popup's.
         /// </summary>
