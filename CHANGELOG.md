@@ -1,4 +1,8 @@
 # Changelog
+## [1.9.71] - 2024-10-30
+### Improved
+- Popup Inspector View
+
 ## [1.9.7] - 2024-08-17
 ### Rework
 - Incode documentation

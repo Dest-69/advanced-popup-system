@@ -6,6 +6,7 @@ namespace AdvancedPS.Editor.Styles
     public static class APSEditorStyles
     {
         public static readonly GUIStyle ToggleStyle;
+        public static readonly GUIStyle ButtonBoltStyle;
         public static readonly GUIStyle SelectedTabStyle;
         public static readonly GUIStyle NormalTabStyle;
         public static readonly GUIStyle ScrollViewStyle;
@@ -18,7 +19,12 @@ namespace AdvancedPS.Editor.Styles
         static APSEditorStyles()
         {
             bool isDarkTheme = EditorGUIUtility.isProSkin;
-            
+
+            ButtonBoltStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontStyle = FontStyle.Bold
+            };
+
             Texture2D selectedTexture = new Texture2D(1, 1);
             selectedTexture.SetPixel(0, 0, Color.white);
             selectedTexture.Apply();

@@ -156,11 +156,11 @@ namespace AdvancedPS.Editor
             float width = Screen.width / 4.3f;
             EditorGUILayoutExtensions.DrawHorizontalLine();
             GUILayout.BeginHorizontal();
-
             GUILayout.BeginVertical(GUILayout.Width(width));
             // Show Settings Button
             GUI.enabled = _isHideSettings;
-            if (GUILayout.Button("Show Settings"))
+            GUIStyle buttonStyle = _isHideSettings ? APSEditorStyles.ButtonBoltStyle : GUI.skin.button;
+            if (GUILayout.Button("Switch to Show Settings", buttonStyle))
             {
                 PlayerPrefs.SetInt(IsHideKeySettings, 0);
                 _isHideSettings = false;
@@ -177,8 +177,9 @@ namespace AdvancedPS.Editor
 
             GUILayout.BeginVertical(GUILayout.Width(width));
             GUI.enabled = !_isHideSettings;
+            buttonStyle = !_isHideSettings ? APSEditorStyles.ButtonBoltStyle : GUI.skin.button;
             // Hide Settings Button
-            if (GUILayout.Button("Hide Settings"))
+            if (GUILayout.Button("Switch to Hide Settings", buttonStyle))
             {
                 PlayerPrefs.SetInt(IsHideKeySettings, 1);
                 _isHideSettings = true;
@@ -200,6 +201,15 @@ namespace AdvancedPS.Editor
         
         private void DrawPopupKeyBindingSettings()
         {
+            EditorGUILayoutExtensions.DrawHorizontalLine();
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            string lableName = _isHideSettings ? "Hide" : "Show";
+            GUILayout.Label($"{lableName} Key Settings");
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            EditorGUILayoutExtensions.DrawHorizontalLine();
+            
             _anyHotKey.boolValue = EditorGUILayout.Toggle("Any Hot Key", _anyHotKey.boolValue);
 
             if (!_anyHotKey.boolValue)
@@ -208,12 +218,12 @@ namespace AdvancedPS.Editor
                 EditorGUILayout.PropertyField(_hotKeys, new GUIContent("Hot Keys"), true);
                 EditorGUI.indentLevel--;
             }
-
-            EditorGUILayout.PropertyField(_layers, new GUIContent("Layers"));
+            
+            EditorGUILayout.PropertyField(_layers, new GUIContent($"{lableName} if Layer active"));
             EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(_popups, new GUIContent("Popups"));
+            EditorGUILayout.PropertyField(_popups, new GUIContent($"{lableName} if Popup active"));
             EditorGUI.indentLevel--;
-            EditorGUILayout.PropertyField(_actions, new GUIContent("OnTrigger"));
+            EditorGUILayout.PropertyField(_actions, new GUIContent($"Invoke UnityEvent on {lableName} key press"));
         }
 
         private void DrawDefaultInspectorExcept(string[] propertyNamesToExclude)
