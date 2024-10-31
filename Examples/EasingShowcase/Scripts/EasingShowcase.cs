@@ -72,12 +72,17 @@ namespace AdvancedPS.Core.Examples
                 popup.SetCachedDisplay<SlideDisplay, SlideDisplay>(
                     new SlideSettings
                     {
+                        Duration = 2,
                         Easing = (EasingType)i,
-                        TargetPosition = new Vector3(posX, 0, 0)
+                        TargetRectPosition = new Vector3(posX, 0, 0),
+                        TargetRectSize = new Vector2(popupWidth, popupWidth)
                     },
                     new SlideSettings
                     {
-                        Easing = (EasingType)i
+                        Duration = 2,
+                        Easing = (EasingType)i,
+                        TargetRectPosition = new Vector3(posX, posY, 0),
+                        TargetRectSize = new Vector2(popupWidth, popupWidth)
                     }
                 );
                 popups.Add(popup);

@@ -6,7 +6,7 @@ namespace AdvancedPS.Editor.Styles
     public static class APSEditorStyles
     {
         public static readonly GUIStyle ToggleStyle;
-        public static readonly GUIStyle ButtonBoltStyle;
+        public static readonly GUIStyle WarpedTextStyle;
         public static readonly GUIStyle SelectedTabStyle;
         public static readonly GUIStyle NormalTabStyle;
         public static readonly GUIStyle ScrollViewStyle;
@@ -14,16 +14,21 @@ namespace AdvancedPS.Editor.Styles
         public static readonly GUIStyle ExperimentalButtonStyle;
         public static readonly GUIStyle DarkBackgroundStyle;
         public static readonly GUIStyle BackgroundStyle;
+        public static readonly GUIStyle WarningTextStyle;
         public static readonly GUIStyle LineStyle;
         
         static APSEditorStyles()
         {
             bool isDarkTheme = EditorGUIUtility.isProSkin;
 
-            ButtonBoltStyle = new GUIStyle(GUI.skin.button)
+            WarningTextStyle = new GUIStyle(GUI.skin.label)
             {
-                fontStyle = FontStyle.Bold
+                normal =
+                {
+                    textColor = new Color(0.7f, 0.6f, 0f, 1)
+                }
             };
+            WarpedTextStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
 
             Texture2D selectedTexture = new Texture2D(1, 1);
             selectedTexture.SetPixel(0, 0, Color.white);

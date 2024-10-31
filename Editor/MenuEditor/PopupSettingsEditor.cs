@@ -10,40 +10,41 @@ namespace AdvancedPS.Editor
     {
         private static PopupSettings _settings;
         
-        private static bool _customIconsEnabled;
+        private static byte _inspectorViewIndex;
         private static bool _keyEventSystemEnabled;
+        private static string[] _inspectorViewTypes;
+        
         private static int _logTypeIndex;
         private static readonly string[] LOGTypes = { "Error", "Warning", "Info" };
         
         public static void Initialize()
         {
             LoadSettings();
+            _inspectorViewTypes = Enum.GetNames(typeof(InspectorEnum));
         }
 
         public static void OnGUIInternall()
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Custom icons:", GUILayout.ExpandWidth(false));
-            string toggleLable = "";
-            if (EditorGUIUtility.isProSkin)
-                toggleLable = _customIconsEnabled ? "[x]" : "[ ]";
-            bool newCustomIconsEnabled = GUILayout.Toggle(_customIconsEnabled, toggleLable, APSEditorStyles.ToggleStyle);
-            if (newCustomIconsEnabled != _customIconsEnabled)
-            {
-                _customIconsEnabled = newCustomIconsEnabled;
-                SaveSettings();
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.Space(5);
-            
-            GUILayout.BeginHorizontal();
             GUILayout.Label("Key Event Tracking:", GUILayout.ExpandWidth(false));
+            string toggleLable = "";
             if (EditorGUIUtility.isProSkin)
                 toggleLable = _keyEventSystemEnabled ? "[x]" : "[ ]";
             bool newKeyEventSystemEnabled = GUILayout.Toggle(_keyEventSystemEnabled, toggleLable, APSEditorStyles.ToggleStyle);
             if (newKeyEventSystemEnabled != _keyEventSystemEnabled)
             {
                 _keyEventSystemEnabled = newKeyEventSystemEnabled;
+                SaveSettings();
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.Space(5);
+            
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Inspector view:", GUILayout.ExpandWidth(false));
+            int newinspectorViewIndex = EditorGUILayout.Popup(_inspectorViewIndex, _inspectorViewTypes);
+            if (newinspectorViewIndex != _inspectorViewIndex)
+            {
+                _inspectorViewIndex = (byte)newinspectorViewIndex;
                 SaveSettings();
             }
             GUILayout.EndHorizontal();
@@ -62,7 +63,7 @@ namespace AdvancedPS.Editor
 
         private static void SaveSettings()
         {
-            _settings.CustomIconsEnabled = _customIconsEnabled;
+            _settings.InspectorView = (InspectorEnum)_inspectorViewIndex;
             _settings.LogType = LOGTypes[_logTypeIndex];
             _settings.KeyEventSystemEnabled = _keyEventSystemEnabled;
             
@@ -73,7 +74,7 @@ namespace AdvancedPS.Editor
         {
             _settings = SettingsManager.LoadSettings();
             
-            _customIconsEnabled = _settings.CustomIconsEnabled;
+            _inspectorViewIndex = (byte)_settings.InspectorView;
             _keyEventSystemEnabled = _settings.KeyEventSystemEnabled;
             _logTypeIndex = Array.IndexOf(LOGTypes, _settings.LogType);
         }

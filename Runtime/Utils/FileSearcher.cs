@@ -109,7 +109,7 @@ namespace AdvancedPS.Core.Utils
         {
             var baseSettings = new PopupSettings
             {
-                CustomIconsEnabled = true,
+                InspectorView = InspectorEnum.APSInspector,
                 LogType = "Error"
             };
 

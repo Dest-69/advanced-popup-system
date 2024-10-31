@@ -17,6 +17,9 @@ namespace AdvancedPS.Core
         /// <returns></returns>
         public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
+            if (OperationCancelled(cancellationToken))
+                return;
+            
             ScaleSettings settingsLocal = settings as ScaleSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
@@ -32,12 +35,12 @@ namespace AdvancedPS.Core
                 if (OperationCancelled(cancellationToken))
                     return;
                 
+                elapsedTime += Time.deltaTime;
                 float t = elapsedTime / settingsLocal.Duration;
                 float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
                 
                 transform.localScale = Vector3.LerpUnclamped(initialScale, settingsLocal.ShowScale, easedT);
-
-                elapsedTime += Time.deltaTime;
+                
                 await Task.Yield();
             }
 
@@ -58,6 +61,9 @@ namespace AdvancedPS.Core
         /// <returns></returns>
         public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
+            if (OperationCancelled(cancellationToken))
+                return;
+            
             ScaleSettings settingsLocal = settings as ScaleSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
@@ -70,13 +76,13 @@ namespace AdvancedPS.Core
             {
                 if (OperationCancelled(cancellationToken))
                     return;
-                
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
-                
-                transform.localScale = Vector3.LerpUnclamped(initialScale, settingsLocal.HideScale, easedT);
 
                 elapsedTime += Time.deltaTime;
+                float t = elapsedTime / settingsLocal.Duration;
+                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+
+                transform.localScale = Vector3.LerpUnclamped(initialScale, settingsLocal.HideScale, easedT);
+
                 await Task.Yield();
             }
 

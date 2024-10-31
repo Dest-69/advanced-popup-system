@@ -24,7 +24,7 @@ namespace AdvancedPS.Editor
 
         private static void OnHierarchyWindowItemOnGUI(int instanceID, Rect selectionRect)
         {
-            if (!Settings.CustomIconsEnabled) return;
+            if (Settings.InspectorView != InspectorEnum.APSInspector) return;
             
             Object obj = EditorUtility.InstanceIDToObject(instanceID);
             if (obj is GameObject go && go.GetComponent<IAdvancedPopup>() != null)

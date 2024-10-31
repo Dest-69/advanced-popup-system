@@ -1,6 +1,6 @@
 {
   "name": "com.dest-69.advanced-popup-system",
-  "version": "1.9.71",
+  "version": "1.9.8",
   "url": "https://github.com/Dest-69/advanced-popup-system",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1"

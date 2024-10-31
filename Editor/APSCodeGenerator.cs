@@ -61,8 +61,7 @@ namespace AdvancedPS.Editor
                 sb.AppendLine("        /// </summary>");
                 sb.AppendLine("        /// <param name=\"layer\">The layer to show popup for.</param>");
                 sb.AppendLine("        /// <param name=\"settings\"> The settings for the animation. If not provided, the default settings will be used. </param>");
-                sb.AppendLine(
-                    $"        public static Operation PopupShow<T>(PopupLayerEnum layer, {settingsType} settings = null) where T : {displayType}, new()");
+                sb.AppendLine($"        public static Operation PopupShow<T>(PopupLayerEnum layer, {settingsType} settings = null) where T : {displayType}, new()");
                 sb.AppendLine("        {");
                 sb.AppendLine("            return PopupShowGeneric<T>(layer, settings);");
                 sb.AppendLine("        }");
@@ -175,7 +174,7 @@ namespace AdvancedPS.Editor
                 sb.AppendLine("        /// <param name=\"showSettings\">The settings for the showing animation. If not provided, the default settings will be used.</param>");
                 sb.AppendLine($"        public void SetCachedDisplay<T>({settingsType} showSettings = null) where T : {displayType}, new()");
                 sb.AppendLine("        {");
-                sb.AppendLine($"           showSettings ??= new {settingsType}();");
+                sb.AppendLine($"            showSettings ??= new {settingsType}();");
                 sb.AppendLine("            SetCachedDisplayInternal<T>(showSettings);");
                 sb.AppendLine("        }");
 
@@ -193,8 +192,8 @@ namespace AdvancedPS.Editor
                     sb.AppendLine("        /// <param name=\"hideSettings\">The settings for the hiding animation. If not provided, the default settings will be used.</param>");
                     sb.AppendLine($"        public void SetCachedDisplay<T,J>({settingsType} showSettings = null, {settingsTypeSecond} hideSettings = null) where T : {displayType}, new() where J : {displayTypeSecond}, new()");
                     sb.AppendLine("        {");
-                    sb.AppendLine($"           showSettings ??= new {settingsType}();");
-                    sb.AppendLine($"           hideSettings ??= new {settingsTypeSecond}();");
+                    sb.AppendLine($"            showSettings ??= new {settingsType}();");
+                    sb.AppendLine($"            hideSettings ??= new {settingsTypeSecond}();");
                     sb.AppendLine("            SetCachedDisplayInternal<T,J>(showSettings, hideSettings);");
                     sb.AppendLine("        }");
                 }

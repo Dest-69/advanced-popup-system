@@ -1,4 +1,16 @@
 # Changelog
+## [1.9.8] - 2024-10-31
+### Improved
+- SlideDisplay anchor(pivot only) support
+- SlideDisplay now can controll size too.
+- Key Event Tracnking hide dependent settings in popup inspector when disabled.
+- Incode documentation
+### Added
+- Script field in inspector
+- Now you can disable custom APS inspector view by settings panel.
+### Fixed
+- Display lag in the first frame has been noticed and corrected.
+
 ## [1.9.71] - 2024-10-30
 ### Improved
 - Popup Inspector View

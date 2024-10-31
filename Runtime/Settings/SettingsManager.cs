@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using AdvancedPS.Core.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
 
@@ -51,7 +50,7 @@ namespace AdvancedPS.Core.System
             
             Settings = new PopupSettings
             {
-                CustomIconsEnabled = true,
+                InspectorView = InspectorEnum.APSInspector,
                 KeyEventSystemEnabled = true,
                 LogType = "Warning"
             };

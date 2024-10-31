@@ -8,13 +8,17 @@ namespace AdvancedPS.Core
     public class SlideSettings : BaseSettings
     {
         /// <summary>
-        /// From witch side popup will start move.
+        /// SUPPORTED ONLY ANCHORS PIVOT
+        /// If you need anchors linking (min-max), use empty prent object with it.
+        /// The PosX, PosY, PosZ of RectTransform to which the popup will aim.
         /// </summary>
-        public SlideEnum SlideEnum { get; set; }
+        public Vector3 TargetRectPosition { get; set; }
         /// <summary>
-        /// The position to which the popup will aim. Default value Vector.zero - it will try aim to center of Canvas.
+        /// SUPPORTED ONLY ANCHORS PIVOT
+        /// If you need anchors linking (min-max), use empty prent object with it.
+        /// The Width and Height of RectTransform to which the popup will aim.
         /// </summary>
-        public Vector3 TargetPosition { get; set; }
+        public Vector2 TargetRectSize { get; set; }
 
         /// <summary>
         /// Setting default values.
@@ -22,8 +26,8 @@ namespace AdvancedPS.Core
         public SlideSettings()
         {
             Duration = 0.75f;
-            SlideEnum = SlideEnum.Down;
-            TargetPosition = Vector3.zero;
+            TargetRectPosition = Vector3.zero;
+            TargetRectSize = Vector2.zero;
         }
     }
 }

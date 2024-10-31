@@ -11,6 +11,7 @@ using UnityEngine;
 
 namespace AdvancedPS.Editor
 {
+    [CanEditMultipleObjects]
     [CustomEditor(typeof(IAdvancedPopup), true)]
     public class IAdvancedPopupEditor : UnityEditor.Editor
     {
@@ -59,8 +60,7 @@ namespace AdvancedPS.Editor
         
         public override void OnInspectorGUI()
         {
-            if (_settings.CustomIconsEnabled)
-                OnHeaderGUI();
+            OnHeaderGUI();
             
             serializedObject.Update();
             
@@ -159,7 +159,7 @@ namespace AdvancedPS.Editor
             GUILayout.BeginVertical(GUILayout.Width(width));
             // Show Settings Button
             GUI.enabled = _isHideSettings;
-            GUIStyle buttonStyle = _isHideSettings ? APSEditorStyles.ButtonBoltStyle : GUI.skin.button;
+            GUIStyle buttonStyle = _isHideSettings ? APSEditorStyles.BoldButtonStyle : GUI.skin.button;
             if (GUILayout.Button("Switch to Show Settings", buttonStyle))
             {
                 PlayerPrefs.SetInt(IsHideKeySettings, 0);
@@ -177,7 +177,7 @@ namespace AdvancedPS.Editor
 
             GUILayout.BeginVertical(GUILayout.Width(width));
             GUI.enabled = !_isHideSettings;
-            buttonStyle = !_isHideSettings ? APSEditorStyles.ButtonBoltStyle : GUI.skin.button;
+            buttonStyle = !_isHideSettings ? APSEditorStyles.BoldButtonStyle : GUI.skin.button;
             // Hide Settings Button
             if (GUILayout.Button("Switch to Hide Settings", buttonStyle))
             {
@@ -202,13 +202,34 @@ namespace AdvancedPS.Editor
         private void DrawPopupKeyBindingSettings()
         {
             EditorGUILayoutExtensions.DrawHorizontalLine();
-            GUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
+            
             string lableName = _isHideSettings ? "Hide" : "Show";
-            GUILayout.Label($"{lableName} Key Settings");
-            GUILayout.FlexibleSpace();
-            GUILayout.EndHorizontal();
+            if (_settings.KeyEventSystemEnabled)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                GUILayout.Label($"{lableName} Key Settings");
+                GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
+            }
+            else
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                GUILayout.Label("Key Event Tracking disabled.", APSEditorStyles.WarningTextStyle);
+                GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
+                GUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                GUILayout.Label("To turn it on, toggle 'Key Event Tracking' on, in the APS settings menu.", APSEditorStyles.WarpedTextStyle);
+                if (GUILayout.Button("APS settings"))
+                    PopupSystemEditor.ShowSettings();
+                GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
+            }
             EditorGUILayoutExtensions.DrawHorizontalLine();
+            
+            if (!_settings.KeyEventSystemEnabled) return;
             
             _anyHotKey.boolValue = EditorGUILayout.Toggle("Any Hot Key", _anyHotKey.boolValue);
 
@@ -267,29 +288,50 @@ namespace AdvancedPS.Editor
  
         protected override void OnHeaderGUI()
         {
-            float availableWidth = Screen.width;
-            float bannerHeight = 0;
+            switch (_settings.InspectorView)
+            {
+                case InspectorEnum.UnityInspector:
+                    DrawDefaultInspector();
+                    break;
+                case InspectorEnum.APSOptimized:
+                    GUI.enabled = false;
+                    EditorGUILayout.ObjectField("Script", MonoScript.FromMonoBehaviour((IAdvancedPopup)target), typeof(IAdvancedPopup), false);
+                    EditorGUILayout.Space(5);
+                    GUI.enabled = true;
+                    break;
+                case InspectorEnum.APSInspector:
+                {
+                    GUI.enabled = false;
+                    EditorGUILayout.ObjectField("Script", MonoScript.FromMonoBehaviour((IAdvancedPopup)target), typeof(IAdvancedPopup), false);
+                    GUI.enabled = true;
             
-            if (_popupBunner != null)
-            {
-                float aspectRatio = (float)_popupBunner.width / _popupBunner.height;
-                bannerHeight = availableWidth / aspectRatio - 75;
-                
-                var rectBanner = EditorGUILayout.GetControlRect(false, bannerHeight, GUILayout.ExpandWidth(true));
-                rectBanner.y -= 5;
-                rectBanner.height += 30;
+                    float availableWidth = Screen.width;
+                    float bannerHeight = 0;
 
-                GUI.DrawTexture(rectBanner, _popupBunner, ScaleMode.ScaleToFit);
-            }
-
-            if (_popupIcon != null)
-            {
-                var rectIcon = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
-                rectIcon.y -= 26 + bannerHeight;
-                rectIcon.x = 18;
-                rectIcon.xMax = 36;
+                    if (_popupBunner != null)
+                    {
+                        float aspectRatio = (float)_popupBunner.width / _popupBunner.height;
+                        bannerHeight = availableWidth / aspectRatio - 75;
                 
-                EditorGUI.DrawPreviewTexture(rectIcon, _popupIcon);
+                        Rect rectBanner = EditorGUILayout.GetControlRect(false, bannerHeight, GUILayout.ExpandWidth(true));
+                        rectBanner.y -= 2;
+                        rectBanner.height += 30;
+
+                        GUI.DrawTexture(rectBanner, _popupBunner, ScaleMode.ScaleToFit);
+                    }
+
+                    if (_popupIcon != null)
+                    {
+                        var rectIcon = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
+                        rectIcon.y -= 46 + bannerHeight;
+                        rectIcon.x = 18;
+                        rectIcon.xMax = 36;
+                
+                        EditorGUI.DrawPreviewTexture(rectIcon, _popupIcon);
+                    }
+
+                    break;
+                }
             }
         }
     }

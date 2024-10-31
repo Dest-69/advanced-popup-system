@@ -21,7 +21,6 @@ namespace AdvancedPS.Core
         /// </summary>
         public ScaleSettings()
         {
-            Duration = 0.5f;
             HideScale = Vector3.zero;
             ShowScale = Vector3.one;
         }

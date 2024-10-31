@@ -17,6 +17,9 @@ namespace AdvancedPS.Core
         /// <returns></returns>
         public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
+            if (OperationCancelled(cancellationToken))
+                return;
+            
             FadeSettings settingsLocal = settings as FadeSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
@@ -31,13 +34,13 @@ namespace AdvancedPS.Core
             {
                 if (OperationCancelled(cancellationToken))
                     return;
-                
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
-                
-                canvasGroup.alpha = Mathf.LerpUnclamped(initialAlpha, settingsLocal.MaxValue, easedT);
 
                 elapsedTime += Time.deltaTime;
+                float t = elapsedTime / settingsLocal.Duration;
+                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+
+                canvasGroup.alpha = Mathf.LerpUnclamped(initialAlpha, settingsLocal.MaxValue, easedT);
+
                 await Task.Yield();
             }
 
@@ -58,6 +61,9 @@ namespace AdvancedPS.Core
         /// <returns></returns>
         public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
+            if (OperationCancelled(cancellationToken))
+                return;
+            
             FadeSettings settingsLocal = settings as FadeSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
@@ -70,13 +76,13 @@ namespace AdvancedPS.Core
             {
                 if (OperationCancelled(cancellationToken))
                     return;
-                
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
-                
-                canvasGroup.alpha = Mathf.LerpUnclamped(initialAlpha, settingsLocal.MinValue, easedT);
 
                 elapsedTime += Time.deltaTime;
+                float t = elapsedTime / settingsLocal.Duration;
+                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+
+                canvasGroup.alpha = Mathf.LerpUnclamped(initialAlpha, settingsLocal.MinValue, easedT);
+
                 await Task.Yield();
             }
 

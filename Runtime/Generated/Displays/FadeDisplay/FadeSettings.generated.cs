@@ -20,7 +20,6 @@ namespace AdvancedPS.Core
         /// </summary>
         public FadeSettings()
         {
-            Duration = 0.5f;
             MaxValue = 1f;
             MinValue = 0f;
         }

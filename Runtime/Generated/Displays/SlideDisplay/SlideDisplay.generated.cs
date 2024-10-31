@@ -10,6 +10,8 @@ namespace AdvancedPS.Core
     {
         /// <summary>
         /// Logic for popup showing animation.
+        /// SUPPORTED ONLY ANCHORS PIVOT
+        /// If you need anchors linking (min-max), use empty prent object with it.
         /// </summary>
         /// <param name="transform"> RectTransform of root popup GameObject. </param>
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
@@ -17,43 +19,29 @@ namespace AdvancedPS.Core
         /// <returns></returns>
         public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
-            SlideSettings settingsLocal = settings as SlideSettings; 
+            if (OperationCancelled(cancellationToken))
+                return;
+            
+            SlideSettings settingsLocal = settings as SlideSettings;
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
             settingsLocal.OnAnimationStart?.Invoke();
-            
+
             SetCanvasGroupState(canvasGroup, true);
             transform.localScale = Vector3.one;
 
-            Vector3 startPos = GetPosition(transform, settingsLocal);
-            Vector3 targetPos = settingsLocal.TargetPosition;
-
-            float elapsedTime = 0;
-
-            while (elapsedTime < settingsLocal.Duration)
-            {
-                if (OperationCancelled(cancellationToken))
-                    return;
-
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
-                
-                transform.localPosition = Vector3.LerpUnclamped(startPos, targetPos, easedT);
-
-                elapsedTime += Time.deltaTime;
-                await Task.Yield();
-            }
+            await Slide(transform, settingsLocal, cancellationToken);
 
             if (OperationCancelled(cancellationToken))
                 return;
 
-            // Ensure the final position is set correctly
-            transform.localPosition = targetPos;
             settingsLocal.OnAnimationEnd?.Invoke();
         }
 
         /// <summary>
         /// Logic for popup hiding animation.
+        /// SUPPORTED ONLY ANCHORS PIVOT
+        /// If you need anchors linking (min-max), use empty prent object with it.
         /// </summary>
         /// <param name="transform"> RectTransform of root popup GameObject. </param>
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
@@ -61,41 +49,26 @@ namespace AdvancedPS.Core
         /// <returns></returns>
         public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
         {
-            SlideSettings settingsLocal = settings as SlideSettings; 
+            if (OperationCancelled(cancellationToken))
+                return;
+            
+            SlideSettings settingsLocal = settings as SlideSettings;
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
-            
+
             settingsLocal.OnAnimationStart?.Invoke();
-            
-            Vector3 startPos = transform.localPosition;
-            Vector3 targetPos = settingsLocal.TargetPosition == null ? GetPosition(transform, settingsLocal) : settingsLocal.TargetPosition;
 
-            float elapsedTime = 0;
-
-            while (elapsedTime < settingsLocal.Duration)
-            {
-                if (OperationCancelled(cancellationToken))
-                    return;
-
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
-                transform.localPosition = Vector3.LerpUnclamped(startPos, targetPos, easedT);
-
-                elapsedTime += Time.deltaTime;
-                await Task.Yield();
-            }
+            await Slide(transform, settingsLocal, cancellationToken);
 
             if (OperationCancelled(cancellationToken))
                 return;
 
-            // Ensure the final position is set correctly
-            transform.localPosition = targetPos;
-
             // Set CanvasGroup state to hidden
             SetCanvasGroupState(canvasGroup, false);
+
             transform.localScale = Vector3.zero;
             settingsLocal.OnAnimationEnd?.Invoke();
         }
-        
+
         /// <summary>
         /// Get the CanvasGroup component from the transform.
         /// </summary>
@@ -108,6 +81,7 @@ namespace AdvancedPS.Core
             {
                 APLogger.LogWarning($"CanvasGroup component missing on {transform.name}");
             }
+
             return canvasGroup;
         }
 
@@ -122,43 +96,48 @@ namespace AdvancedPS.Core
             canvasGroup.interactable = state;
             canvasGroup.blocksRaycasts = state;
         }
-        
+
         /// <summary>
         /// Checks if operation already cancelled.
         /// </summary>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        private bool OperationCancelled(CancellationToken cancellationToken) => cancellationToken.IsCancellationRequested || !Application.isPlaying;
-        
-        private static Vector3 GetPosition(RectTransform transform, SlideSettings settings)
-        {
-            Canvas canvas = transform.GetComponentInParent<Canvas>();
-            if (canvas == null)
-            {
-                Debug.LogError($"SlideDisplay not found Canvas in parent of {transform.name} popup");
-                return Vector3.zero;
-            }
-            if (canvas.renderMode == RenderMode.WorldSpace)
-            {
-                Debug.LogError("SlideDisplay is not working with Canvas RenderMode.WorldSpace");
-                return Vector3.zero;
-            }
-            
-            Rect rect = transform.rect;
-            Rect canvasRect = canvas.GetComponent<RectTransform>().rect;
-            Vector2 size = new Vector2(rect.width / 2f + canvasRect.width / 2f, rect.height / 2f + canvasRect.height / 2f);
+        private bool OperationCancelled(CancellationToken cancellationToken) =>
+            cancellationToken.IsCancellationRequested || !Application.isPlaying;
 
-            var localPosition = transform.localPosition;
-            Vector3 startPos = settings.SlideEnum switch
+        private async Task Slide(RectTransform transform, SlideSettings settingsLocal, CancellationToken cancellationToken)
+        {
+            Vector3 startPos = transform.anchoredPosition3D;
+            Vector2 startSize = transform.sizeDelta;
+
+            Vector3 targetPos = settingsLocal.TargetRectPosition;
+            Vector2 targetSize = settingsLocal.TargetRectSize;
+
+            float elapsedTime = 0;
+            while (elapsedTime < settingsLocal.Duration)
             {
-                SlideEnum.Up => new Vector3(localPosition.x, size.y + 50, localPosition.z),
-                SlideEnum.Down => new Vector3(localPosition.x, -size.y - 50, localPosition.z),
-                SlideEnum.Left => new Vector3(-size.x - 50, localPosition.y, localPosition.z),
-                SlideEnum.Right => new Vector3(size.x + 50, localPosition.y, localPosition.z),
-                _ => Vector3.zero,
-            };
+                if (OperationCancelled(cancellationToken))
+                    return;
+
+                elapsedTime += Time.deltaTime;
+                float t = elapsedTime / settingsLocal.Duration;
+                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+
+                Vector3 lerpedPosition = Vector3.Lerp(startPos, targetPos, easedT);
+                Vector2 lerpedSize = Vector2.Lerp(startSize, targetSize, easedT);
+
+                transform.sizeDelta = lerpedSize;
+                transform.anchoredPosition3D = lerpedPosition;
+
+                await Task.Yield();
+            }
             
-            return startPos;
+            if (OperationCancelled(cancellationToken))
+                return;
+
+            // Ensure the final position is set correctly
+            transform.sizeDelta = targetSize;
+            transform.anchoredPosition3D = targetPos;
         }
     }
 }
