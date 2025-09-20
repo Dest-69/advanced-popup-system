@@ -15,7 +15,7 @@ namespace AdvancedPS.Editor
         private static string[] _inspectorViewTypes;
         
         private static int _logTypeIndex;
-        private static readonly string[] LOGTypes = { "Error", "Warning", "Info" };
+        private static readonly string[] LOGTypes = { "Error", "Warning", "Info", "None" };
         
         public static void Initialize()
         {
@@ -23,7 +23,7 @@ namespace AdvancedPS.Editor
             _inspectorViewTypes = Enum.GetNames(typeof(InspectorEnum));
         }
 
-        public static void OnGUIInternall()
+        public static void OnGUIInternal()
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label("Key Event Tracking:", GUILayout.ExpandWidth(false));
@@ -76,7 +76,7 @@ namespace AdvancedPS.Editor
             
             _inspectorViewIndex = (byte)_settings.InspectorView;
             _keyEventSystemEnabled = _settings.KeyEventSystemEnabled;
-            _logTypeIndex = Array.IndexOf(LOGTypes, _settings.LogType);
+            _logTypeIndex = Mathf.Clamp(Array.IndexOf(LOGTypes, _settings.LogType), 0, LOGTypes.Length - 1);
         }
     }
 }

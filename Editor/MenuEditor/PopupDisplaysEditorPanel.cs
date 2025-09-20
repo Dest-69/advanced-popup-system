@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
-using AdvancedPS.Core.System;
 using AdvancedPS.Core.Utils;
 using AdvancedPS.Editor.Styles;
 using UnityEditor;
@@ -14,17 +11,20 @@ namespace AdvancedPS.Editor
 {
     public class PopupDisplaysEditorPanel : EditorWindow
     {
+        private static bool autoSave;
         private static string[] _displayNames;
         private static bool[] _displayNameChanged;
         
         private static Vector2 scrollPosition;
+        private const string AutoSaveKey = "APS_AutoSaveEnabled";
 
         public static void Initialize()
         {
             LoadEnumNames();
+            autoSave = PlayerPrefs.GetInt(AutoSaveKey, 1) == 1;
         }
         
-        public static void OnGUIInternall()
+        public static void OnGUIInternal()
         {
             GUILayout.BeginVertical();
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, APSEditorStyles.ScrollViewStyle);
@@ -56,25 +56,26 @@ namespace AdvancedPS.Editor
                         GUI.FocusControl(null);
                     }
                 }
-                else
+                if (GUILayout.Button("Delete", GUILayout.Width(60)))
                 {
-                    if (GUILayout.Button("Delete", GUILayout.Width(60)))
+                    var currentName = _displayNames[i];
+                    if (string.IsNullOrEmpty(currentName) || EditorUtility.DisplayDialog("Confirm Delete",
+                            $"Are you sure you want to delete the display '{_displayNames[i]}'? This will delete the display and its settings scripts.",
+                            "Delete", "Cancel"))
                     {
-                        if (EditorUtility.DisplayDialog("Confirm Delete",
-                                $"Are you sure you want to delete the display '{_displayNames[i]}'? This will delete the display and its settings scripts.",
-                                "Delete", "Cancel"))
-                        {
-                            DeleteDisplay(i);
-                            DeleteDisplayAndSettingsFiles(newEnumName);
-                        }
+                        DeleteDisplay(i);
+                        if (autoSave) 
+                            DeleteDisplayAndSettingsFiles(currentName);
+                        GUILayout.EndHorizontal();
+                        break;
                     }
                 }
                 
                 GUILayout.EndHorizontal();
             }
 
-            GUILayout.EndVertical();
             EditorGUILayout.EndScrollView();
+            GUILayout.EndVertical();
             if (_displayNames.All(s => !string.IsNullOrEmpty(s)))
             {
                 if (GUILayout.Button("+", APSEditorStyles.BoldButtonStyle,GUILayout.Height(15)))
@@ -87,21 +88,49 @@ namespace AdvancedPS.Editor
             EditorGUILayoutExtensions.DrawHorizontalLine();
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
+            
+            GUILayout.Label("Auto-Save", GUILayout.ExpandWidth(false));
+            string toggleLabel = EditorGUIUtility.isProSkin ? (autoSave ? "[x]" : "[ ]") : "";
+            bool newAutoSave = GUILayout.Toggle(autoSave, toggleLabel, APSEditorStyles.ToggleStyle);
+            if (newAutoSave != autoSave)
+            {
+                autoSave = newAutoSave;
+                PlayerPrefs.SetInt(AutoSaveKey, autoSave ? 1 : 0);
+                PlayerPrefs.Save();
 
-            GUI.enabled = _displayNameChanged.Any(changed => changed);
+                if (autoSave)
+                    SaveDisplayChanges();
+            }
+
+            bool anyChanged = _displayNameChanged.Any(c => c);
+            
+            GUI.enabled = anyChanged && !autoSave;
             if (GUILayout.Button("Save", GUILayout.Width(80)))
             {
                 SaveDisplayChanges();
             }
             GUI.enabled = true;
             GUILayout.EndHorizontal();
+            
+            if (_displayNameChanged != null && anyChanged && autoSave)
+            {
+                SaveDisplayChanges();
+                Array.Clear(_displayNameChanged, 0, _displayNameChanged.Length);
+            }
         }
 
         private static void LoadEnumNames()
         {
-            _displayNames = Assembly.GetAssembly(typeof(IDisplay)).GetTypes()
-                .Where(t => typeof(IDisplay).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-                .Select(t => t.Name).ToArray();
+            var root = FileSearcher.DisplaysFolderPath;
+            if (!Directory.Exists(root)) {
+                _displayNames = Array.Empty<string>();
+                _displayNameChanged = Array.Empty<bool>();
+                return;
+            }
+            _displayNames = Directory.GetDirectories(root)
+                .Select(Path.GetFileName)
+                .Where(n => n.EndsWith("Display"))
+                .ToArray();
             _displayNameChanged = new bool[_displayNames.Length];
         }
 
@@ -123,64 +152,64 @@ namespace AdvancedPS.Editor
 
         private static string ValidateAndFormatDisplayName(string displayName)
         {
-            if (displayName == null)
-                return string.Empty;
+            if (displayName == null) return null;
 
             displayName = Regex.Replace(displayName, @"[\s-]+", ""); // Remove spaces and dashes
             displayName = Regex.Replace(displayName, "_+", ""); // Remove consecutive underscores
 
+            if (displayName.Length == 0) return string.Empty;
             return !Regex.IsMatch(displayName, @"^[a-zA-Z]+$") ? null : displayName;
         }
         
         private static void SaveDisplayChanges()
         {
-            List<string> cleanDisplayNames = new List<string>();
+            var desired = _displayNames
+                .Where(n => !string.IsNullOrEmpty(n))
+                .Select(TypeHelper.RemoveDisplaySuffix)
+                .Distinct()
+                .ToList();
+            if (desired.Count == 0) return;
 
-            foreach (string display in _displayNames)
+            foreach (var baseName in desired) 
             {
-                if (string.IsNullOrEmpty(display))
-                    continue;
-
-                string displayName = TypeHelper.RemoveDisplaySuffix(display);
-                cleanDisplayNames.Add(displayName);
-
-                string displayClass = displayName + "Display";
-        
-                if (TypeHelper.GetTypeByName(displayClass) == null)
-                {
-                    CreateDisplayAndSettingsFiles(displayName);
-                }
+                var className = baseName + "Display";
+                var folder    = Path.Combine(FileSearcher.DisplaysFolderPath, className);
+                if (!Directory.Exists(folder)) CreateDisplayAndSettingsFiles(baseName);
             }
-
             AssetDatabase.Refresh();
-            APSCodeGenerator.Execute(cleanDisplayNames.ToArray());
+            
+            APSCodeGenerator.Execute(desired.ToArray());
+            LoadEnumNames();
         }
         
         private static void DeleteDisplayAndSettingsFiles(string displayName)
         {
-            string displayFolderPath = Path.Combine(FileSearcher.DisplaysFolderPath, displayName);
-            if (Directory.Exists(displayFolderPath))
-            {
-                DirectoryInfo di = new DirectoryInfo(displayFolderPath);
-                di.Delete(true);
-            }
+            var baseName  = TypeHelper.RemoveDisplaySuffix(displayName);
+            var folderFs  = Path.Combine(FileSearcher.DisplaysFolderPath, baseName + "Display");
+            var assetPath = FileSearcher.ToAssetPath(folderFs);
 
+            if (AssetDatabase.IsValidFolder(assetPath))
+                AssetDatabase.DeleteAsset(assetPath);
+            
             SaveDisplayChanges();
         }
         
         private static void CreateDisplayAndSettingsFiles(string displayName)
         {
-            string displayFolderPath = Path.Combine(FileSearcher.DisplaysFolderPath, displayName + "Display");
+            var baseName = TypeHelper.RemoveDisplaySuffix(displayName);
+            var displayFolderPath = Path.Combine(FileSearcher.DisplaysFolderPath, baseName + "Display");
+            
             if (!Directory.Exists(displayFolderPath))
-            {
                 Directory.CreateDirectory(displayFolderPath);
-            }
 
-            string displayPath = Path.Combine(displayFolderPath, displayName + "Display.generated.cs");
-            string settingsPath = Path.Combine(displayFolderPath, displayName + "Settings.generated.cs");
+            string displayPath = Path.Combine(displayFolderPath, baseName + "Display.generated.cs");
+            string settingsPath = Path.Combine(displayFolderPath, baseName + "Settings.generated.cs");
 
-            File.WriteAllText(displayPath, GenerateDisplayClass(displayName + "Display", displayName + "Settings"));
-            File.WriteAllText(settingsPath, GenerateSettingsClass(displayName + "Settings"));
+            File.WriteAllText(displayPath, GenerateDisplayClass(baseName + "Display", baseName + "Settings"));
+            File.WriteAllText(settingsPath, GenerateSettingsClass(baseName + "Settings"));
+            
+            AssetDatabase.ImportAsset(FileSearcher.ToAssetPath(displayPath));
+            AssetDatabase.ImportAsset(FileSearcher.ToAssetPath(settingsPath));
         }
 
         private static string GenerateDisplayClass(string className, string settingsName)

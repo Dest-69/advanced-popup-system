@@ -13,6 +13,9 @@ namespace AdvancedPS.Editor
         {
             string code = GenerateSystemMethodsForDisplay(SystemName, displayNames);
             string path = $"Assets/advanced-popup-system/Runtime/Generated/{SystemName}.generated.cs";
+            
+            var dir = Path.GetDirectoryName(path);
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
             File.WriteAllText(path, code);
             
             code = GeneratePopupMethodsForDisplay(PopupName, displayNames);

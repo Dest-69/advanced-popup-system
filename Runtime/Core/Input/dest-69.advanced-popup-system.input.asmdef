@@ -1,10 +1,9 @@
 {
-    "name": "dest-69.advanced-popup-system.examples",
-    "rootNamespace": "AdvancedPS.Core.Examples",
+    "name": "dest-69.advanced-popup-system.input",
+    "rootNamespace": "",
     "references": [
         "GUID:bcd6335d616709349968d9fbde39ead7",
-        "GUID:343deaaf83e0cee4ca978e7df0b80d21",
-        "GUID:2bafac87e7f4b9b418d9448d219b01ab"
+        "GUID:75469ad4d38634e559750d17036d5f7c"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -12,7 +11,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "ENABLE_INPUT_SYSTEM"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }

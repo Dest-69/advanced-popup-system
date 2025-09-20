@@ -28,7 +28,7 @@ namespace AdvancedPS.Editor
             autoSave = PlayerPrefs.GetInt(AutoSaveKey, 1) == 1;
         }
 
-        public static void OnGUIInternall()
+        public static void OnGUIInternal()
         {
             GUILayout.BeginVertical();
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, APSEditorStyles.ScrollViewStyle);
@@ -52,7 +52,7 @@ namespace AdvancedPS.Editor
                         APLogger.LogWarning("Invalid enum name.");
                     }
                 }
-                
+
                 if (string.IsNullOrEmpty(newEnumName))
                 {
                     if (GUILayout.Button("Done", GUILayout.Width(60)))
@@ -60,21 +60,19 @@ namespace AdvancedPS.Editor
                         GUI.FocusControl(null);
                     }
                 }
-                else
+                if (GUILayout.Button("Delete", GUILayout.Width(60)))
                 {
-                    if (GUILayout.Button("Delete", GUILayout.Width(60)))
-                    {
-                        DeleteEnum(i);
-                        if (autoSave)
-                            SaveEnumChanges();
-                    }
+                    DeleteEnum(i);
+                    if (autoSave) SaveEnumChanges();
+                    GUILayout.EndHorizontal();
+                    break;
                 }
                 
                 GUILayout.EndHorizontal();
             }
 
-            GUILayout.EndVertical();
             EditorGUILayout.EndScrollView();
+            GUILayout.EndVertical();
             if (_enumNames.All(s => !string.IsNullOrEmpty(s)))
             {
                 if (GUILayout.Button("+", APSEditorStyles.BoldButtonStyle,GUILayout.Height(15)))
@@ -89,10 +87,8 @@ namespace AdvancedPS.Editor
             GUILayout.FlexibleSpace();
             
             GUILayout.Label("Auto-Save", GUILayout.ExpandWidth(false));
-            string toggleLable = "";
-            if (EditorGUIUtility.isProSkin)
-                toggleLable = autoSave ? "[x]" : "[ ]";
-            bool newAutoSave = GUILayout.Toggle(autoSave, toggleLable, APSEditorStyles.ToggleStyle);
+            string toggleLabel = EditorGUIUtility.isProSkin ? (autoSave ? "[x]" : "[ ]") : "";
+            bool newAutoSave = GUILayout.Toggle(autoSave, toggleLabel, APSEditorStyles.ToggleStyle);
             if (newAutoSave != autoSave)
             {
                 autoSave = newAutoSave;
@@ -103,7 +99,7 @@ namespace AdvancedPS.Editor
                     SaveEnumChanges();
             }
 
-            bool anyChanged = _enumNameChanged.Any(changed => changed);
+            bool anyChanged = _enumNameChanged.Any(c => c);
             
             GUI.enabled = anyChanged && !autoSave;
             if (GUILayout.Button("Save", GUILayout.Width(80)))
@@ -144,13 +140,11 @@ namespace AdvancedPS.Editor
 
         private static string ValidateAndFormatEnumName(string enumName)
         {
-            if (enumName == null)
-                return string.Empty;
-
+            if (enumName == null) return null;
             enumName = Regex.Replace(enumName, @"[\s-]+", "_"); // Convert spaces and dashes to underscores
             enumName = Regex.Replace(enumName, "_+", "_"); // Remove consecutive underscores
             enumName = enumName.ToUpper(); // Convert to uppercase
-
+            if (enumName.Length == 0) return string.Empty;
             return !Regex.IsMatch(enumName, @"^[A-Z_]+$") ? null : enumName;
         }
 
@@ -170,13 +164,16 @@ namespace AdvancedPS.Editor
             enumFileContent.AppendLine("    [Flags]");
             enumFileContent.AppendLine("    public enum PopupLayerEnum");
             enumFileContent.AppendLine("    {");
+            enumFileContent.AppendLine("        None = 0,");
 
-            for (int i = 0; i < _enumNames.Length; i++)
+            int bit = 0;
+            for (int i = 1; i < _enumNames.Length; i++) 
             {
-                if (string.IsNullOrEmpty(_enumNames[i]))
-                    continue;
-                
-                enumFileContent.AppendLine($"        {_enumNames[i]} = 1 << {i},");
+                var name = _enumNames[i];
+                if (string.IsNullOrEmpty(name)) continue;
+                if (bit >= 31) { APLogger.LogError("Too many flags for int enum. Max 31."); break; }
+                enumFileContent.AppendLine($"        {name} = 1 << {bit},");
+                bit++;
             }
 
             enumFileContent.AppendLine("    }");
@@ -184,6 +181,8 @@ namespace AdvancedPS.Editor
 
             File.WriteAllText(enumFilePath, enumFileContent.ToString());
             AssetDatabase.Refresh();
+            
+            LoadEnumNames();
         }
     }
 }

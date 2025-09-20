@@ -19,7 +19,7 @@ namespace AdvancedPS.Editor
         
         private static string _imagesPath;
         private static Texture2D _popupIcon;
-        private static Texture2D _popupBunner;
+        private static Texture2D _popupBanner;
 
         private SerializedProperty _popupLayerProperty;
         private SerializedProperty _deepPopupsProperty;
@@ -40,7 +40,7 @@ namespace AdvancedPS.Editor
             
             _imagesPath = FileSearcher.ImagesFolderPath;
             _popupIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_LogoBlack32.png");
-            _popupBunner = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_Banner.png");
+            _popupBanner = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_Banner.png");
             
             _popupLayerProperty = serializedObject.FindProperty("PopupLayer");
             _deepPopupsProperty = serializedObject.FindProperty("DeepPopups");
@@ -66,8 +66,12 @@ namespace AdvancedPS.Editor
             
             EditorGUILayout.BeginVertical(APSEditorStyles.DarkBackgroundStyle);
             EditorGUILayout.BeginHorizontal();
-            _popupLayerProperty.intValue = (int)(PopupLayerEnum)EditorGUILayout.EnumFlagsField("Popup Layer", (PopupLayerEnum)_popupLayerProperty.intValue);
-
+            
+            EditorGUI.showMixedValue = _popupLayerProperty.hasMultipleDifferentValues;
+            var newVal = (PopupLayerEnum)EditorGUILayout.EnumFlagsField("Popup Layer", (PopupLayerEnum)_popupLayerProperty.intValue);
+            EditorGUI.showMixedValue = false;
+            _popupLayerProperty.intValue = (int)newVal;
+            
             if (GUILayout.Button("Edit Layers", new GUILayoutOption[] { GUILayout.Width(100), GUILayout.ExpandHeight(true) }))
             {
                 PopupSystemEditor.ShowLayers();
@@ -153,7 +157,7 @@ namespace AdvancedPS.Editor
 
         private void DrawPopupSettings()
         {
-            float width = Screen.width / 4.3f;
+            float width = EditorGUIUtility.currentViewWidth / 4.3f;
             EditorGUILayoutExtensions.DrawHorizontalLine();
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical(GUILayout.Width(width));
@@ -164,12 +168,7 @@ namespace AdvancedPS.Editor
             {
                 PlayerPrefs.SetInt(IsHideKeySettings, 0);
                 _isHideSettings = false;
-                _keyBindingSettings = serializedObject.FindProperty("KeyBindingShowSettings");
-                _anyHotKey = _keyBindingSettings.FindPropertyRelative("AnyHotKey");
-                _hotKeys = _keyBindingSettings.FindPropertyRelative("HotKeys");
-                _layers = _keyBindingSettings.FindPropertyRelative("Layers");
-                _popups = _keyBindingSettings.FindPropertyRelative("Popups");
-                _actions = _keyBindingSettings.FindPropertyRelative("OnTrigger");
+                BindKeyBindingProps(false);
             }
             GUILayout.EndVertical();
 
@@ -183,12 +182,7 @@ namespace AdvancedPS.Editor
             {
                 PlayerPrefs.SetInt(IsHideKeySettings, 1);
                 _isHideSettings = true;
-                _keyBindingSettings = serializedObject.FindProperty("KeyBindingHideSettings");
-                _anyHotKey = _keyBindingSettings.FindPropertyRelative("AnyHotKey");
-                _hotKeys = _keyBindingSettings.FindPropertyRelative("HotKeys");
-                _layers = _keyBindingSettings.FindPropertyRelative("Layers");
-                _popups = _keyBindingSettings.FindPropertyRelative("Popups");
-                _actions = _keyBindingSettings.FindPropertyRelative("OnTrigger");
+                BindKeyBindingProps(true);
             }
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
@@ -197,6 +191,16 @@ namespace AdvancedPS.Editor
             DrawPopupKeyBindingSettings();
 
             EditorGUILayoutExtensions.DrawHorizontalLine();
+        }
+        
+        private void BindKeyBindingProps(bool hide) 
+        {
+            _keyBindingSettings = serializedObject.FindProperty(hide ? "KeyBindingHideSettings" : "KeyBindingShowSettings");
+            _anyHotKey = _keyBindingSettings.FindPropertyRelative("AnyHotKey");
+            _hotKeys   = _keyBindingSettings.FindPropertyRelative("HotKeys");
+            _layers    = _keyBindingSettings.FindPropertyRelative("Layers");
+            _popups    = _keyBindingSettings.FindPropertyRelative("Popups");
+            _actions   = _keyBindingSettings.FindPropertyRelative("OnTrigger");
         }
         
         private void DrawPopupKeyBindingSettings()
@@ -271,19 +275,15 @@ namespace AdvancedPS.Editor
         
         private void DrawBoolPropertiesInGrid(string[] names)
         {
-            SerializedProperty property = serializedObject.GetIterator();
-            property.NextVisible(true);
-
-            do
+            foreach (string n in names) 
             {
-                if (!names.Any(s => s.Equals(property.name))) continue;
-                
+                SerializedProperty p = serializedObject.FindProperty(n);
+                if (p == null) continue;
                 EditorGUILayout.BeginHorizontal();
-                property.boolValue = EditorGUILayout.Toggle(property.boolValue, GUILayout.Width(15));
-                EditorGUILayout.LabelField(property.displayName, GUILayout.Width(100));
+                p.boolValue = EditorGUILayout.Toggle(p.boolValue, GUILayout.Width(15));
+                EditorGUILayout.LabelField(p.displayName, GUILayout.Width(100));
                 EditorGUILayout.EndHorizontal();
             }
-            while (property.NextVisible(false));
         }
  
         protected override void OnHeaderGUI()
@@ -295,29 +295,31 @@ namespace AdvancedPS.Editor
                     break;
                 case InspectorEnum.APSOptimized:
                     GUI.enabled = false;
-                    EditorGUILayout.ObjectField("Script", MonoScript.FromMonoBehaviour((IAdvancedPopup)target), typeof(IAdvancedPopup), false);
+                    EditorGUILayout.ObjectField("Script", MonoScript.FromMonoBehaviour((MonoBehaviour)target),
+                        typeof(MonoBehaviour), false);
                     EditorGUILayout.Space(5);
                     GUI.enabled = true;
                     break;
                 case InspectorEnum.APSInspector:
                 {
                     GUI.enabled = false;
-                    EditorGUILayout.ObjectField("Script", MonoScript.FromMonoBehaviour((IAdvancedPopup)target), typeof(IAdvancedPopup), false);
+                    EditorGUILayout.ObjectField("Script", MonoScript.FromMonoBehaviour((MonoBehaviour)target),
+                        typeof(MonoBehaviour), false);
                     GUI.enabled = true;
             
-                    float availableWidth = Screen.width;
+                    float availableWidth = EditorGUIUtility.currentViewWidth;
                     float bannerHeight = 0;
 
-                    if (_popupBunner != null)
+                    if (_popupBanner != null)
                     {
-                        float aspectRatio = (float)_popupBunner.width / _popupBunner.height;
+                        float aspectRatio = (float)_popupBanner.width / _popupBanner.height;
                         bannerHeight = availableWidth / aspectRatio - 75;
                 
                         Rect rectBanner = EditorGUILayout.GetControlRect(false, bannerHeight, GUILayout.ExpandWidth(true));
                         rectBanner.y -= 2;
                         rectBanner.height += 30;
 
-                        GUI.DrawTexture(rectBanner, _popupBunner, ScaleMode.ScaleToFit);
+                        GUI.DrawTexture(rectBanner, _popupBanner, ScaleMode.ScaleToFit);
                     }
 
                     if (_popupIcon != null)

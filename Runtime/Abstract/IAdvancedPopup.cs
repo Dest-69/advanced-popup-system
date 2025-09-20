@@ -93,7 +93,6 @@ namespace AdvancedPS.Core.System
         #region Private
         //[SerializeField] private string inspectorShowDisplay;
         //[SerializeField] private string inspectorHideDisplay;
-        private CancellationTokenSource _source;
         #endregion
 
 #if UNITY_EDITOR
@@ -135,10 +134,8 @@ namespace AdvancedPS.Core.System
         {
             SetupCache();
             
-            if (RootTransform == null)
-                RootTransform = GetComponent<RectTransform>();
-
-            canvasGroup = GetComponent<CanvasGroup>();
+            if (!TryGetComponent(out RootTransform)) RootTransform = gameObject.AddComponent<RectTransform>();
+            if (!TryGetComponent(out canvasGroup)) canvasGroup = gameObject.AddComponent<CanvasGroup>();
             
             if (AutoHideOnInit)
             {
@@ -150,12 +147,18 @@ namespace AdvancedPS.Core.System
 
                 IsBeVisible = false;
                 IsVisible = false;
+                
+                if (gameObject.activeSelf)
+                    gameObject.SetActive(false);
             }
 
             if (transform.localScale != Vector3.zero && canvasGroup.alpha != 0)
             {
                 IsBeVisible = true;
                 IsVisible = true;
+                
+                if (!gameObject.activeSelf)
+                    gameObject.SetActive(true);
             }
             
             AdvancedPopupSystem.InitAdvancedPopup(this);
@@ -166,28 +169,32 @@ namespace AdvancedPS.Core.System
         /// </summary>
         private void SetupCache()
         {
-            if (CachedShowDisplay == null)
+            if (CachedShowDisplay == null && CachedHideDisplay == null) 
             {
-                Type hideDisplayType = CachedHideDisplay?.GetType();
-                if (hideDisplayType == null)
-                {
-                    SetCachedDisplay<ScaleDisplay, ScaleDisplay>();
-                }
-                else
-                {
-                    MethodInfo method = typeof(IAdvancedPopup).GetMethod("SetCachedDisplay");
-                    MethodInfo generic = method!.MakeGenericMethod(typeof(ScaleDisplay), hideDisplayType);
-                    generic.Invoke(this, new object[] { null, CachedHideSettings });
-                }
+                SetCachedDisplayInternal<ScaleDisplay>();
+                return;
             }
-            else if (CachedHideDisplay == null)
+            if (CachedShowDisplay == null) 
             {
-                Type showDisplayType = CachedShowDisplay.GetType();
-
-                MethodInfo method = typeof(IAdvancedPopup).GetMethod("SetCachedDisplay");
-                MethodInfo generic = method!.MakeGenericMethod(showDisplayType, typeof(ScaleDisplay));
-                generic.Invoke(this, new object[] { CachedShowSettings, null });
+                var hideType = CachedHideDisplay.GetType();
+                SetCachedDisplayMixed(typeof(ScaleDisplay), hideType, 
+                    CachedShowSettings, CachedHideSettings);
+                return;
             }
+            if (CachedHideDisplay == null) 
+            {
+                var showType = CachedShowDisplay.GetType();
+                SetCachedDisplayMixed(showType, typeof(ScaleDisplay), 
+                    CachedShowSettings, CachedHideSettings);
+            }
+        }
+        
+        private void SetCachedDisplayMixed(Type showT, Type hideT, BaseSettings show, BaseSettings hide) {
+            var m = typeof(IAdvancedPopup)
+                .GetMethod("SetCachedDisplayInternal", BindingFlags.Instance | BindingFlags.NonPublic, null,
+                    new[]{ typeof(BaseSettings), typeof(BaseSettings) }, null)!
+                .MakeGenericMethod(showT, hideT);
+            m.Invoke(this, new object[]{ show, hide });
         }
         
         /// <summary>
@@ -200,6 +207,8 @@ namespace AdvancedPS.Core.System
         {
             CachedShowDisplay = AdvancedPopupSystem.GetDisplay<T>();
             CachedShowSettings = showSettings;
+            CachedHideDisplay = AdvancedPopupSystem.GetDisplay<T>();
+            CachedHideSettings = showSettings;
         }
 
         /// <summary>
@@ -219,12 +228,19 @@ namespace AdvancedPS.Core.System
         }
 
         /// <summary>
-        /// Check if popup exist in deep of this popup.
+        /// Check if popup exist in deep of this popup. (infinite loop safe by Dfs)
         /// </summary>
         /// <param name="popup"> popup what we are searching </param>
         public virtual bool ContainsDeepPopup(IAdvancedPopup popup)
         {
-            return DeepPopups.Any(deepPopup => popup == deepPopup || deepPopup.ContainsDeepPopup(popup));
+            var st = new HashSet<IAdvancedPopup>();
+            return Dfs(this);
+
+            bool Dfs(IAdvancedPopup n)
+            {
+                if (n == null || !st.Add(n)) return false;
+                return DeepPopups.Any(d => d == popup || d.ContainsDeepPopup(popup));
+            }
         }
 
         #region SHOW
@@ -290,16 +306,5 @@ namespace AdvancedPS.Core.System
         public abstract Task HideAsync<T>(CancellationToken token = default, BaseSettings settings = null)
             where T : IDisplay, new();
         #endregion
-        
-        protected CancellationTokenSource UpdateCancellationTokenSource()
-        {
-            if (_source != null)
-            {
-                _source.Cancel();
-                _source.Dispose();
-            }
-            _source = new CancellationTokenSource();
-            return _source;
-        }
     }
 }

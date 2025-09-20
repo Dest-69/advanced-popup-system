@@ -1,6 +1,6 @@
 {
   "name": "com.dest-69.advanced-popup-system",
-  "version": "1.9.8",
+  "version": "1.11.2",
   "url": "https://github.com/Dest-69/advanced-popup-system",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1"
@@ -8,9 +8,12 @@
   "displayName": "Advanced Popup",
   "description": "Advanced Popup System - is a free flexible popup system.\nYou can add and change functionality depending on your needs.",
   "type": "library",
-  "unity": "2020.3",
+  "unity": "2021.3",
   "author": {
     "name": "dest-69",
     "email": "vetalpopovetskiy@gmail.com"
-  }
+  },
+  "hideInEditor": false,
+  "changelogUrl": "https://github.com/Dest-69/advanced-popup-system/releases",
+  "licensesUrl": "https://github.com/Dest-69/advanced-popup-system/blob/main/LICENSE"
 }

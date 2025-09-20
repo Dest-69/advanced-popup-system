@@ -81,25 +81,26 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override Operation Show(BaseSettings settings = null)
         {
-            if (IsBeVisible) return new Operation();
-            
             return new Operation(async token =>
             {
+                if (IsBeVisible) return;
                 await ShowAsync(token, settings);
-            }, UpdateCancellationTokenSource());
+            });
         }
+
         /// <summary>
         /// Show popup by CachedDisplay type.
         /// </summary>
-        /// <param name="token"></param>
+        /// <param name="token"> (Optional) For control Task life-cycle. </param>
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task ShowAsync(CancellationToken token = default, BaseSettings settings = null)
         {
             if (IsBeVisible) return;
+            gameObject.SetActive(true);
             IsBeVisible = true;
-
+            
             if (token == default)
-                token = UpdateCancellationTokenSource().Token;
+                token = new CancellationToken();
             
             Subscribe();
             
@@ -126,25 +127,25 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override Operation Show<T>(BaseSettings settings = null)
         {
-            if (IsBeVisible) return new Operation();
-            
             return new Operation(async token =>
             {
+                if (IsBeVisible) return;
                 await ShowAsync<T>(token, settings);
-            }, UpdateCancellationTokenSource());
+            });
         }
         /// <summary>
         /// Show popup by IAdvancedPopupDisplay generic T type for all popup's.
         /// </summary>
-        /// <param name="token"></param>
+        /// <param name="token"> (Optional) For control Task life-cycle. </param>
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task ShowAsync<T>(CancellationToken token = default, BaseSettings settings = null)
         {
             if (IsBeVisible) return;
+            gameObject.SetActive(true);
             IsBeVisible = true;
-                
+
             if (token == default)
-                token = UpdateCancellationTokenSource().Token;
+                token = new CancellationToken();
             
             Subscribe();
 
@@ -182,17 +183,16 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override Operation Hide(BaseSettings settings = null)
         {
-            if (!IsBeVisible) return new Operation();
-            
             return new Operation(async token =>
             {
+                if (!IsBeVisible) return;
                 await HideAsync(token, settings);
-            }, UpdateCancellationTokenSource());
+            });
         }
         /// <summary>
         /// Hide popup by CachedDisplay type.
         /// </summary>
-        /// <param name="token"></param>
+        /// <param name="token"> (Optional) For control Task life-cycle. </param>
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task HideAsync(CancellationToken token = default, BaseSettings settings = null)
         {
@@ -200,7 +200,7 @@ namespace AdvancedPS.Core
             IsBeVisible = false;
             
             if (token == default)
-                token = UpdateCancellationTokenSource().Token;
+                token = new CancellationToken();
             
             Unsubscribe();
             
@@ -220,6 +220,7 @@ namespace AdvancedPS.Core
                 return;
             }
             
+            gameObject.SetActive(false);
             IsVisible = false;
         }
         /// <summary>
@@ -228,17 +229,16 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override Operation Hide<T>(BaseSettings settings = null)
         {
-            if (!IsBeVisible) return new Operation();
-            
             return new Operation(async token =>
             {
+                if (!IsBeVisible) return;
                 await HideAsync<T>(token, settings);
-            }, UpdateCancellationTokenSource());
+            });
         }
         /// <summary>
         /// Hide popup by IAdvancedPopupDisplay generic T type for all popup's.
         /// </summary>
-        /// <param name="token"></param>
+        /// <param name="token"> (Optional) For control Task life-cycle. </param>
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task HideAsync<T>(CancellationToken token = default, BaseSettings settings = null)
         {
@@ -246,7 +246,7 @@ namespace AdvancedPS.Core
             IsBeVisible = false;
             
             if (token == default)
-                token = UpdateCancellationTokenSource().Token;
+                token = new CancellationToken();
             
             Unsubscribe();
 
@@ -266,6 +266,7 @@ namespace AdvancedPS.Core
                 return;
             }
             
+            gameObject.SetActive(false);
             IsVisible = false;
         }
         #endregion

@@ -1,15 +1,41 @@
 ﻿using System;
 using System.Linq;
 using AdvancedPS.Core.System;
+using AdvancedPS.Core.Utils;
 using UnityEngine;
 using UnityEngine.LowLevel;
 using UnityEngine.PlayerLoop;
+
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace AdvancedPS.Core
 {
     public static class KeyEventSystemAPS
     {
         public static bool IsEnabled = true;
+        
+#if UNITY_EDITOR
+        [InitializeOnLoadMethod]
+        private static void EditorInitialize()
+        {
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+        }
+
+        private static void OnPlayModeChanged(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.ExitingPlayMode)
+            {
+                PlayerLoop.SetPlayerLoop(PlayerLoop.GetDefaultPlayerLoop());
+            }
+        }
+#endif
         
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void Initialize()
@@ -21,11 +47,15 @@ namespace AdvancedPS.Core
 
             if (updateSubsystemIndex == -1)
             {
-                Debug.LogError("[KeyEventSystemAPS] - Update subsystem not found.");
+                APLogger.LogError("<color=red>[KeyEventSystemAPS]</color> - Update subsystem not found.");
                 return;
             }
-
+            
             PlayerLoopSystem updateSubsystem = playerLoop.subSystemList[updateSubsystemIndex];
+            
+            if (updateSubsystem.subSystemList.Any(s => s.type == typeof(KeyEventSystemAPS)))
+                return;
+            
             PlayerLoopSystem updatedSystem = new PlayerLoopSystem
             {
                 type = typeof(KeyEventSystemAPS),
@@ -40,12 +70,20 @@ namespace AdvancedPS.Core
             playerLoop.subSystemList[updateSubsystemIndex] = updateSubsystem;
             PlayerLoop.SetPlayerLoop(playerLoop);
             
-            Debug.Log("[KeyEventSystemAPS] - initialized successfully");
+            APLogger.Log("<color=green>[KeyEventSystemAPS]</color> - initialized successfully");
         }
 
         private static void Update()
         {
-            if (!IsEnabled || !Input.anyKeyDown) return;
+            if (!IsEnabled) return;
+            
+#if ENABLE_INPUT_SYSTEM
+            var kb = Keyboard.current;
+            if (kb == null) return;
+            if (!Keyboard.current.anyKey.wasPressedThisFrame) return;
+#else
+            if (!Input.anyKeyDown) return;
+#endif
             
             KeyCode pressedKey = GetPressedKey();
             if (pressedKey == default) return;
@@ -100,7 +138,24 @@ namespace AdvancedPS.Core
         
         private static KeyCode GetPressedKey()
         {
-            return Enum.GetValues(typeof(KeyCode)).Cast<KeyCode>().FirstOrDefault(Input.GetKeyDown);
+#if ENABLE_INPUT_SYSTEM
+            var kb = Keyboard.current;
+            if (kb == null) return default; // no device => avoid NRE
+
+            foreach (var key in kb.allKeys)
+            {
+                if (!key.wasPressedThisFrame) continue;
+
+                // Best-effort map InputSystem.Key -> legacy KeyCode by name
+                if (Enum.TryParse(key.keyCode.ToString(), out KeyCode unityKey))
+                    return unityKey;
+            }
+#else
+            foreach (KeyCode key in Enum.GetValues(typeof(KeyCode)))
+                if (Input.GetKeyDown(key))
+                    return key;
+#endif
+            return default;
         }
     }
 }

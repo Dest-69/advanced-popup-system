@@ -32,10 +32,6 @@ namespace AdvancedPS.Core
         /// Changed flags only by AdvancedPopupSystem. (if you show/hide popups manually it will effect only at 'ActivePopups' field)
         /// </summary>
         public static PopupLayerEnum ActiveLayer;
-        /// <summary>
-        /// For thread control.
-        /// </summary>
-        private static CancellationTokenSource _source;
         #endregion
 
         #region Other
@@ -64,7 +60,7 @@ namespace AdvancedPS.Core
         private static void SortPopups()
         {
             Scene activeScene = SceneManager.GetActiveScene();
-
+            
             // Sort popups in active scene
             List<IAdvancedPopup> activeScenePopups = AllPopups
                 .Where(popup => popup.gameObject.scene == activeScene)
@@ -118,11 +114,9 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
+                if (ActiveLayer.HasFlag(layer)) return;
                 try
                 {
-                    if (token.IsCancellationRequested || !Application.isPlaying)
-                        return;
-
                     ActiveLayer |= layer;
                     await ShowPopupsAsync(token, GetPopupsByLayer(layer), null);
                 }
@@ -130,7 +124,7 @@ namespace AdvancedPS.Core
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
 
         /// <summary>
@@ -142,11 +136,9 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
+                if (ActiveLayer.HasFlag(layer)) return;
                 try
                 {
-                    if (token.IsCancellationRequested || !Application.isPlaying)
-                        return;
-
                     ActiveLayer |= layer;
                     await ShowPopupsAsync<T>(token, GetPopupsByLayer(layer), settings);
                 }
@@ -154,7 +146,7 @@ namespace AdvancedPS.Core
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
         #endregion
         
@@ -167,11 +159,9 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
+                if (!ActiveLayer.HasFlag(layer)) return;
                 try
                 {
-                    if (token.IsCancellationRequested || !Application.isPlaying)
-                        return;
-
                     ActiveLayer &= ~layer;
                     await HidePopupsAsync(token, GetPopupsByLayer(layer), null);
                 }
@@ -179,7 +169,7 @@ namespace AdvancedPS.Core
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
 
         /// <summary>
@@ -191,11 +181,9 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
+                if (!ActiveLayer.HasFlag(layer)) return;
                 try
                 {
-                    if (token.IsCancellationRequested || !Application.isPlaying)
-                        return;
-
                     ActiveLayer &= ~layer;
                     await HidePopupsAsync<T>(token, GetPopupsByLayer(layer), settings);
                 }
@@ -203,7 +191,7 @@ namespace AdvancedPS.Core
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
         #endregion
         
@@ -217,22 +205,18 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
+                if (ActiveLayer == layer) return;
                 try
                 {
-                    ActiveLayer &= ~layer;
+                    ActiveLayer = layer;
                     await HidePopupsAsync(token, GetPopupsExcludingLayer(layer), null);
-
-                    if (token.IsCancellationRequested || !Application.isPlaying)
-                        return;
-
-                    ActiveLayer |= layer;
                     await ShowPopupsAsync(token, GetPopupsByLayer(layer), null);
                 }
                 catch (Exception ex)
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
 
         /// <summary>
@@ -244,22 +228,18 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
+                if (ActiveLayer == layer) return;
                 try
                 {
-                    ActiveLayer &= ~layer;
+                    ActiveLayer = layer;
                     await HidePopupsAsync<T>(token, GetPopupsExcludingLayer(layer), settings);
-                    
-                    if (token.IsCancellationRequested || !Application.isPlaying)
-                        return;
-
-                    ActiveLayer |= layer;
                     await ShowPopupsAsync<T>(token, GetPopupsByLayer(layer), settings);
                 }
                 catch (Exception ex)
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
 
         /// <summary>
@@ -273,22 +253,18 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
+                if (ActiveLayer == layer) return;
                 try
                 {
-                    ActiveLayer &= ~layer;
+                    ActiveLayer = layer;
                     await HidePopupsAsync<J>(token, GetPopupsExcludingLayer(layer), hideSettings);
-                    
-                    if (token.IsCancellationRequested || !Application.isPlaying)
-                        return;
-
-                    ActiveLayer |= layer;
                     await ShowPopupsAsync<T>(token, GetPopupsByLayer(layer), showSettings);
                 }
                 catch (Exception ex)
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
         #endregion
 
@@ -297,11 +273,11 @@ namespace AdvancedPS.Core
         /// <summary>
         /// Hide all popups by CachedDisplay type.
         /// </summary>
-        /// <param name="deepHide">If true, hides all "DeepPopups" without layer.</param>
-        public static Operation HideAll(bool deepHide = false)
+        public static Operation HideAll()
         {
             return new Operation(async token =>
             {
+                if (ActiveLayer == 0) return;
                 try
                 {
                     ActiveLayer = 0;
@@ -311,7 +287,7 @@ namespace AdvancedPS.Core
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
 
         /// <summary>
@@ -322,6 +298,7 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
+                if (ActiveLayer == 0) return;
                 try
                 {
                     ActiveLayer = 0;
@@ -331,7 +308,7 @@ namespace AdvancedPS.Core
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
-            }, UpdateCancellationTokenSource());
+            });
         }
         #endregion
 
@@ -343,7 +320,7 @@ namespace AdvancedPS.Core
         {
             List<IAdvancedPopup> popups = AllPopups.Where(popup => popup.PopupLayer.HasFlag(layer)).ToList();
             if (popups.Count == 0)
-                APLogger.LogError($"AdvancedPopupSystem not found popup/s by '{layer}' layer!");
+                APLogger.Log($"AdvancedPopupSystem not found popup/s by '{layer}' layer!");
 
             return popups;
         }
@@ -355,7 +332,7 @@ namespace AdvancedPS.Core
         {
             List<IAdvancedPopup> popups = AllPopups.Where(popup => !popup.PopupLayer.HasFlag(layer)).ToList();
             if (popups.Count == 0)
-                APLogger.LogError($"AdvancedPopupSystem not found popup/s excluding '{layer}' layer!");
+                APLogger.Log($"AdvancedPopupSystem not found popup/s excluding '{layer}' layer!");
 
             return popups;
         }
@@ -365,8 +342,10 @@ namespace AdvancedPS.Core
         /// </summary>
         private static async Task ShowPopupsAsync(CancellationToken token, IEnumerable<IAdvancedPopup> popups, BaseSettings settings)
         {
+            if (token.IsCancellationRequested || !Application.isPlaying) return;
+
             List<Task> tasks = popups.Select(popup => popup.ShowAsync(token, settings)).ToList();
-            if (tasks.Count > 0)
+            if (tasks.Count > 0) 
                 await Task.WhenAll(tasks);
         }
 
@@ -376,7 +355,9 @@ namespace AdvancedPS.Core
         private static async Task ShowPopupsAsync<T>(CancellationToken token, IEnumerable<IAdvancedPopup> popups, BaseSettings settings) 
             where T : IDisplay, new()
         {
-            List<Task> tasks = popups.Select(popup => popup.ShowAsync<T>(token, settings)).ToList();
+            if (token.IsCancellationRequested || !Application.isPlaying) return;
+            
+            List<Task> tasks = popups.Select(popup =>popup.ShowAsync<T>(token, settings)).ToList();
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
         }
@@ -386,6 +367,8 @@ namespace AdvancedPS.Core
         /// </summary>
         private static async Task HidePopupsAsync(CancellationToken token, IEnumerable<IAdvancedPopup> popups, BaseSettings settings)
         {
+            if (token.IsCancellationRequested || !Application.isPlaying) return;
+            
             List<Task> tasks = popups.Select(popup => popup.HideAsync(token, settings)).ToList();
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
@@ -397,6 +380,8 @@ namespace AdvancedPS.Core
         private static async Task HidePopupsAsync<T>(CancellationToken token, IEnumerable<IAdvancedPopup> popups, BaseSettings settings) 
             where T : IDisplay, new()
         {
+            if (token.IsCancellationRequested || !Application.isPlaying) return;
+            
             List<Task> tasks = popups.Select(popup => popup.HideAsync<T>(token, settings)).ToList();
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
@@ -407,6 +392,8 @@ namespace AdvancedPS.Core
         /// </summary>
         private static async Task HideAllPopupsAsync(CancellationToken token, BaseSettings settings)
         {
+            if (token.IsCancellationRequested || !Application.isPlaying) return;
+            
             List<Task> tasks = AllPopups.Select(popup => popup.HideAsync(token, settings)).ToList();
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
@@ -418,20 +405,11 @@ namespace AdvancedPS.Core
         private static async Task HideAllPopupsAsync<T>(CancellationToken token, BaseSettings settings) 
             where T : IDisplay, new()
         {
+            if (token.IsCancellationRequested || !Application.isPlaying) return;
+            
             List<Task> tasks = AllPopups.Select(popup => popup.HideAsync<T>(token, settings)).ToList();
             if (tasks.Count > 0)
                 await Task.WhenAll(tasks);
-        }
-        
-        private static CancellationTokenSource UpdateCancellationTokenSource()
-        {
-            if (_source != null)
-            {
-                _source.Cancel();
-                _source.Dispose();
-            }
-            _source = new CancellationTokenSource();
-            return _source;
         }
         #endregion
     }

@@ -1,6 +1,8 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using AdvancedPS.Core.System;
 using Newtonsoft.Json;
+using UnityEngine;
 
 namespace AdvancedPS.Core.Utils
 {
@@ -24,6 +26,27 @@ namespace AdvancedPS.Core.Utils
             DisplaysFolderPath = GetDisplaysFolderPathInternal().Replace(@"\", "/");
             LayersEnumFilePath = GetLayersEnumFilePathInternal().Replace(@"\", "/");
         }
+        
+        public static string ToAssetPath(string pathFs)
+        {
+            var p = pathFs.Replace("\\", "/");
+            if (p.StartsWith("Assets/") || p == "Assets") return p;
+
+            var data = Application.dataPath.Replace("\\", "/");
+            if (!p.StartsWith(data))
+                throw new Exception($"Path not under Assets: {p}");
+
+            return "Assets" + p.Substring(data.Length);
+        }
+
+        public static string ToFsPath(string assetPath)
+        {
+            var p = assetPath.Replace("\\", "/");
+            if (!p.StartsWith("Assets"))
+                throw new Exception($"Not an asset path: {p}");
+            return Path.Combine(Application.dataPath, p.Substring("Assets".Length)).Replace("\\", "/");
+        }
+
         
         private static string GetImagesFolderPathInternal()
         {

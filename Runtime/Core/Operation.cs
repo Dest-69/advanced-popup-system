@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using AdvancedPS.Core.Utils;
 using UnityEngine;
 
 namespace AdvancedPS.Core.System
@@ -9,45 +10,53 @@ namespace AdvancedPS.Core.System
     {
         private readonly Func<CancellationToken, Task> _operation;
         private Action _onComplete;
-        private readonly CancellationTokenSource _source;
+        private CancellationTokenSource _source;
+        private readonly Task _task;
 
-        public Operation(Func<CancellationToken, Task> operation = null, CancellationTokenSource source = null)
+        public Operation(Func<CancellationToken, Task> operation)
         {
-            if (operation == null) return;
-            
-            _operation = operation;
-            _source = source ?? new CancellationTokenSource();
-            _ = ExecuteAsync();
+            _operation = operation ?? throw new ArgumentNullException(nameof(operation));
+            _source = UpdateCancellationTokenSource();
+            _task = ExecuteAsync();
         }
 
         public Operation OnComplete(Action onComplete)
         {
-            _onComplete = onComplete;
+            if (_task.IsCompleted) onComplete?.Invoke();
+            else _onComplete = onComplete;
             return this;
         }
 
         private async Task ExecuteAsync()
         {
+            bool cancelled;
             try
             {
                 await _operation(_source.Token);
             }
             catch (Exception e)
             {
-                Debug.LogError(e);
-                throw;
+                APLogger.LogException(e);
+            }
+            finally 
+            {
+                cancelled = _source.IsCancellationRequested;
+                _source.Dispose();
             }
             
-            if (!_source.Token.IsCancellationRequested)
-            {
-                _onComplete?.Invoke();
-            }
+            if (!cancelled) _onComplete?.Invoke();
         }
 
         public void Cancel()
         {
             _source.Cancel();
             _source.Dispose();
+        }
+        
+        private CancellationTokenSource UpdateCancellationTokenSource()
+        {
+            _source?.Cancel();
+            return _source = new CancellationTokenSource();
         }
     }
 }

@@ -15,13 +15,11 @@ namespace AdvancedPS.Editor
         }
         private string imagesPath;
 
-        private const string Version = "1.9.2";
+        private static readonly string Version = PackageVersionHelper.Version;
         
         private static Tab currentTab = Tab.Layers;
         
         private Texture2D bannerTexture;
-        private Texture2D iconTexture;
-        private Texture2D blackTexture;
         
         [MenuItem("APS/Layers")]
         public static void ShowLayers()
@@ -50,14 +48,7 @@ namespace AdvancedPS.Editor
             minSize = new Vector2(300, 450);
             
             imagesPath = FileSearcher.ImagesFolderPath;
-            bannerTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(imagesPath + "AP_bundleBlack.png");
-            iconTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(imagesPath + "AP_LogoBlack.png");
-            if (iconTexture != null)
-            {
-                blackTexture = new Texture2D(1, 1);
-                blackTexture.SetPixel(0, 0, Color.black);
-                blackTexture.Apply();
-            }
+            bannerTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(System.IO.Path.Combine(imagesPath, "AP_bundleBlack.png"));
             
             // Initialize and load necessary resources
             PopupLayerEditorPanel.Initialize();
@@ -68,6 +59,9 @@ namespace AdvancedPS.Editor
         private void OnGUI()
         {
             bool isDarkTheme = EditorGUIUtility.isProSkin;
+            
+            var prevBg = GUI.backgroundColor;
+            var prevCt = GUI.contentColor;
             GUI.backgroundColor = isDarkTheme ? Color.black : Color.white;
             GUI.contentColor = isDarkTheme ? Color.white : Color.black;
             
@@ -81,12 +75,10 @@ namespace AdvancedPS.Editor
                 const float bannerWidth = 256;
                 const float bannerHeight = 128;
                 Rect blackBackgroundRect = GUILayoutUtility.GetRect(position.width, bannerHeight);
-                GUI.DrawTexture(blackBackgroundRect, blackTexture);
+                EditorGUI.DrawRect(blackBackgroundRect, Color.black);
 
                 Rect bannerRect = new Rect((position.width - bannerWidth) / 2, blackBackgroundRect.y, bannerWidth, bannerHeight);
                 GUI.DrawTexture(bannerRect, bannerTexture);
-
-                GUILayout.Space(blackBackgroundRect.height);
             }
 
             EditorGUILayoutExtensions.DrawHorizontalLine(padding: 20);
@@ -94,15 +86,18 @@ namespace AdvancedPS.Editor
             switch (currentTab)
             {
                 case Tab.Layers:
-                    PopupLayerEditorPanel.OnGUIInternall();
+                    PopupLayerEditorPanel.OnGUIInternal();
                     break;
                 case Tab.Displays:
-                    PopupDisplaysEditorPanel.OnGUIInternall();
+                    PopupDisplaysEditorPanel.OnGUIInternal();
                     break;
                 case Tab.Settings:
-                    PopupSettingsEditor.OnGUIInternall();
+                    PopupSettingsEditor.OnGUIInternal();
                     break;
             }
+            
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevCt;
         }
 
         private void DrawTabs()
