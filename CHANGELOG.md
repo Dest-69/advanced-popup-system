@@ -1,4 +1,19 @@
 # Changelog
+## [1.11.2] - 2025-09-20
+### Improved
+- Core popup system flow reworked for more stable show/hide logic.
+- Popup operations made more consistent across layers and nested stacks.
+- Inspector settings improved: clearer control of popup layers, deep-stack options, and key tracking states.
+- Code generation process more reliable (auto-creates required folders).
+- General stability and utility improvements.
+- Minor optimizations in core and utilities to reduce overhead and improve editor responsiveness.
+### Added
+- Support for a new **Input System**: centralized key event tracking for controlling popups.
+- Editor helper for managing package version info.
+### Fixed
+- Popup banner icon now displays correctly in the inspector.
+- Generated popup enums and interfaces updated to match the new layering model, preventing mismatches at runtime.
+
 ## [1.9.8] - 2024-10-31
 ### Improved
 - SlideDisplay anchor(pivot only) support
