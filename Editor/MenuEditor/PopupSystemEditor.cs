@@ -15,16 +15,7 @@ namespace AdvancedPS.Editor
         }
         private string imagesPath;
 
-        public static string Version
-        {
-            get
-            {
-                if (string.IsNullOrEmpty(_version))
-                    _version = PackageVersionHelper.GetVersion();
-                return _version;
-            }
-        }
-        private static string _version;
+        public static string Version;
         
         private static Tab currentTab = Tab.Layers;
         
@@ -58,6 +49,8 @@ namespace AdvancedPS.Editor
             
             imagesPath = FileSearcher.ImagesFolderPath;
             bannerTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(System.IO.Path.Combine(imagesPath, "AP_bundleBlack.png"));
+            
+            Version = PackageVersionHelper.GetVersion();
             
             // Initialize and load necessary resources
             PopupLayerEditorPanel.Initialize();

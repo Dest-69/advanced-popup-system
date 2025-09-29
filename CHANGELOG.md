@@ -1,4 +1,19 @@
 # Changelog
+## [1.17.0] - 2025-09-29 
+### Improved
+- Core refactor to **generics** instead of reflection. Faster calls and compile-time safety for displays/settings.
+- New **Display Registry** for caching display instances. Cuts lookups and allocations.
+- Cleaner folder structure for APS core. Easier navigation and maintenance.
+- Better cancellation handling in async show/hide. Fewer stuck operations.
+### Added
+- **Input System support**: separate “New” and “Old” input assemblies with centralized key tracking (`Input/New` and `Input/Old`, `PopupKeyBinding`). 
+- **DoTween integration example** with generated display/settings, asmdef, scene, and prefabs. Shows how to plug custom anim drivers.
+- Editor tooling: **PopupSystemEditor**, **PopupDisplaysEditorPanel**, **BaseSettingsDrawer**, **PackageVersionHelper** to streamline setup and inspection.
+- Auto-generated stubs for **Fade/Scale/Slide** displays and settings to match the new typed model. 
+### Fixed
+- Reduced GC pressure and spikes by removing delegate/reflection paths and avoiding redundant allocations.
+- More stable show/hide flow across layers due to unified typed pipeline.
+
 ## [1.11.2] - 2025-09-20
 ### Improved
 - Core popup system flow reworked for more stable show/hide logic.
