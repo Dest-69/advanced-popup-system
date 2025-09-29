@@ -19,7 +19,7 @@
 ```Window -> Package Manager -> "+" (Install package by name) -> Name: com.unity.nuget.newtonsoft-json```
 
 **Tech Doc**
-[Documentation](https://github.com/Dest-69/advanced-popup-system/documentation.md)
+[Documentation](https://github.com/Dest-69/advanced-popup-system/blob/develop/documentation.md)
 
 **How it works**
 ![How it works](https://github.com/Dest-69/advanced-popup-system/assets/41786105/4159ffdb-ff6c-4590-866f-131d2b5067fe)
