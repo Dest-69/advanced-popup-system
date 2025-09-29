@@ -178,7 +178,6 @@ namespace AdvancedPS.Editor
             }
             AssetDatabase.Refresh();
             
-            APSCodeGenerator.Execute(desired.ToArray());
             LoadEnumNames();
         }
         
@@ -198,15 +197,18 @@ namespace AdvancedPS.Editor
         {
             var baseName = TypeHelper.RemoveDisplaySuffix(displayName);
             var displayFolderPath = Path.Combine(FileSearcher.DisplaysFolderPath, baseName + "Display");
+
+            string fullDisplayName = $"{baseName}Display";;
+            string fullSettingsName = $"{baseName}Settings";
             
             if (!Directory.Exists(displayFolderPath))
                 Directory.CreateDirectory(displayFolderPath);
 
-            string displayPath = Path.Combine(displayFolderPath, baseName + "Display.generated.cs");
-            string settingsPath = Path.Combine(displayFolderPath, baseName + "Settings.generated.cs");
+            string displayPath = Path.Combine(displayFolderPath, $"{fullDisplayName}.generated.cs");
+            string settingsPath = Path.Combine(displayFolderPath, $"{fullSettingsName}.generated.cs");
 
-            File.WriteAllText(displayPath, GenerateDisplayClass(baseName + "Display", baseName + "Settings"));
-            File.WriteAllText(settingsPath, GenerateSettingsClass(baseName + "Settings"));
+            File.WriteAllText(displayPath, GenerateDisplayClass(fullDisplayName, fullSettingsName));
+            File.WriteAllText(settingsPath, GenerateSettingsClass(fullDisplayName, fullSettingsName));
             
             AssetDatabase.ImportAsset(FileSearcher.ToAssetPath(displayPath));
             AssetDatabase.ImportAsset(FileSearcher.ToAssetPath(settingsPath));
@@ -223,7 +225,7 @@ using UnityEngine;
 
 namespace AdvancedPS.Core
 {{
-    public class {className} : IDisplay
+    public class {className} : DisplayBase<{settingsName}>
     {{
         /// <summary>
         /// Logic for popup showing animation.
@@ -232,16 +234,15 @@ namespace AdvancedPS.Core
         /// <param name=""settings""> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name=""cancellationToken""></param>
         /// <returns></returns>
-        public Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
+        public override Task ShowMethod(RectTransform transform, {settingsName} settings, CancellationToken cancellationToken)
         {{
-            {settingsName} settingsLocal = settings as {settingsName};
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
 
-            settingsLocal.OnAnimationStart?.Invoke();
+            settings.OnAnimationStart?.Invoke();
 
             /* Your code here */
             
-            settingsLocal.OnAnimationEnd?.Invoke();
+            settings.OnAnimationEnd?.Invoke();
 
             return Task.CompletedTask;
         }}
@@ -253,16 +254,15 @@ namespace AdvancedPS.Core
         /// <param name=""settings""> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name=""cancellationToken""></param>
         /// <returns></returns> 
-        public Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
+        public override Task HideMethod(RectTransform transform, {settingsName} settings, CancellationToken cancellationToken)
         {{
-            {settingsName} settingsLocal = settings as {settingsName};
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
 
-            settingsLocal.OnAnimationStart?.Invoke();
+            settings.OnAnimationStart?.Invoke();
 
             /* Your code here */
             
-            settingsLocal.OnAnimationEnd?.Invoke();
+            settings.OnAnimationEnd?.Invoke();
 
             return Task.CompletedTask;
         }}
@@ -288,12 +288,24 @@ namespace AdvancedPS.Core
             }}
             return canvasGroup;
         }}
+
+        /// <summary>
+        /// Set the state of the CanvasGroup.
+        /// </summary>
+        /// <param name=""canvasGroup"">The CanvasGroup component of the popup.</param>
+        /// <param name=""state"">The desired state (true for visible, false for hidden).</param>
+        private static void SetCanvasGroupState(CanvasGroup canvasGroup, bool state)
+        {{
+            canvasGroup.alpha = state ? 1 : 0;
+            canvasGroup.interactable = state;
+            canvasGroup.blocksRaycasts = state;
+        }}
     }}
 }}
 ";
         }
 
-        private static string GenerateSettingsClass(string className)
+        private static string GenerateSettingsClass(string displayName, string settingsName)
         {
             return $@"
 using System;
@@ -302,14 +314,9 @@ using AdvancedPS.Core.System;
 namespace AdvancedPS.Core
 {{
     [Serializable]
-    public class {className} : BaseSettings
+    public class {settingsName} : BaseSettings<{displayName}>
     {{
-        /// <summary>
-        /// Setting default values.
-        /// </summary>
-        public {className}()
-        {{
-        }}
+        
     }}
 }}
 ";

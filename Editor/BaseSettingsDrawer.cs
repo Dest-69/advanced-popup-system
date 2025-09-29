@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace AdvancedPS.Editor
 {
-    [CustomPropertyDrawer(typeof(BaseSettings), true)]
+    //[CustomPropertyDrawer(typeof(BaseSettings), true)]
     public class BaseSettingsDrawer : PropertyDrawer
     {
          public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)

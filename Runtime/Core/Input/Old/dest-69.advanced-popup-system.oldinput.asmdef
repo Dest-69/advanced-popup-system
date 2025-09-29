@@ -1,0 +1,24 @@
+{
+    "name": "dest-69.advanced-popup-system.oldinput",
+    "rootNamespace": "AdvancedPS.Core.Input",
+    "references": [
+        "GUID:bcd6335d616709349968d9fbde39ead7"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "!HAS_NEWINPUT"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "",
+            "define": "HAS_NEWINPUT"
+        }
+    ],
+    "noEngineReferences": false
+}

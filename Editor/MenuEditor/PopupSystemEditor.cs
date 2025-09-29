@@ -15,7 +15,16 @@ namespace AdvancedPS.Editor
         }
         private string imagesPath;
 
-        private static readonly string Version = PackageVersionHelper.Version;
+        public static string Version
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_version))
+                    _version = PackageVersionHelper.GetVersion();
+                return _version;
+            }
+        }
+        private static string _version;
         
         private static Tab currentTab = Tab.Layers;
         

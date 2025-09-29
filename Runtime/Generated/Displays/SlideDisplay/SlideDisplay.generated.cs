@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace AdvancedPS.Core
 {
-    public class SlideDisplay : IDisplay
+    public class SlideDisplay : DisplayBase<SlideSettings>
     {
         /// <summary>
         /// Logic for popup showing animation.
@@ -17,25 +17,24 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
+        public override async Task ShowMethod(RectTransform transform, SlideSettings settings, CancellationToken cancellationToken)
         {
-            if (OperationCancelled(cancellationToken))
+            if (TaskUtils.OperationCancelled(cancellationToken))
                 return;
             
-            SlideSettings settingsLocal = settings as SlideSettings;
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
-            settingsLocal.OnAnimationStart?.Invoke();
+            settings.OnAnimationStart?.Invoke();
 
             SetCanvasGroupState(canvasGroup, true);
             transform.localScale = Vector3.one;
 
-            await Slide(transform, settingsLocal, cancellationToken);
+            await Slide(transform, settings, cancellationToken);
 
-            if (OperationCancelled(cancellationToken))
+            if (TaskUtils.OperationCancelled(cancellationToken))
                 return;
 
-            settingsLocal.OnAnimationEnd?.Invoke();
+            settings.OnAnimationEnd?.Invoke();
         }
 
         /// <summary>
@@ -47,26 +46,25 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
+        public override async Task HideMethod(RectTransform transform, SlideSettings settings, CancellationToken cancellationToken)
         {
-            if (OperationCancelled(cancellationToken))
+            if (TaskUtils.OperationCancelled(cancellationToken))
                 return;
             
-            SlideSettings settingsLocal = settings as SlideSettings;
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
 
-            settingsLocal.OnAnimationStart?.Invoke();
+            settings.OnAnimationStart?.Invoke();
 
-            await Slide(transform, settingsLocal, cancellationToken);
+            await Slide(transform, settings, cancellationToken);
 
-            if (OperationCancelled(cancellationToken))
+            if (TaskUtils.OperationCancelled(cancellationToken))
                 return;
 
             // Set CanvasGroup state to hidden
             SetCanvasGroupState(canvasGroup, false);
 
             transform.localScale = Vector3.zero;
-            settingsLocal.OnAnimationEnd?.Invoke();
+            settings.OnAnimationEnd?.Invoke();
         }
 
         /// <summary>
@@ -97,31 +95,20 @@ namespace AdvancedPS.Core
             canvasGroup.blocksRaycasts = state;
         }
 
-        /// <summary>
-        /// Checks if operation already cancelled.
-        /// </summary>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
-        private bool OperationCancelled(CancellationToken cancellationToken) =>
-            cancellationToken.IsCancellationRequested || !Application.isPlaying;
-
-        private async Task Slide(RectTransform transform, SlideSettings settingsLocal, CancellationToken cancellationToken)
+        private async Task Slide(RectTransform transform, SlideSettings settings, CancellationToken cancellationToken)
         {
             Vector3 startPos = transform.anchoredPosition3D;
             Vector2 startSize = transform.sizeDelta;
 
-            Vector3 targetPos = settingsLocal.TargetRectPosition;
-            Vector2 targetSize = settingsLocal.TargetRectSize;
+            Vector3 targetPos = settings.TargetRectPosition;
+            Vector2 targetSize = settings.TargetRectSize;
 
             float elapsedTime = 0;
-            while (elapsedTime < settingsLocal.Duration)
+            while (true)
             {
-                if (OperationCancelled(cancellationToken))
-                    return;
-
                 elapsedTime += Time.deltaTime;
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+                float t = elapsedTime / settings.Duration;
+                float easedT = EasingFunctions.Get(settings.Easing, t);
 
                 Vector3 lerpedPosition = Vector3.Lerp(startPos, targetPos, easedT);
                 Vector2 lerpedSize = Vector2.Lerp(startSize, targetSize, easedT);
@@ -129,11 +116,15 @@ namespace AdvancedPS.Core
                 transform.sizeDelta = lerpedSize;
                 transform.anchoredPosition3D = lerpedPosition;
 
-                await Task.Yield();
+                if (elapsedTime < settings.Duration)
+                {
+                    await Task.Yield();
+                    if (TaskUtils.OperationCancelled(cancellationToken))
+                        return;
+                }
+                else
+                    break;
             }
-            
-            if (OperationCancelled(cancellationToken))
-                return;
 
             // Ensure the final position is set correctly
             transform.sizeDelta = targetSize;

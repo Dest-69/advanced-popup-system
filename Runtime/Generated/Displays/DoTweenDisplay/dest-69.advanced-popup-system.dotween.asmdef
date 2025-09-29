@@ -1,8 +1,8 @@
 {
-    "name": "dest-69.advanced-popup-system",
-    "rootNamespace": "AdvancedPS.Core",
+    "name": "dest-69.advanced-popup-system.dotween",
+    "rootNamespace": "",
     "references": [
-        "GUID:2bafac87e7f4b9b418d9448d219b01ab"
+        "GUID:bcd6335d616709349968d9fbde39ead7"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -10,7 +10,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "DOTWEEN"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }

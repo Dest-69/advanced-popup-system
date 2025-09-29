@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace AdvancedPS.Core
 {
-    public class FadeDisplay : IDisplay
+    public class FadeDisplay : DisplayBase<FadeSettings>
     {
         /// <summary>
         /// Logic for popup showing animation.
@@ -15,41 +15,41 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
+        public override async Task ShowMethod(RectTransform transform, FadeSettings settings, CancellationToken cancellationToken)
         {
-            if (OperationCancelled(cancellationToken))
+            if (TaskUtils.OperationCancelled(cancellationToken))
                 return;
             
-            FadeSettings settingsLocal = settings as FadeSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
-            settingsLocal.OnAnimationStart?.Invoke();
+            settings.OnAnimationStart?.Invoke();
             
             transform.localScale = Vector3.one;
 
             float initialAlpha = canvasGroup.alpha;
             float elapsedTime = 0;
 
-            while (elapsedTime < settingsLocal.Duration)
+            while (true)
             {
-                if (OperationCancelled(cancellationToken))
-                    return;
-
                 elapsedTime += Time.deltaTime;
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+                float t = elapsedTime / settings.Duration;
+                float easedT = EasingFunctions.Get(settings.Easing, t);
 
-                canvasGroup.alpha = Mathf.LerpUnclamped(initialAlpha, settingsLocal.MaxValue, easedT);
+                canvasGroup.alpha = Mathf.LerpUnclamped(initialAlpha, settings.MaxValue, easedT);
 
-                await Task.Yield();
+                if (elapsedTime < settings.Duration)
+                {
+                    await Task.Yield();
+                    if (TaskUtils.OperationCancelled(cancellationToken))
+                        return;
+                }
+                else
+                    break;
             }
 
-            if (OperationCancelled(cancellationToken))
-                return;
-
             // Ensure the final alpha is set correctly
-            SetCanvasGroupState(canvasGroup, settingsLocal, true);
-            settingsLocal.OnAnimationEnd?.Invoke();
+            SetCanvasGroupState(canvasGroup, settings, true);
+            settings.OnAnimationEnd?.Invoke();
         }
 
         /// <summary>
@@ -59,39 +59,39 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
+        public override async Task HideMethod(RectTransform transform, FadeSettings settings, CancellationToken cancellationToken)
         {
-            if (OperationCancelled(cancellationToken))
+            if (TaskUtils.OperationCancelled(cancellationToken))
                 return;
             
-            FadeSettings settingsLocal = settings as FadeSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
-            settingsLocal.OnAnimationStart?.Invoke();
+            settings.OnAnimationStart?.Invoke();
 
             float initialAlpha = canvasGroup.alpha;
             float elapsedTime = 0;
 
-            while (elapsedTime < settingsLocal.Duration)
+            while (true)
             {
-                if (OperationCancelled(cancellationToken))
-                    return;
-
                 elapsedTime += Time.deltaTime;
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+                float t = elapsedTime / settings.Duration;
+                float easedT = EasingFunctions.Get(settings.Easing, t);
 
-                canvasGroup.alpha = Mathf.LerpUnclamped(initialAlpha, settingsLocal.MinValue, easedT);
+                canvasGroup.alpha = Mathf.LerpUnclamped(initialAlpha, settings.MinValue, easedT);
 
-                await Task.Yield();
+                if (elapsedTime < settings.Duration)
+                {
+                    await Task.Yield();
+                    if (TaskUtils.OperationCancelled(cancellationToken))
+                        return;
+                }
+                else
+                    break;
             }
 
-            if (OperationCancelled(cancellationToken))
-                return;
-
             // Ensure the final alpha is set correctly
-            SetCanvasGroupState(canvasGroup, settingsLocal, false);
-            settingsLocal.OnAnimationEnd?.Invoke();
+            SetCanvasGroupState(canvasGroup, settings, false);
+            settings.OnAnimationEnd?.Invoke();
         }
 
         /// <summary>
@@ -108,14 +108,7 @@ namespace AdvancedPS.Core
             }
             return canvasGroup;
         }
-
-        /// <summary>
-        /// Checks if operation already cancelled.
-        /// </summary>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
-        private bool OperationCancelled(CancellationToken cancellationToken) => cancellationToken.IsCancellationRequested || !Application.isPlaying;
-
+        
         /// <summary>
         /// Set the state of the CanvasGroup.
         /// </summary>

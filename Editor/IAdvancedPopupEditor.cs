@@ -313,7 +313,7 @@ namespace AdvancedPS.Editor
                     if (_popupBanner != null)
                     {
                         float aspectRatio = (float)_popupBanner.width / _popupBanner.height;
-                        bannerHeight = availableWidth / aspectRatio - 75;
+                        bannerHeight = availableWidth / aspectRatio;
                 
                         Rect rectBanner = EditorGUILayout.GetControlRect(false, bannerHeight, GUILayout.ExpandWidth(true));
                         rectBanner.y -= 2;

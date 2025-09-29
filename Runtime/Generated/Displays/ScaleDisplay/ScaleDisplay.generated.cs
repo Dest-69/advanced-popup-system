@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace AdvancedPS.Core
 {
-    public class ScaleDisplay : IDisplay
+    public class ScaleDisplay : DisplayBase<ScaleSettings>
     {
         /// <summary>
         /// Logic for popup showing animation.
@@ -15,41 +15,41 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ShowMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
+        public override async Task ShowMethod(RectTransform transform, ScaleSettings settings, CancellationToken cancellationToken)
         {
-            if (OperationCancelled(cancellationToken))
+            if (TaskUtils.OperationCancelled(cancellationToken))
                 return;
             
-            ScaleSettings settingsLocal = settings as ScaleSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
-            settingsLocal.OnAnimationStart?.Invoke();
+            settings.OnAnimationStart?.Invoke();
             
             SetCanvasGroupState(canvasGroup, true);
 
             Vector3 initialScale = transform.localScale;
             float elapsedTime = 0;
 
-            while (elapsedTime < settingsLocal.Duration)
+            while (true)
             {
-                if (OperationCancelled(cancellationToken))
-                    return;
-                
                 elapsedTime += Time.deltaTime;
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+                float t = elapsedTime / settings.Duration;
+                float easedT = EasingFunctions.Get(settings.Easing, t);
                 
-                transform.localScale = Vector3.LerpUnclamped(initialScale, settingsLocal.ShowScale, easedT);
+                transform.localScale = Vector3.LerpUnclamped(initialScale, settings.ShowScale, easedT);
                 
-                await Task.Yield();
+                if (elapsedTime < settings.Duration)
+                {
+                    await Task.Yield();
+                    if (TaskUtils.OperationCancelled(cancellationToken))
+                        return;
+                }
+                else
+                    break;
             }
 
-            if (OperationCancelled(cancellationToken))
-                return;
-
             // Ensure the final scale is set correctly
-            transform.localScale = settingsLocal.ShowScale;
-            settingsLocal.OnAnimationEnd?.Invoke();
+            transform.localScale = settings.ShowScale;
+            settings.OnAnimationEnd?.Invoke();
         }
 
         /// <summary>
@@ -59,42 +59,42 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task HideMethod(RectTransform transform, BaseSettings settings, CancellationToken cancellationToken)
+        public override async Task HideMethod(RectTransform transform, ScaleSettings settings, CancellationToken cancellationToken)
         {
-            if (OperationCancelled(cancellationToken))
+            if (TaskUtils.OperationCancelled(cancellationToken))
                 return;
             
-            ScaleSettings settingsLocal = settings as ScaleSettings; 
             CanvasGroup canvasGroup = GetCanvasGroup(transform);
             
-            settingsLocal.OnAnimationStart?.Invoke();
+            settings.OnAnimationStart?.Invoke();
             
             Vector3 initialScale = transform.localScale;
             float elapsedTime = 0;
 
-            while (elapsedTime < settingsLocal.Duration)
+            while (true)
             {
-                if (OperationCancelled(cancellationToken))
-                    return;
-
                 elapsedTime += Time.deltaTime;
-                float t = elapsedTime / settingsLocal.Duration;
-                float easedT = EasingFunctions.GetEasingValue(settingsLocal.Easing, t);
+                float t = elapsedTime / settings.Duration;
+                float easedT = EasingFunctions.Get(settings.Easing, t);
 
-                transform.localScale = Vector3.LerpUnclamped(initialScale, settingsLocal.HideScale, easedT);
+                transform.localScale = Vector3.LerpUnclamped(initialScale, settings.HideScale, easedT);
 
-                await Task.Yield();
+                if (elapsedTime < settings.Duration)
+                {
+                    await Task.Yield();
+                    if (TaskUtils.OperationCancelled(cancellationToken))
+                        return;
+                }
+                else
+                    break;
             }
 
-            if (OperationCancelled(cancellationToken))
-                return;
-
             // Ensure the final scale is set correctly
-            transform.localScale = settingsLocal.HideScale;
+            transform.localScale = settings.HideScale;
 
             // Set CanvasGroup state to hidden
             SetCanvasGroupState(canvasGroup, false);
-            settingsLocal.OnAnimationEnd?.Invoke();
+            settings.OnAnimationEnd?.Invoke();
         }
 
         /// <summary>
@@ -111,14 +111,7 @@ namespace AdvancedPS.Core
             }
             return canvasGroup;
         }
-
-        /// <summary>
-        /// Checks if operation already cancelled.
-        /// </summary>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
-        private bool OperationCancelled(CancellationToken cancellationToken) => cancellationToken.IsCancellationRequested || !Application.isPlaying;
-
+        
         /// <summary>
         /// Set the state of the CanvasGroup.
         /// </summary>
