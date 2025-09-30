@@ -1,6 +1,6 @@
 # Advanced Popup System Documentation
 
-The Advanced Popup System is a small framework for managing UI popups in Unity. This document keeps the
+The Advanced Popup System is a framework for managing UI popups in Unity. This document keeps the
 public surface simple and focuses on the parts you will touch most often when wiring the package into a
 project.
 
@@ -92,10 +92,7 @@ project.
 ## 6. Troubleshooting Checklist
 
 - **Popup never appears** – Confirm `Init()` has been called and the popup is registered (`AllPopups` contains
-  it). Also check that the GameObject is active in the hierarchy.
+  it).
 - **Wrong popup hides** – Inspect the layer flags. Bitwise combinations are easy to misconfigure.
-- **Animation plays twice** – Ensure only one of `Show()` or `LayerShow()` is called for the same popup.
 - **Async flow stuck** – Verify that every custom display invokes its completion callback; otherwise
   `Operation.OnComplete` will never fire.
-
-This cheat-sheet should cover the 90% path. Extend or specialise it as your project requires.
