@@ -71,6 +71,46 @@ namespace AdvancedPS.Core
             AdvancedPopupSystem.ActivePopups.Remove(this);
         }
         #endregion
+        
+        #region Switch between Show/Hide
+        public override void Cmd_SwitchShowHide()
+        {
+            if ((!IsVisible || !IsBeVisible) && !Inactive)
+                Show();
+            else
+                Hide();
+        }
+        public override Operation SwitchShowHide(IDisplaySettings settings = null)
+        {
+            if ((!IsVisible || !IsBeVisible) && !Inactive)
+                return Show(settings);
+            
+            return Hide(settings);
+        }
+        public override Task SwitchShowHideAsync(CancellationToken token = default, IDisplaySettings settings = null)
+        {
+            if ((!IsVisible || !IsBeVisible) && !Inactive)
+                return ShowAsync(token, settings);
+
+            return HideAsync(token, settings);
+        }
+
+        public override Operation SwitchShowHide<T>(IDisplaySettings<T> settings = null)
+        {
+            if ((!IsVisible || !IsBeVisible) && !Inactive)
+                return Show<T>(settings);
+
+            return Hide<T>(settings);
+        }
+
+        public override Task SwitchShowHideAsync<T>(CancellationToken token = default, IDisplaySettings<T> settings = null)
+        {
+            if ((!IsVisible || !IsBeVisible) && !Inactive)
+                return ShowAsync<T>(token, settings);
+
+            return HideAsync<T>(token, settings);
+        }
+        #endregion
 
         #region SHOW
         /// <summary>
@@ -78,6 +118,7 @@ namespace AdvancedPS.Core
         /// </summary>
         public override void Cmd_Show()
         {
+            if (Inactive || IsBeVisible) return;
             Show();
         }
         /// <summary>
@@ -88,7 +129,7 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
-                if (IsBeVisible) return;
+                if (Inactive || IsBeVisible) return;
                 await ShowAsync(token, settings);
             });
         }
@@ -100,7 +141,8 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task ShowAsync(CancellationToken token = default, IDisplaySettings settings = null)
         {
-            if (IsBeVisible) return;
+            if (this == null) return;
+            if (Inactive || IsBeVisible) return;
             IsBeVisible = true;
             
             Source = TaskUtils.UpdateCancellationTokenSource(Source, true, token);
@@ -137,7 +179,7 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
-                if (IsBeVisible) return;
+                if (Inactive || IsBeVisible) return;
                 await ShowAsync<T>(token, settings);
             });
         }
@@ -148,7 +190,8 @@ namespace AdvancedPS.Core
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public override async Task ShowAsync<T>(CancellationToken token = default, IDisplaySettings<T> settings = null)
         {
-            if (IsBeVisible) return;
+            if (this == null) return;
+            if (Inactive || IsBeVisible) return;
             IsBeVisible = true;
 
             Source = TaskUtils.UpdateCancellationTokenSource(Source, true, token);
@@ -233,6 +276,7 @@ namespace AdvancedPS.Core
                 return;
             }
             
+            if (this == null) return;
             gameObject.SetActive(false);
             IsVisible = false;
         }
@@ -281,6 +325,7 @@ namespace AdvancedPS.Core
                 return;
             }
             
+            if (this == null) return;
             gameObject.SetActive(false);
             IsVisible = false;
         }

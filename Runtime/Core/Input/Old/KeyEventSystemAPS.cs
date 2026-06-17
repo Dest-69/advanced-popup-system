@@ -1,5 +1,5 @@
-﻿using System;
-using System.Linq;
+using System;
+using System.Collections.Generic;
 using AdvancedPS.Core.System;
 using AdvancedPS.Core.Utils;
 using UnityEngine;
@@ -49,8 +49,11 @@ namespace AdvancedPS.Core.Input
             
             PlayerLoopSystem updateSubsystem = playerLoop.subSystemList[updateSubsystemIndex];
             
-            if (updateSubsystem.subSystemList.Any(s => s.type == typeof(KeyEventSystemAPS)))
-                return;
+            for (int i = 0; i < updateSubsystem.subSystemList.Length; i++)
+            {
+                if (updateSubsystem.subSystemList[i].type == typeof(KeyEventSystemAPS))
+                    return;
+            }
             
             PlayerLoopSystem updatedSystem = new PlayerLoopSystem
             {
@@ -77,32 +80,48 @@ namespace AdvancedPS.Core.Input
             
             KeyCode pressedKey = GetPressedKey();
             if (pressedKey == default) return;
-            
-            foreach (var popup in AdvancedPopupSystem.AllPopups)
+
+            var allPopups = AdvancedPopupSystem.AllPopups;
+            for (int i = 0; i < allPopups.Count; i++)
             {
+                var popup = allPopups[i];
+                if (popup == null) continue;
+                
+                var showSettings = popup.KeyBindingShowSettings;
                 if (!popup.IsBeVisible &&
-                    (popup.KeyBindingShowSettings.AnyHotKey || popup.KeyBindingShowSettings.HotKeys.Contains(pressedKey)) && 
-                    (popup.KeyBindingShowSettings.Layers == default || popup.KeyBindingShowSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
-                    (popup.KeyBindingShowSettings.Popups.Count == 0 || popup.KeyBindingShowSettings.Popups.Any(p => AdvancedPopupSystem.ActivePopups.Contains(p))))
+                    (showSettings.AnyHotKey || (showSettings.HotKeys != null && showSettings.HotKeys.Contains(pressedKey))) && 
+                    (showSettings.Layers == default || showSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
+                    (showSettings.Popups == null || showSettings.Popups.Count == 0 || HasActivePopup(showSettings.Popups)))
                 {
                     if (AreParentsVisible(popup))
                     {
                         popup.Show();
-                        popup.KeyBindingShowSettings.OnTrigger?.Invoke();
+                        showSettings.OnTrigger?.Invoke();
                         break;
                     }
                 }
                 
+                var hideSettings = popup.KeyBindingHideSettings;
                 if (popup.IsBeVisible &&
-                    (popup.KeyBindingHideSettings.AnyHotKey || popup.KeyBindingHideSettings.HotKeys.Contains(pressedKey)) && 
-                    (popup.KeyBindingHideSettings.Layers == default || popup.KeyBindingHideSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
-                    (popup.KeyBindingHideSettings.Popups.Count == 0 || popup.KeyBindingHideSettings.Popups.Any(p => AdvancedPopupSystem.ActivePopups.Contains(p))))
+                    (hideSettings.AnyHotKey || (hideSettings.HotKeys != null && hideSettings.HotKeys.Contains(pressedKey))) && 
+                    (hideSettings.Layers == default || hideSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
+                    (hideSettings.Popups == null || hideSettings.Popups.Count == 0 || HasActivePopup(hideSettings.Popups)))
                 {
                     popup.Hide();
-                    popup.KeyBindingHideSettings.OnTrigger?.Invoke();
+                    hideSettings.OnTrigger?.Invoke();
                     break;
                 }
             }
+        }
+
+        private static bool HasActivePopup(List<IAdvancedPopup> requiredPopups)
+        {
+            for (int i = 0; i < requiredPopups.Count; i++)
+            {
+                if (requiredPopups[i] != null && AdvancedPopupSystem.ActivePopups.Contains(requiredPopups[i]))
+                    return true;
+            }
+            return false;
         }
 
         private static bool AreParentsVisible(IAdvancedPopup popup)

@@ -3,11 +3,48 @@ using System.Threading.Tasks;
 using AdvancedPS.Core.System;
 using AdvancedPS.Core.Utils;
 using UnityEngine;
+using NotImplementedException = System.NotImplementedException;
 
 namespace AdvancedPS.Core
 {
     public class FadeDisplay : DisplayBase<FadeSettings>
     {
+        /// <summary>
+        /// Logic for instant popup show.
+        /// </summary>
+        /// <param name="transform"> RectTransform of root popup GameObject. </param>
+        /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void ShowInstantlyMethod(RectTransform transform, FadeSettings settings)
+        {
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            transform.localScale = Vector3.one;
+            SetCanvasGroupState(canvasGroup, settings, true);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }
+
+        /// <summary>
+        /// Logic for instant popup hide.
+        /// </summary>
+        /// <param name="transform"> RectTransform of root popup GameObject. </param>
+        /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void HideInstantlyMethod(RectTransform transform, FadeSettings settings)
+        {
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            transform.localScale = Vector3.zero;
+            SetCanvasGroupState(canvasGroup, settings, false);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }
+
         /// <summary>
         /// Logic for popup showing animation.
         /// </summary>
@@ -90,6 +127,7 @@ namespace AdvancedPS.Core
             }
 
             // Ensure the final alpha is set correctly
+            transform.localScale = Vector3.zero;
             SetCanvasGroupState(canvasGroup, settings, false);
             settings.OnAnimationEnd?.Invoke();
         }

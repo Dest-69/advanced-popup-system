@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using AdvancedPS.Core.System;
 using AdvancedPS.Editor.Styles;
 using UnityEditor;
@@ -12,6 +12,7 @@ namespace AdvancedPS.Editor
         
         private static byte _inspectorViewIndex;
         private static bool _keyEventSystemEnabled;
+        private static bool _autoSwitchInputModule;
         private static string[] _inspectorViewTypes;
         
         private static int _logTypeIndex;
@@ -38,6 +39,31 @@ namespace AdvancedPS.Editor
             }
             GUILayout.EndHorizontal();
             GUILayout.Space(5);
+            
+            // Auto Switch Input Module setting
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Auto Switch Input Module:", GUILayout.ExpandWidth(false));
+            string switchToggleLabel = "";
+            if (EditorGUIUtility.isProSkin)
+                switchToggleLabel = _autoSwitchInputModule ? "[x]" : "[ ]";
+#if HAS_NEWINPUT
+            bool newAutoSwitch = GUILayout.Toggle(_autoSwitchInputModule, switchToggleLabel, APSEditorStyles.ToggleStyle);
+            if (newAutoSwitch != _autoSwitchInputModule)
+            {
+                _autoSwitchInputModule = newAutoSwitch;
+                SaveSettings();
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.Space(5);
+#else
+            EditorGUI.BeginDisabledGroup(true);
+            GUILayout.Toggle(_autoSwitchInputModule, switchToggleLabel, APSEditorStyles.ToggleStyle);
+            EditorGUI.EndDisabledGroup();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(5);
+            EditorGUILayout.HelpBox("Auto Switch Input Module requires Unity Input System package.", MessageType.Info);
+            GUILayout.Space(5);
+#endif
             
             GUILayout.BeginHorizontal();
             GUILayout.Label("Inspector view:", GUILayout.ExpandWidth(false));
@@ -66,6 +92,7 @@ namespace AdvancedPS.Editor
             _settings.InspectorView = (InspectorEnum)_inspectorViewIndex;
             _settings.LogType = LOGTypes[_logTypeIndex];
             _settings.KeyEventSystemEnabled = _keyEventSystemEnabled;
+            _settings.AutoSwitchInputModule = _autoSwitchInputModule;
             
             SettingsManager.SaveSettings();
         }
@@ -76,6 +103,7 @@ namespace AdvancedPS.Editor
             
             _inspectorViewIndex = (byte)_settings.InspectorView;
             _keyEventSystemEnabled = _settings.KeyEventSystemEnabled;
+            _autoSwitchInputModule = _settings.AutoSwitchInputModule;
             _logTypeIndex = Mathf.Clamp(Array.IndexOf(LOGTypes, _settings.LogType), 0, LOGTypes.Length - 1);
         }
     }

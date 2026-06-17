@@ -228,6 +228,46 @@ namespace AdvancedPS.Core
     public class {className} : DisplayBase<{settingsName}>
     {{
         /// <summary>
+        /// Logic for instant popup show.
+        /// </summary>
+        /// <param name=""transform""> RectTransform of root popup GameObject. </param>
+        /// <param name=""settings""> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void ShowInstantlyMethod(RectTransform transform, {settingsName} settings)
+        {{
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            /* Your code here */
+
+            transform.localScale = Vector3.one;
+            SetCanvasGroupState(canvasGroup, true);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }}
+
+        /// <summary>
+        /// Logic for instant popup hide.
+        /// </summary>
+        /// <param name=""transform""> RectTransform of root popup GameObject. </param>
+        /// <param name=""settings""> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void HideInstantlyMethod(RectTransform transform, {settingsName} settings)
+        {{
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            /* Your code here */
+
+            transform.localScale = Vector3.zero;
+            SetCanvasGroupState(canvasGroup, false);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }}
+
+        /// <summary>
         /// Logic for popup showing animation.
         /// </summary>
         /// <param name=""transform""> RectTransform of root popup GameObject. </param>

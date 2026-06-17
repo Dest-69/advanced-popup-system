@@ -10,6 +10,44 @@ namespace AdvancedPS.Core
     public class DoTweenDisplay : DisplayBase<DoTweenSettings>
     {
         /// <summary>
+        /// Logic for instant popup show.
+        /// </summary>
+        /// <param name="transform"> RectTransform of root popup GameObject. </param>
+        /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void ShowInstantlyMethod(RectTransform transform, DoTweenSettings settings)
+        {
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            ApplyInstantTweenState(transform, settings, toEnd: true);
+            transform.localScale = Vector3.one;
+            SetCanvasGroupState(canvasGroup, true);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }
+
+        /// <summary>
+        /// Logic for instant popup hide.
+        /// </summary>
+        /// <param name="transform"> RectTransform of root popup GameObject. </param>
+        /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void HideInstantlyMethod(RectTransform transform, DoTweenSettings settings)
+        {
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            ApplyInstantTweenState(transform, settings, toEnd: true);
+            transform.localScale = Vector3.zero;
+            SetCanvasGroupState(canvasGroup, false);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }
+        
+        /// <summary>
         /// Logic for popup showing animation.
         /// </summary>
         /// <param name="transform"> RectTransform of root popup GameObject. </param>
@@ -88,6 +126,25 @@ namespace AdvancedPS.Core
                 settings.OnAnimationEnd?.Invoke();
                 return true;
             }
+        }
+        
+        /// <summary>
+        /// Jumps the DOTween sequence to its end state without playing or firing OnComplete.
+        /// </summary>
+        private static void ApplyInstantTweenState(RectTransform transform, DoTweenSettings settings, bool toEnd)
+        {
+            var seq = settings.Factory(transform);
+            if (seq == null) return;
+
+            seq.SetUpdate(settings.UnscaledTime)
+                .SetRecyclable(settings.Recyclable)
+                .SetAutoKill(false) // we will kill manually
+                .SetLink(transform.gameObject, settings.Link);
+
+            seq.ForceInit();
+            float endTime = toEnd ? seq.Duration(false) : 0f;
+            seq.Goto(endTime, andPlay: false); // sample final (or start) values
+            seq.Kill(); // dispose
         }
         
         /// <summary>

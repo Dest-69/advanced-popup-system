@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace AdvancedPS.Core.System
 {
@@ -7,6 +7,7 @@ namespace AdvancedPS.Core.System
     {
         public InspectorEnum InspectorView { get; set; }
         public bool KeyEventSystemEnabled { get; set; }
+        public bool AutoSwitchInputModule { get; set; }
         public string LogType { get; set; }
     }
 

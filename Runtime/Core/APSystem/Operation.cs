@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using AdvancedPS.Core.Utils;
@@ -52,7 +52,6 @@ namespace AdvancedPS.Core.System
             if (_source.IsCancellationRequested) return;
             
             _source.Cancel();
-            _source.Dispose();
         }
     }
 }

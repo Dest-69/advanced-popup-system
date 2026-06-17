@@ -9,6 +9,42 @@ namespace AdvancedPS.Core
     public class ScaleDisplay : DisplayBase<ScaleSettings>
     {
         /// <summary>
+        /// Logic for instant popup show.
+        /// </summary>
+        /// <param name="transform"> RectTransform of root popup GameObject. </param>
+        /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void ShowInstantlyMethod(RectTransform transform, ScaleSettings settings)
+        {
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            transform.localScale = settings.ShowScale;
+            SetCanvasGroupState(canvasGroup, true);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }
+
+        /// <summary>
+        /// Logic for instant popup hide.
+        /// </summary>
+        /// <param name="transform"> RectTransform of root popup GameObject. </param>
+        /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void HideInstantlyMethod(RectTransform transform, ScaleSettings settings)
+        {
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            transform.localScale = settings.HideScale;
+            SetCanvasGroupState(canvasGroup, false);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }
+        
+        /// <summary>
         /// Logic for popup showing animation.
         /// </summary>
         /// <param name="transform"> RectTransform of root popup GameObject. </param>

@@ -8,6 +8,10 @@ using AdvancedPS.Core.Utils;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 namespace AdvancedPS.Core
 {
     /// <summary>
@@ -25,21 +29,87 @@ namespace AdvancedPS.Core
         /// </summary>
         public static readonly List<IAdvancedPopup> ActivePopups = new List<IAdvancedPopup>();
         /// <summary>
+        /// All popups (In scene) which cached by type for O(1) access
+        /// </summary>
+        private static readonly Dictionary<Type, IAdvancedPopup> PopupCacheByType = new();
+        /// <summary>
         /// Changed flags only by AdvancedPopupSystem. (if you show/hide popups manually it will effect only at 'ActivePopups' field)
         /// </summary>
         public static PopupLayerEnum ActiveLayer;
         #endregion
 
+        #region INIT
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void Initialize()
+        {
+            SceneManager.sceneUnloaded -= OnSceneUnloaded;
+            SceneManager.sceneUnloaded += OnSceneUnloaded;
+            
+#if UNITY_EDITOR
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+#endif
+        }
+
+#if UNITY_EDITOR
+        private static void OnPlayModeChanged(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.ExitingPlayMode)
+            {
+                AllPopups.Clear();
+                ActivePopups.Clear();
+                PopupCacheByType.Clear();
+                ActiveLayer = 0;
+            }
+        }
+#endif
+
+        /// <summary>
+        /// Removes destroyed popups when a scene is unloaded.
+        /// </summary>
+        private static void OnSceneUnloaded(Scene scene)
+        {
+            for (int i = AllPopups.Count - 1; i >= 0; i--)
+            {
+                if (AllPopups[i] == null)
+                    AllPopups.RemoveAt(i);
+            }
+            for (int i = ActivePopups.Count - 1; i >= 0; i--)
+            {
+                if (ActivePopups[i] == null)
+                    ActivePopups.RemoveAt(i);
+            }
+            
+            // Rebuild type cache
+            PopupCacheByType.Clear();
+            for (int i = 0; i < AllPopups.Count; i++)
+            {
+                var popup = AllPopups[i];
+                if (popup != null)
+                    PopupCacheByType[popup.GetType()] = popup;
+            }
+        }
+        #endregion
+
         #region GET POPUP
         /// <summary>
-        /// Returns first popup of type P. Null if not found.
+        /// Returns first popup of type P. False if not found.
         /// </summary>
-        public static bool TryGetPopup<T>(out T popup, bool activeOnly = true) where T : IAdvancedPopup
+        public static bool TryGetPopup<T>(out T popup, bool activeOnly = false) where T : IAdvancedPopup
         {
+            if (!activeOnly && PopupCacheByType.TryGetValue(typeof(T), out var cached))
+            {
+                popup = (T)cached;
+                return true;
+            }
+            
             popup = null;
             var list = activeOnly ? ActivePopups : AllPopups;
             for (int i = 0; i < list.Count; i++)
+            {
                 if (list[i] is T p) { popup = p; return true; }
+            }
+
             return false;
         }
         
@@ -184,7 +254,6 @@ namespace AdvancedPS.Core
         {
             return new Operation(async token =>
             {
-                if (!ActiveLayer.HasFlag(layer)) return;
                 try
                 {
                     ActiveLayer &= ~layer;
@@ -272,7 +341,7 @@ namespace AdvancedPS.Core
         /// </summary>
         private static IEnumerable<IAdvancedPopup> GetPopupsByLayer(PopupLayerEnum layer)
         {
-            List<IAdvancedPopup> popups = AllPopups.Where(popup => popup.PopupLayer.HasFlag(layer)).ToList();
+            List<IAdvancedPopup> popups = AllPopups.Where(popup => popup != null && popup.PopupLayer.HasFlag(layer)).ToList();
             if (popups.Count == 0)
                 APLogger.Log($"AdvancedPopupSystem not found popup/s by '{layer}' layer!");
 
@@ -284,7 +353,7 @@ namespace AdvancedPS.Core
         /// </summary>
         private static IEnumerable<IAdvancedPopup> GetPopupsExcludingLayer(PopupLayerEnum layer)
         {
-            List<IAdvancedPopup> popups = AllPopups.Where(popup => !popup.PopupLayer.HasFlag(layer)).ToList();
+            List<IAdvancedPopup> popups = AllPopups.Where(popup => popup != null && !popup.PopupLayer.HasFlag(layer)).ToList();
             if (popups.Count == 0)
                 APLogger.Log($"AdvancedPopupSystem not found popup/s excluding '{layer}' layer!");
 
@@ -376,6 +445,7 @@ namespace AdvancedPS.Core
             if (!AllPopups.Contains(popup))
             {
                 AllPopups.Add(popup);
+                PopupCacheByType[popup.GetType()] = popup;
                 SortPopups();
             }
         }
@@ -384,10 +454,9 @@ namespace AdvancedPS.Core
         /// </summary>
         public static void DeactivateAdvancedPopup(IAdvancedPopup popup)
         {
-            if (AllPopups.Contains(popup))
-                AllPopups.Remove(popup);
-            if (ActivePopups.Contains(popup))
-                ActivePopups.Remove(popup);
+            AllPopups.Remove(popup);
+            ActivePopups.Remove(popup);
+            PopupCacheByType.Remove(popup.GetType());
         }
         
         private static void SortPopups()
@@ -396,13 +465,13 @@ namespace AdvancedPS.Core
             
             // Sort popups in active scene
             List<IAdvancedPopup> activeScenePopups = AllPopups
-                .Where(popup => popup.gameObject.scene == activeScene)
+                .Where(popup => popup != null && popup.gameObject.scene == activeScene)
                 .OrderByDescending(popup => GetHierarchyDepth(popup.transform))
                 .ToList();
 
             // Sort popups in background scenes
             List<IAdvancedPopup> otherScenesPopups = AllPopups
-                .Where(popup => popup.gameObject.scene != activeScene)
+                .Where(popup => popup != null && popup.gameObject.scene != activeScene)
                 .OrderByDescending(popup => GetHierarchyDepth(popup.transform))
                 .ToList();
 

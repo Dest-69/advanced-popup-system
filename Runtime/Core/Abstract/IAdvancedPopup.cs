@@ -30,6 +30,11 @@ namespace AdvancedPS.Core.System
         [Tooltip("Recommended 'False' only for UI what should face player on startup scene.")]
         public bool AutoHideOnInit = true;
         /// <summary>
+        /// Set 'true' to prevent showing this popup.
+        /// </summary>
+        [Tooltip("Set 'true' to prevent showing this popup.")]
+        public bool Inactive;
+        /// <summary>
         /// Root transform.
         /// </summary>
         [HideInInspector] public RectTransform RootTransform;
@@ -118,28 +123,9 @@ namespace AdvancedPS.Core.System
             if (!TryGetComponent(out canvasGroup)) canvasGroup = gameObject.AddComponent<CanvasGroup>();
             
             if (AutoHideOnInit)
-            {
-                transform.localScale = Vector3.zero;
-                
-                canvasGroup.alpha = 0;
-                canvasGroup.interactable = false;
-                canvasGroup.blocksRaycasts = false;
-
-                IsBeVisible = false;
-                IsVisible = false;
-                
-                if (gameObject.activeSelf)
-                    gameObject.SetActive(false);
-            }
-
-            if (transform.localScale != Vector3.zero && canvasGroup.alpha != 0)
-            {
-                IsBeVisible = true;
-                IsVisible = true;
-                
-                if (!gameObject.activeSelf)
-                    gameObject.SetActive(true);
-            }
+                cachedHideDisplay.HideInstantlyMethod(RootTransform, CachedHideSettings);
+            else if (gameObject.activeSelf)
+                cachedShowDisplay.ShowInstantlyMethod(RootTransform, CachedShowSettings);
             
             AdvancedPopupSystem.InitAdvancedPopup(this);
         }
@@ -189,6 +175,8 @@ namespace AdvancedPS.Core.System
             where T : IDisplay, new()
         {
             var display = DisplayRegistry.Get<T>();
+            showSettings ??= DisplaySettingsFactory.GetDefaultSettings<T>();
+            
             cachedShowDisplay = display;
             CachedShowSettings = showSettings;
             cachedHideDisplay = display;
@@ -207,10 +195,20 @@ namespace AdvancedPS.Core.System
             where T : IDisplay, new() where J : IDisplay, new()
         {
             cachedShowDisplay = DisplayRegistry.Get<T>();
-            CachedShowSettings = showSettings;
+            CachedShowSettings = showSettings ?? DisplaySettingsFactory.GetDefaultSettings<T>();
             cachedHideDisplay = DisplayRegistry.Get<J>();
-            CachedHideSettings = hideSettings;
+            CachedHideSettings = hideSettings ?? DisplaySettingsFactory.GetDefaultSettings<J>();
         }
+        #endregion
+
+        #region Switch between Show/Hide
+        public abstract void Cmd_SwitchShowHide();
+        public abstract Operation SwitchShowHide(IDisplaySettings settings = null);
+        public abstract Task SwitchShowHideAsync(CancellationToken token = default, IDisplaySettings settings = null);
+        public abstract Operation SwitchShowHide<T>(IDisplaySettings<T> settings = null)
+            where T : IDisplay, new();
+        public abstract Task SwitchShowHideAsync<T>(CancellationToken token = default, IDisplaySettings<T> settings = null)
+            where T : IDisplay, new();
         #endregion
 
         #region SHOW
@@ -283,13 +281,18 @@ namespace AdvancedPS.Core.System
         /// <param name="popup"> popup what we are searching </param>
         public virtual bool ContainsDeepPopup(IAdvancedPopup popup)
         {
-            var st = new HashSet<IAdvancedPopup>();
+            var visited = new HashSet<IAdvancedPopup>();
             return Dfs(this);
 
             bool Dfs(IAdvancedPopup n)
             {
-                if (n == null || !st.Add(n)) return false;
-                return DeepPopups.Any(d => d == popup || d.ContainsDeepPopup(popup));
+                if (n == null || !visited.Add(n)) return false;
+                foreach (var d in n.DeepPopups)
+                {
+                    if (d == popup) return true;
+                    if (Dfs(d)) return true;
+                }
+                return false;
             }
         }
         #endregion

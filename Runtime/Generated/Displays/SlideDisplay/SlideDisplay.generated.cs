@@ -9,6 +9,46 @@ namespace AdvancedPS.Core
     public class SlideDisplay : DisplayBase<SlideSettings>
     {
         /// <summary>
+        /// Logic for instant popup show.
+        /// </summary>
+        /// <param name="transform"> RectTransform of root popup GameObject. </param>
+        /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void ShowInstantlyMethod(RectTransform transform, SlideSettings settings)
+        {
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            transform.localScale = Vector3.one;
+            transform.sizeDelta = settings.TargetRectSize;
+            transform.anchoredPosition3D = settings.TargetRectPosition;
+            SetCanvasGroupState(canvasGroup, true);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }
+
+        /// <summary>
+        /// Logic for instant popup hide.
+        /// </summary>
+        /// <param name="transform"> RectTransform of root popup GameObject. </param>
+        /// <param name="settings"> The settings for the animation. If null, the default settings will be used. </param>
+        /// <returns></returns>
+        public override void HideInstantlyMethod(RectTransform transform, SlideSettings settings)
+        {
+            CanvasGroup canvasGroup = GetCanvasGroup(transform);
+            
+            settings.OnAnimationStart?.Invoke();
+            
+            transform.localScale = Vector3.zero;
+            transform.sizeDelta = settings.TargetRectSize;
+            transform.anchoredPosition3D = settings.TargetRectPosition;
+            SetCanvasGroupState(canvasGroup, false);
+            
+            settings.OnAnimationEnd?.Invoke();
+        }
+        
+        /// <summary>
         /// Logic for popup showing animation.
         /// SUPPORTED ONLY ANCHORS PIVOT
         /// If you need anchors linking (min-max), use empty prent object with it.
