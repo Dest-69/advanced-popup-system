@@ -1,4 +1,19 @@
 # Changelog
+## [1.18.0] - 2026-06-17
+### Added
+- Auto-initialization for `InputSwitcher` using `[RuntimeInitializeOnLoadMethod]` (no longer requires manual placement in the scene).
+- "Auto Switch Input Module" toggle in settings to enable/disable automated input switching.
+- Standard warning/information boxes (`EditorGUILayout.HelpBox`) in the settings UI.
+
+### Fixed
+- Completely rebuilt `KeyEventSystemAPS` key mapping for New Input System using high-performance enum-name caching and manual overrides, resolving reflection/GC allocation overhead and key name mismatch issues.
+- Fixed `InvalidOperationException` (collection modified) in both New and Old `KeyEventSystemAPS` instances by switching to `for` loops.
+- Fixed memory leaks on scene unloaded and play mode exit in editor by introducing static collection cleanups.
+- Fixed double-disposal issue in `Operation.Cancel()` causing `ObjectDisposedException`.
+- Corrected logic bug in `APLogger` where message severity filtering did not prioritize log levels properly.
+- Resolved potential recursion stack overflow in `ContainsDeepPopup` DFS logic.
+- Prevented potential `NullReferenceException` when invoking `.OnComplete()` on popup transitions by returning a proper `NoOp` operation instead of `null`.
+
 ## [1.17.0] - 2025-09-29 
 ### Improved
 - Core refactor to **generics** instead of reflection. Faster calls and compile-time safety for displays/settings.
