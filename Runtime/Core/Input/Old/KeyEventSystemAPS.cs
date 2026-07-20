@@ -15,7 +15,12 @@ namespace AdvancedPS.Core.Input
     public static class KeyEventSystemAPS
     {
         public static bool IsEnabled = true;
-        
+
+        /// <summary>
+        /// All KeyCode values, cached once — avoids allocating the enum value array every frame a key is pressed.
+        /// </summary>
+        private static readonly KeyCode[] AllKeyCodes = (KeyCode[])Enum.GetValues(typeof(KeyCode));
+
 #if UNITY_EDITOR
         [InitializeOnLoadMethod]
         private static void EditorInitialize()
@@ -95,8 +100,8 @@ namespace AdvancedPS.Core.Input
                 
                 var showSettings = popup.KeyBindingShowSettings;
                 if (!popup.IsBeVisible &&
-                    (showSettings.AnyHotKey || (showSettings.HotKeys != null && showSettings.HotKeys.Contains(pressedKey))) && 
-                    (showSettings.Layers == default || showSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
+                    (showSettings.AnyHotKey || (showSettings.HotKeys != null && showSettings.HotKeys.Contains(pressedKey))) &&
+                    (showSettings.Layers == default || (showSettings.Layers & AdvancedPopupSystem.ActiveLayer) == AdvancedPopupSystem.ActiveLayer) &&
                     (showSettings.Popups == null || showSettings.Popups.Count == 0 || HasActivePopup(showSettings.Popups)))
                 {
                     if (AreParentsVisible(popup))
@@ -109,8 +114,8 @@ namespace AdvancedPS.Core.Input
                 
                 var hideSettings = popup.KeyBindingHideSettings;
                 if (popup.IsBeVisible &&
-                    (hideSettings.AnyHotKey || (hideSettings.HotKeys != null && hideSettings.HotKeys.Contains(pressedKey))) && 
-                    (hideSettings.Layers == default || hideSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
+                    (hideSettings.AnyHotKey || (hideSettings.HotKeys != null && hideSettings.HotKeys.Contains(pressedKey))) &&
+                    (hideSettings.Layers == default || (hideSettings.Layers & AdvancedPopupSystem.ActiveLayer) == AdvancedPopupSystem.ActiveLayer) &&
                     (hideSettings.Popups == null || hideSettings.Popups.Count == 0 || HasActivePopup(hideSettings.Popups)))
                 {
                     popup.Hide();
@@ -153,10 +158,10 @@ namespace AdvancedPS.Core.Input
         
         private static KeyCode GetPressedKey()
         {
-            foreach (KeyCode key in Enum.GetValues(typeof(KeyCode)))
-                if (UnityEngine.Input.GetKeyDown(key))
-                    return key;
-            
+            for (int i = 0; i < AllKeyCodes.Length; i++)
+                if (UnityEngine.Input.GetKeyDown(AllKeyCodes[i]))
+                    return AllKeyCodes[i];
+
             return default;
         }
     }

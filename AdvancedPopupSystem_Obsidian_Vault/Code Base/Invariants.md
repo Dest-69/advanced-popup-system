@@ -66,6 +66,18 @@ Do not break these. Deviation only after explicit agreement in the current task.
 - **`ActiveLayer` is mutated only by `AdvancedPopupSystem` `Layer*`/`HideAll` APIs.** A manual `popup.Show()/Hide()`
   updates only `ActivePopups`, never `ActiveLayer` — don't couple manual calls to layer state (see [[Layers]]).
 
+## Addressables (optional integration)
+
+- **Optional and isolated like DoTween.** On-demand loading lives in its own assemblies gated by `APS_ADDRESSABLES`
+  (`Runtime/Addressables/`, `Editor/Addressables/`); **core never references Addressables** — keep it that way (lean
+  runtime). Do **not** add `com.unity.addressables` to `package.json` `dependencies`. See [[Addressables]].
+- **`Runtime/Generated/AddressablePopupIndex.generated.cs` is regenerated** by the editor (scan of Addressable-flagged
+  prefabs) — never hand-edit; queries live in the hand-written `AddressablePopupIndex.cs` (same partial).
+- **New global state** (`SpawnedPopups`, the pool, `Root`) obeys the leak-guard rule: cleared/nulled on play-mode exit,
+  null-pruned on scene unload ([[Core System]]).
+- **`AdvancedPopupInstantiate` was removed** (a NoOp stub) in favor of `SpawnAsync`/`Despawn` + pooling — a **breaking**
+  public-API change; record it in `CHANGELOG` on the next (user-gated) version bump ([[Shipped Docs]]).
+
 ## Depends on
 
 - [[Code Style]] (paired mandatory reading), [[Project Map]] (assemblies & namespaces), [[Shipped Docs]] (public sync).

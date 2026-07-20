@@ -33,7 +33,12 @@ A show binding fires when: popup **not** `IsBeVisible` **and** (`AnyHotKey` or a
 - **New** (`Input/New`): uses `Keyboard.current` (`anyKey.wasPressedThisFrame`, `kb[key].wasPressedThisFrame`) with a
   cached `KeyCode → Key` map (auto-matched by name + manual overrides for `Return→Enter`, `Alpha#→Digit#`, keypad→
   numpad, etc.).
-- **Old** (`Input/Old`): uses `UnityEngine.Input.anyKeyDown` + a `KeyCode` scan (`GetKeyDown`).
+- **Old** (`Input/Old`): uses `UnityEngine.Input.anyKeyDown` + a `KeyCode` scan (`GetKeyDown`) over a **cached**
+  `KeyCode[]` (`Enum.GetValues` runs once at load, not per keypress).
+
+**Per-frame allocation gotcha:** the `Update` scan runs on the hot path, so it must stay allocation-free — the `Layers`
+gate uses a bitwise `(Layers & ActiveLayer) == ActiveLayer` check, **not** `Enum.HasFlag` (which boxes under IL2CPP),
+and the Old backend iterates the cached `KeyCode[]`. Don't reintroduce `HasFlag` or `Enum.GetValues` in these loops.
 
 ## PopupKeyBinding
 

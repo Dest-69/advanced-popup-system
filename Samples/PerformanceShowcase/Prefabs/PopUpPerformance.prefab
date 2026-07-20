@@ -128,6 +128,8 @@ MonoBehaviour:
   PopupLayer: 4
   ManualInit: 0
   AutoHideOnInit: 1
+  Inactive: 0
+  EscapePolicy: 0
   RootTransform: {fileID: 0}
   canvasGroup: {fileID: 0}
   IsBeVisible: 0
@@ -149,6 +151,28 @@ MonoBehaviour:
     OnTrigger:
       m_PersistentCalls:
         m_Calls: []
+  Modules:
+    Features: -1
+    Drag:
+      DragZone: {fileID: 0}
+      Bounds: 0
+      CustomBounds: {fileID: 0}
+      Padding:
+        m_Left: 0
+        m_Right: 0
+        m_Top: 0
+        m_Bottom: 0
+    Resize:
+      Grips: []
+      MinSize: {x: 100, y: 100}
+      MaxSize: {x: 0, y: 0}
+      Bounds: 0
+      CustomBounds: {fileID: 0}
+      Padding:
+        m_Left: 0
+        m_Right: 0
+        m_Top: 0
+        m_Bottom: 0
   closeButton: {fileID: 0}
 --- !u!225 &5260147549247655233
 CanvasGroup:

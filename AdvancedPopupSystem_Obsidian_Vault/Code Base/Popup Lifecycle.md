@@ -18,7 +18,8 @@ Show/Hide/Switch overrides. **User popups extend `AdvancedPopup`.**
 `PopupLayer` (which layers can show this), `ManualInit`, `AutoHideOnInit` (default `true`), `Inactive` (blocks Show),
 `EscapePolicy` (`EscapePolicyEnum`: `Hide` default / `Ignore` / `Block` — escape-stack participation, see
 [[Core System]]), `DeepPopups` (child/dependent popups), `KeyBindingShowSettings`/`KeyBindingHideSettings`
-([[Input & Hotkeys]]). Hidden: `RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**),
+([[Input & Hotkeys]]); the **Addressable** box `Addressable` / `AddressableLoadMode` / `AddressableHideBehavior`
+([[Addressables]]). Hidden: `RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**),
 `IsVisible` (set when it **ends**), `ShownByCascade` (`[NonSerialized]`, system-managed — see "Deep popups").
 `AdvancedPopup` adds public `OnShowing`/`OnHided` actions and an optional `closeButton`.
 
@@ -64,7 +65,8 @@ Four entry shapes, each in a cached-display and a typed (`<T>`) variant:
 **on cancel roll back `IsBeVisible=false` and return**, else `IsVisible=true`. The `RegisterTask`…`UnregisterTask` pair
 brackets the run in a **`try/finally`** (an exception from a display can't leak the `APSStats` task counter).
 `HideAsync` is the mirror: `Unsubscribe()`, animate, and on success `SetActive(false)` + `IsVisible=false` (cancel rolls
-back to `IsBeVisible=true`). This rollback ordering is the contract displays rely on ([[Invariants]]).
+back to `IsBeVisible=true`). This rollback ordering is the contract displays rely on ([[Invariants]]). For an Addressable
+Lane-A popup with `HideBehavior.Despawn` the success path **releases the handle** instead of `SetActive(false)` ([[Addressables]]).
 
 > **Known gap (not yet fixed):** a Show cancelled by an *external* token (not by a following `Hide`) rolls back only
 > `IsBeVisible`; it does **not** `Unsubscribe()` / `SetActive(false)`, so the popup can linger in `ActivePopups` and on
@@ -84,10 +86,11 @@ group closes as **one step** via its root, while a deep popup shown *individuall
 nested-dialog UX. The distinction is dynamic (who started the show), not static membership in `DeepPopups` — don't
 replace the flag with a `DeepPopups` lookup.
 
-## `AdvancedPopupInstantiate`
+## Spawning & pooling (was `AdvancedPopupInstantiate`)
 
-A **stub** (all methods `NoOp`/`Task.CompletedTask`) reserved for the planned runtime spawn + pooling feature — not
-functional yet ([[Shipped Docs]] lists it as "planned"). Don't build on it.
+The old `AdvancedPopupInstantiate` NoOp stub is **removed** (breaking — [[Invariants]]). Runtime spawn + pooling is now
+`AdvancedPopupSystem.SpawnAsync<T>`/`Despawn` over Addressable prefabs (Lane B), and a Lane-A popup's `HideBehavior`
+(`Deactivate` default / `Despawn`) decides whether hide keeps it resident or releases its handle. See [[Addressables]].
 
 ## Depends on
 

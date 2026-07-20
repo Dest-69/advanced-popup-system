@@ -1,0 +1,29 @@
+{
+    "name": "dest-69.advanced-popup-system.addressables.editor",
+    "rootNamespace": "AdvancedPS.Editor",
+    "references": [
+        "GUID:bcd6335d616709349968d9fbde39ead7",
+        "Unity.Addressables",
+        "Unity.Addressables.Editor",
+        "Unity.ResourceManager"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "APS_ADDRESSABLES"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.addressables",
+            "expression": "",
+            "define": "APS_ADDRESSABLES"
+        }
+    ],
+    "noEngineReferences": false
+}

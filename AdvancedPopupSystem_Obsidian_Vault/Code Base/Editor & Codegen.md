@@ -32,9 +32,18 @@ letters-only, then `RemoveDisplaySuffix` + `"Display"`/`"Settings"` ([[Displays 
 ## FileSearcher (paths)
 
 Locates the package by folder name `advanced-popup-system` (AssetDatabase in editor; `dataPath` at runtime) and exposes
-`DisplaysFolderPath`, `LayersEnumFilePath`, `ImagesFolderPath`; `ToAssetPath`/`ToFsPath` convert between filesystem and
-`Assets/...` paths. **`FolderRenamePrevention`** (an `AssetPostprocessor`) reverts any rename of that folder — the
+`DisplaysFolderPath`, `LayersEnumFilePath`, `AddressableIndexFilePath`, `ImagesFolderPath`; `ToAssetPath`/`ToFsPath`
+convert between filesystem and `Assets/...` paths. **`FolderRenamePrevention`** (an `AssetPostprocessor`) reverts any rename of that folder — the
 lookup keys off the name, so renaming would break codegen/images.
+
+## Addressable index generation (`AddressablePopupIndexGenerator`, optional)
+
+Under `APS_ADDRESSABLES` (`Editor/Addressables/`). Scans `t:Prefab` for `IAdvancedPopup.Addressable`, keeps them in the
+**"Advanced Popup System"** Addressables group (address = type `FullName`, one prefab per type — warns on duplicates),
+prunes un-flagged entries, and rewrites `AddressablePopupIndex.generated.cs` via `FileSearcher.AddressableIndexFilePath`
+— **idempotently** (no rewrite/recompile unless content changed). Runs from `Tools/Advanced Popup System/Regenerate
+Addressable Index` and **auto** via `AddressablePopupPostprocessor` on `.prefab` changes (deferred out of the import
+callback). The inspector's Addressable box lives in `IAdvancedPopupEditor`. See [[Addressables]].
 
 ## Other editor pieces
 

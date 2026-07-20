@@ -82,6 +82,33 @@ namespace AdvancedPS.Core.System
         /// </summary>
         [Tooltip("Settings for hiding popup by key binding.")]
         public PopupKeyBinding KeyBindingHideSettings;
+        /// <summary>
+        /// Data-driven interactive features (drag, resize, …) for this popup and their per-feature config.
+        /// Enable features via the <see cref="PopupFeatureEnum"/> flags; the central PointerEventSystemAPS reads this —
+        /// no extra components are added at runtime. Configure in the inspector's "Modules" box.
+        /// </summary>
+        public PopupModules Modules = new PopupModules();
+        /// <summary>
+        /// Load this popup's prefab from Addressables on demand instead of requiring it in the scene. The editor adds
+        /// the prefab to the APS Addressables group and lists it in the generated index (see AddressablePopupIndex);
+        /// at runtime the system loads it lazily on show (or up-front when <see cref="AddressableLoadMode"/> is Preload).
+        /// </summary>
+        [Space]
+        [Header("Addressable")]
+        [Tooltip("Load this popup's prefab from Addressables on demand instead of placing it in the scene.")]
+        public bool Addressable;
+        /// <summary>
+        /// When the Addressable asset is brought into memory: Lazy (on first show) or Preload (up-front on boot).
+        /// </summary>
+        [Tooltip("When the Addressable asset is loaded: Lazy (on first show) or Preload (up-front on boot).")]
+        public LoadMode AddressableLoadMode = LoadMode.Lazy;
+        /// <summary>
+        /// What Hide does once the animation finishes: Deactivate (keep the instance resident) or Despawn (release the
+        /// Addressables handle so memory can unload; the popup reloads on the next show). Ignored for spawned (Lane B)
+        /// instances — those are pooled/released via <see cref="AdvancedPopupSystem.Despawn"/>.
+        /// </summary>
+        [Tooltip("What Hide does once the animation finishes: Deactivate (keep resident) or Despawn (release the handle).")]
+        public HideBehavior AddressableHideBehavior = HideBehavior.Deactivate;
         #endregion
         
         #region Protected

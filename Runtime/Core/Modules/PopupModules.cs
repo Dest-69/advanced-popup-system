@@ -1,0 +1,27 @@
+using System;
+using AdvancedPS.Core.System;
+
+namespace AdvancedPS.Core
+{
+    /// <summary>
+    /// Data-driven interactive features for a popup: a bit-flag set of enabled features plus their per-feature config.
+    /// Lives as a single field on <see cref="IAdvancedPopup"/> (Modules); the central PointerEventSystemAPS reads it —
+    /// no per-feature MonoBehaviours are added at runtime. The inspector reveals a config block only for the features
+    /// that are enabled.
+    /// </summary>
+    [Serializable]
+    public class PopupModules
+    {
+        /// <summary> Enabled interactive features (bit flags). </summary>
+        public PopupFeatureEnum Features = PopupFeatureEnum.None;
+
+        /// <summary> Drag settings — used when <see cref="PopupFeatureEnum.Draggable"/> is set. </summary>
+        public DragConfig Drag = new DragConfig();
+
+        /// <summary> Resize settings — used when <see cref="PopupFeatureEnum.Resizable"/> is set. </summary>
+        public ResizeConfig Resize = new ResizeConfig();
+
+        /// <summary> True if any interactive feature is enabled. </summary>
+        public bool HasAny => Features != PopupFeatureEnum.None;
+    }
+}

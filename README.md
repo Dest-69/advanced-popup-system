@@ -48,10 +48,13 @@ Clone or copy this package into your Unity project's `Assets` folder, or add it 
 ## ✨ Features
 
 *   🗂️ **Layer-based Management** — Group and control popups by custom layer bitmasks (e.g., `LOGIN`, `HUB`, `SETTINGS`). Show or hide entire layers with a single call.
-*   🎭 **Extensible Animation Pipeline** — Out-of-the-box support for **Fade**, **Scale**, and **Slide** transitions using custom easing curves, plus native [DOTween](https://github.com/Demigiant/dotween) integration.
+*   🎭 **Extensible Animation Pipeline** — Out-of-the-box support for **Fade**, **Scale**, and **Slide** transitions using custom easing curves, or scaffold your own custom display straight from the editor.
+*   🎬 **DOTween Integration** *(optional)* — Drive a popup's show/hide with hand-built [DOTween](https://github.com/Demigiant/dotween) `Sequence`s via `DoTweenSettings.Create(...)` for full easing, timing, and chaining control — an alternative to the built-in transitions. Enabled by a `DOTWEEN` scripting define and shipped in its own assembly; the core runtime stays dependency-light and compiles fine without DOTween installed.
 *   ⚡ **Async-First Execution** — Fully Task-based async/await transitions with automatic cancellation support via `CancellationToken`s.
 *   🎹 **Input System Binding** — Easily bind popups to keyboard hotkeys or controllers. Works seamlessly with both Legacy Input Manager and the New Input System.
 *   ⬅️ **Escape Close Stack** — One key (default `Escape`) steps back through open popups like the Android back button, closing the most recent one first. Per-popup policy (`Hide` / `Ignore` / `Block`) covers modals and pass-through popups.
+*   🖱️ **Drag & Resize Modules** — Tick `Draggable` / `Resizable` on a popup to move or resize it at runtime, clamped to the screen (or a custom / safe-area rect) and correct for **any anchors**. Data-driven flags — no extra components — with a stateless, registry-based handler pipeline you can extend.
+*   📦 **Addressables Loading** *(optional)* — Flag a popup **Addressable** to load its prefab on demand — lazily on first show, preloaded on boot, or spawned as many pooled copies — instead of placing it in every scene. The editor auto-manages the Addressables group and a generated index; scene instances still win for effortless testing. Requires the Addressables package; the core runtime stays dependency-light.
 *   🌲 **Nested Popup Hierarchies** — Support for deep child popups that automatically animate and manage their states in alignment with their parent popups.
 *   ⏱️ **Cancellation-Aware** — Every transition returns an `Operation` you can `.Cancel()` or chain with `.OnComplete()`; starting a new show/hide auto-cancels the previous one.
 *   🛠️ **Editor Tooling** — A dedicated **APS** window with **Layers**, **Displays**, and **Settings** tabs: generate layer flags and custom display scripts, tune settings, and inspect active popups/operations in real-time.

@@ -29,8 +29,10 @@ or behavior changes, and **never bump `package.json` version without asking the 
 | A built-in display — slide | [[Display — Slide]] |
 | A DoTween-driven display (`DOTWEEN`) | [[Display — DoTween]] |
 | Authoring a new/custom display + settings | [[Display — Custom]] |
+| Drag/resize a popup, `Modules`/`PopupFeatureEnum`, pointer system, grips, bounds/anchors, new interactive feature | [[Interaction Modules]] |
 | `Operation`, `OnComplete`/`Cancel`, `CancellationToken` flow, `APSStats` | [[Operations & Cancellation]] |
 | Layers, `PopupLayerEnum`, `ActiveLayer`, autohide | [[Layers]] |
+| On-demand loading: Addressables, lazy/preload, `SpawnAsync`/pool, the resolver seam & generated index | [[Addressables]] |
 | Hotkeys, key-triggered show/hide, New vs Old input, input-module switch | [[Input & Hotkeys]] |
 | Settings, `AP_Settings.json`, log levels / `APLogger` | [[Settings & Logging]] |
 | APS editor window, generating layers/displays, inspectors, create-popup menu | [[Editor & Codegen]] |

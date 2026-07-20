@@ -1,4 +1,18 @@
 # Changelog
+## [1.21.0] - 2026-07-19
+### Added
+- **Addressables support** *(optional)* — mark a popup as Addressable and it loads only when needed: lazily on first show, or quietly preloaded in the background, instead of living in every scene. Setup is automatic, and popups you keep in the scene still work as before — so testing stays easy.
+- **Runtime spawning & pooling** — open many copies of the same popup (toasts, list rows) with automatic reuse, plus one-line preloading for a hitch-free first open.
+- **Addressables showcase** — a sample scene to try it out: scene, lazy, preloaded, and spawned popups, all draggable.
+### Removed
+- The unused `AdvancedPopupInstantiate` placeholder — real runtime spawning takes its place.
+
+## [1.19.0] - 2026-07-19
+### Added
+- **Interaction modules**: per-popup `Draggable` / `Resizable` features via a bit-flag `Modules` field — drag zone, resize grips, and screen/safe-area/custom bounds clamping that works with **any anchors & pivot**.
+- Central `PointerEventSystemAPS` (New/Old input) driving interactions through the PlayerLoop — no runtime components; stateless handlers with an extensible `PopupFeatureRegistry`.
+- Inspector "Modules" box with conditional per-feature config and a **Generate Grips** button.
+
 ## [1.18.0] - 2026-06-17
 ### Added
 - Auto-initialization for `InputSwitcher` using `[RuntimeInitializeOnLoadMethod]` (no longer requires manual placement in the scene).

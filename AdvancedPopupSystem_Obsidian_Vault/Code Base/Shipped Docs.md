@@ -18,7 +18,7 @@ They are a **separate artifact** from this vault — no wiki-links, no `code_pat
 - **`README.md`** — landing page: requirements/compatibility, install (Newtonsoft), features, quick start, showcase.
 - **`documentation.md`** — the deep guide: building blocks, step-by-step setup, API reference, animations & custom
   displays, advanced config, troubleshooting, planned features.
-- **`CHANGELOG.md`** — versioned history (current `1.18.0`). **User-gated** — don't add entries or bump on your own.
+- **`CHANGELOG.md`** — versioned history (current `1.19.0`). **User-gated** — don't add entries or bump on your own.
 - **`package.json`** — UPM manifest: `version`, `unity` min, `dependencies` (Newtonsoft). **Never bump without
   asking** ([[Invariants]]).
 - **`LICENSE.md`**, `.github/FUNDING.yml` — legal/funding.
@@ -34,8 +34,10 @@ the repo stays accurate for users. Keep them **usage-first, deep, and current** 
 - **`Init()` override order:** shipped examples call `SetCachedDisplay(...)` **then** `base.Init()` last — that's the
   correct order ([[Popup Lifecycle]]). The `IAdvancedPopup.Init` XML summary ("keep base.Init() first") is misleading;
   if docs are rewritten, follow the examples, not that summary.
-- **Dynamic spawning is "planned"** — `AdvancedPopupInstantiate` is a NoOp stub; documentation.md §7 correctly marks it
-  unreleased. Keep it flagged until the feature actually lands.
+- **Dynamic spawning shipped (Addressables)** — the `AdvancedPopupInstantiate` NoOp stub was **removed**; on-demand
+  loading + pooling is now `AdvancedPopupSystem.SpawnAsync`/`Despawn` plus the optional Addressables integration
+  ([[Addressables]]). documentation.md's old "planned" note (§7) must be replaced with the real usage; this is a
+  breaking removal → a `CHANGELOG` entry on the next (user-gated) version bump.
 
 ## Depends on
 

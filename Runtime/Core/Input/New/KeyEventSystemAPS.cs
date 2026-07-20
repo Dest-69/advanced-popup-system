@@ -106,8 +106,8 @@ namespace AdvancedPS.Core.Input
                 
                 var showSettings = popup.KeyBindingShowSettings;
                 if (!popup.IsBeVisible &&
-                    (showSettings.AnyHotKey || IsAnyHotKeyPressed(kb, showSettings.HotKeys)) && 
-                    (showSettings.Layers == default || showSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
+                    (showSettings.AnyHotKey || IsAnyHotKeyPressed(kb, showSettings.HotKeys)) &&
+                    (showSettings.Layers == default || (showSettings.Layers & AdvancedPopupSystem.ActiveLayer) == AdvancedPopupSystem.ActiveLayer) &&
                     (showSettings.Popups == null || showSettings.Popups.Count == 0 || HasActivePopup(showSettings.Popups)))
                 {
                     if (AreParentsVisible(popup))
@@ -120,8 +120,8 @@ namespace AdvancedPS.Core.Input
                 
                 var hideSettings = popup.KeyBindingHideSettings;
                 if (popup.IsBeVisible &&
-                    (hideSettings.AnyHotKey || IsAnyHotKeyPressed(kb, hideSettings.HotKeys)) && 
-                    (hideSettings.Layers == default || hideSettings.Layers.HasFlag(AdvancedPopupSystem.ActiveLayer)) &&
+                    (hideSettings.AnyHotKey || IsAnyHotKeyPressed(kb, hideSettings.HotKeys)) &&
+                    (hideSettings.Layers == default || (hideSettings.Layers & AdvancedPopupSystem.ActiveLayer) == AdvancedPopupSystem.ActiveLayer) &&
                     (hideSettings.Popups == null || hideSettings.Popups.Count == 0 || HasActivePopup(hideSettings.Popups)))
                 {
                     popup.Hide();

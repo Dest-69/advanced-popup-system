@@ -20,6 +20,9 @@ popup ([[Popup Lifecycle]]).
   representative per **concrete** type; removal re-points to a survivor rather than dropping the entry (see below).
 - **`ActiveLayer`** (`PopupLayerEnum` bitmask) — combined active layers; **only** `Layer*`/`HideAll` here change it
   ([[Layers]]).
+- **Addressables surface** (optional, [[Addressables]]): `Resolver` (`IPopupResolver`, null default → scene-only),
+  `SpawnedPopups` (Lane B, kept out of `AllPopups`), the reuse pool, and `Root` (parent for loaded/spawned popups —
+  auto persistent Canvas, overridable). All follow the leak-guard rule.
 
 ## Lifetime & cleanup
 
@@ -38,7 +41,9 @@ popup ([[Popup Lifecycle]]).
 
 `SortPopups()` orders `AllPopups`: **active-scene popups first**, then background-scene popups; within each group by
 **hierarchy depth descending (deepest first)**. So nested/child popups are iterated before their parents — relevant to
-key-event resolution ([[Input & Hotkeys]]) and any "first match" lookup.
+key-event resolution ([[Input & Hotkeys]]) and any "first match" lookup. Runs on **every registration**, so it is kept
+allocation-light on purpose: one scratch list, depth computed once per popup, `List.Sort` stabilized by original index
+(no LINQ `OrderBy`/`ToList`) — keep it that way.
 
 ## Lookups
 
@@ -58,11 +63,16 @@ popup's `ShowAsync`/`HideAsync` via `Task.WhenAll`; exceptions are caught and lo
 - **Typed overloads** `LayerShow<T>(…, settings, autohide)` and `LayerShow<T,J>(…, showSettings, hideSettings)` run the
   batch with a **per-call** display type/settings instead of each popup's cached display ([[Displays & Animations]]).
 - **`LayerHide(layer)` / `LayerHide<T>`** — clear the flag (`&= ~layer`) and hide the layer's popups.
-- **`HideAll()` / `HideAll<T>`** — no-op if `ActiveLayer == 0`; else reset to 0 and hide every popup.
+- **`HideAll()` / `HideAll<T>`** — no-op if `ActiveLayer == 0`; else reset to 0 and hide every **visible** popup
+  (iterates an `ActivePopups` snapshot, so spawned Lane B popups close too — [[Addressables]]).
+- **`SpawnAsync<T>` / `Despawn`** and **`PreloadAll` / `PreloadLayer`** — the on-demand loading APIs ([[Addressables]]).
 
 **Gotchas:** the `ActiveLayer` equality/flag checks make layer calls idempotent — don't add your own guards on top.
 Because manual `popup.Show()` doesn't touch `ActiveLayer`, mixing manual and layer control can desync what "active
-layer" means vs. what's visible ([[Layers]]).
+layer" means vs. what's visible ([[Layers]]). The batch path (`GetPopupsByLayer`/`GetPopupsExcludingLayer` →
+`Show/HidePopupsAsync` → `HideAllPopupsAsync`) is deliberately LINQ-free — manual loops into pre-sized `List<Task>`, the
+`HideAll` snapshot is a plain `List` copy (still required: `Unsubscribe` mutates `ActivePopups` mid-batch). Don't
+reintroduce `Where`/`Select`/`ToList` on these navigation-triggered paths.
 
 ## Escape stack step
 

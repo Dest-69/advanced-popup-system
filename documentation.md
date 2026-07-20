@@ -18,7 +18,7 @@ This is the complete technical guide: how to set popups up and how to drive the 
 6. [Advanced Configuration](#6-advanced-configuration)
 7. [Settings & Logging](#7-settings--logging)
 8. [Troubleshooting Checklist](#8-troubleshooting-checklist)
-9. [Upcoming: Dynamic Spawning & Pooling (Planned)](#9-upcoming-dynamic-spawning--pooling-planned-)
+9. [On-Demand Loading with Addressables](#9-on-demand-loading-with-addressables)
 
 ---
 
@@ -493,6 +493,48 @@ popup.Init();   // registers with APS and applies auto-hide
 popup.Show();
 ```
 
+For loading popups from **Addressables** on demand (lazy / preload) and spawning many pooled copies, see
+[§9](#9-on-demand-loading-with-addressables).
+
+### 6.5 Interaction modules (drag & resize)
+
+Make a popup **draggable** and/or **resizable** at runtime. Features are **data on the popup**, not extra components:
+the popup's inspector has a **Modules** box with a `Features` flag field — tick `Draggable` / `Resizable` and a config
+block appears for each. A single central pointer system drives every popup (nothing is added to the scene at runtime),
+and it works with both the legacy Input Manager and the new Input System.
+
+Both features **clamp the popup to a bounds rect and work with any anchors / pivot** — center-anchored, corner-anchored
+or stretched popups all stay on screen.
+
+**Draggable** (`Modules ▸ Drag`):
+
+- **Drag Zone** — the RectTransform that starts a drag (e.g. a title bar). Leave empty to drag by the whole popup.
+- **Bounds** — where the popup is kept: `Canvas` (the canvas rect ≈ the screen, default), `SafeArea` (notch-safe),
+  `Custom` (a RectTransform you assign in **Custom Bounds**), or `None` (no clamping).
+- **Padding** — extra inset (px) on each side of the bounds.
+
+**Resizable** (`Modules ▸ Resize`):
+
+- **Grips** — the handles the pointer grabs, each with a direction (edge/corner). Click **Generate Grips** to create a
+  default 8-handle set under a dedicated `[Grips]` child (added last so it sits on top); then move/scale the handles to
+  taste. Grips are plain RectTransforms — add your own `Image` if you want them visible in play mode.
+- **Min Size / Max Size** — size limits in px (0 on an axis = unlimited).
+- **Bounds / Custom Bounds / Padding** — same clamping options as drag.
+
+Resizing keeps the edge opposite the grabbed grip fixed and honors the pivot; it targets popups with **fixed
+(non-stretched) anchors** on the resized axis.
+
+**Extending.** Each feature is a stateless `IPopupFeatureHandler` resolved by flag from `PopupFeatureRegistry`. Register
+your own to add or override behavior:
+
+```csharp
+PopupFeatureRegistry.Register(PopupFeatureEnum.Draggable, new MyDragHandler(), prepend: true);
+```
+
+**Notes:** interaction is active only while a popup is fully shown, and a gesture cancels if the popup hides mid-drag.
+Hit-testing uses the popup's own zone/grip rects (not the EventSystem raycaster), so it doesn't account for unrelated UI
+drawn on top; the topmost popup under the pointer wins.
+
 ---
 
 ## 7. Settings & Logging
@@ -544,30 +586,69 @@ popup.Show();
 
 ---
 
-## 9. Upcoming: Dynamic Spawning & Pooling (Planned ⏳)
+## 9. On-Demand Loading with Addressables
 
-> [!CAUTION]
-> **UNDER DEVELOPMENT.** Real-time instantiation and pool-based spawning are planned. `AdvancedPopupInstantiate`
-> currently exists only as a no-op stub — the API below is a conceptual preview and is not active yet.
+Popups can load from **Addressables** on demand instead of living in every scene — lazily on first show, preloaded on
+boot, or spawned in many pooled copies. It's **optional**: install Unity's **Addressables** package to enable it;
+without it APS works exactly as before (scene-only). APS never hard-depends on Addressables.
+
+### 9.1 Make a popup Addressable
+
+On the popup **prefab**, open the **Addressable** box in the inspector and tick **Addressable**. Two options appear:
+
+- **Load Mode** — `Lazy` (default: loaded on first show) or `Preload` (loaded up-front on boot).
+- **On Hide** — `Deactivate` (default: keep it in memory like a scene popup) or `Despawn` (release it so the memory can
+  unload; it reloads next show).
+
+The editor then **auto-adds the prefab to an "Advanced Popup System" Addressables group** and regenerates an internal
+index — no manual Addressables wiring. Flag it on the *prefab asset* (not a scene instance), and give each Addressable
+popup a **distinct `AdvancedPopup` subclass** — the index is keyed by type.
+
+### 9.2 Show it — same API
+
+Nothing changes at the call site. `LayerShow` loads the layer's Addressable popups if they aren't present yet, then
+shows them:
 
 ```csharp
-/*
-// PREVIEW OF AN UNRELEASED FEATURE
-public class DynamicSpawner : MonoBehaviour
-{
-    [SerializeField] private AdvancedPopup _popupPrefab;
-    [SerializeField] private Transform _canvasRoot;
-
-    public void SpawnAndOpen()
-    {
-        AdvancedPopup popup = Instantiate(_popupPrefab, _canvasRoot); // 'Manual Init' checked on the prefab
-        // popup.SetData(...);
-        popup.Init(); // registers, applies auto-hide
-        popup.Show();
-    }
-}
-*/
+// HUB has an Addressable popup that isn't in the scene → it loads, then shows.
+await AdvancedPopupSystem.LayerShow(PopupLayerEnum.HUB);
 ```
 
-Until then, the manual pattern in [§6.4](#64-instantiating-popups-at-runtime) is the supported way to spawn popups at
-runtime.
+**Testing one screen stays trivial:** if a popup of that type is already in the loaded scene, APS uses it and skips
+Addressables entirely — drop the prefab into a test scene and press Play, exactly like a normal popup.
+
+> `TryGetPopup<T>` is synchronous, so it returns a popup only once it's resident (in a scene, preloaded, or already
+> loaded). Use `Preload` for popups you want to fetch synchronously.
+
+### 9.3 Preload (avoid the first-open hitch)
+
+`Preload` popups load automatically once the first scene is up. To gate a loading screen yourself:
+
+```csharp
+await AdvancedPopupSystem.PreloadAll();                       // every Preload-flagged popup
+await AdvancedPopupSystem.PreloadLayer(PopupLayerEnum.HUB);   // just one screen
+```
+
+### 9.4 Spawn many copies (toasts, list rows)
+
+For popups you need in multiple instances, spawn and manage them yourself. Spawned popups are pooled and are **not**
+part of layer batches, but a visible one still closes on Escape / `HideAll`:
+
+```csharp
+var toast = await AdvancedPopupSystem.SpawnAsync<ToastPopup>();
+toast.Show();
+// …later:
+toast.Hide();
+AdvancedPopupSystem.Despawn(toast);               // back to the pool for reuse
+// …or fully release it (destroy + free the handle):
+AdvancedPopupSystem.Despawn(toast, release: true);
+```
+
+### 9.5 Where loaded popups live
+
+Loaded and spawned popups are parented to `AdvancedPopupSystem.Root` — an auto-created persistent (DontDestroyOnLoad)
+overlay Canvas, so they survive scene changes like global UI. Assign your own `Root` (or pass a `parent` to
+`SpawnAsync`) to control the canvas, sort order, or render mode.
+
+> The manual `Instantiate` + `Init()` pattern in [§6.4](#64-instantiating-popups-at-runtime) still works for popups you
+> load yourself without Addressables.

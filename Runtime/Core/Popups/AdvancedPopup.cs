@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AdvancedPS.Core.System;
@@ -298,7 +297,8 @@ namespace AdvancedPS.Core
                     cachedHideDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings, token)
                 };
 
-                tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync(token)));
+                foreach (IAdvancedPopup deepPopup in DeepPopups)
+                    tasks.Add(deepPopup.HideAsync(token));
 
                 if (tasks.Count > 0)
                     await Task.WhenAll(tasks);
@@ -315,8 +315,14 @@ namespace AdvancedPS.Core
             }
 
             if (this == null) return;
-            gameObject.SetActive(false);
             IsVisible = false;
+            // Addressable + Despawn (Lane A only): release the handle so memory can unload; else keep resident.
+            // Spawned Lane B instances are pool-managed via AdvancedPopupSystem.Despawn(), so HideBehavior is ignored here.
+            if (Addressable && AddressableHideBehavior == HideBehavior.Despawn
+                && AdvancedPopupSystem.Resolver != null && !AdvancedPopupSystem.SpawnedPopups.Contains(this))
+                AdvancedPopupSystem.Resolver.Release(this);
+            else
+                gameObject.SetActive(false);
         }
         /// <summary>
         /// Hide popup by IAdvancedPopupDisplay generic T type for all popup's without await.
@@ -353,7 +359,8 @@ namespace AdvancedPS.Core
                 IDisplay popupDisplay = DisplayRegistry.Get<T>();
                 tasks.Add(popupDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings as IDisplaySettings<T>, token));
 
-                tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync<T>(token)));
+                foreach (IAdvancedPopup deepPopup in DeepPopups)
+                    tasks.Add(deepPopup.HideAsync<T>(token));
 
                 if (tasks.Count > 0)
                     await Task.WhenAll(tasks);
@@ -370,8 +377,14 @@ namespace AdvancedPS.Core
             }
 
             if (this == null) return;
-            gameObject.SetActive(false);
             IsVisible = false;
+            // Addressable + Despawn (Lane A only): release the handle so memory can unload; else keep resident.
+            // Spawned Lane B instances are pool-managed via AdvancedPopupSystem.Despawn(), so HideBehavior is ignored here.
+            if (Addressable && AddressableHideBehavior == HideBehavior.Despawn
+                && AdvancedPopupSystem.Resolver != null && !AdvancedPopupSystem.SpawnedPopups.Contains(this))
+                AdvancedPopupSystem.Resolver.Release(this);
+            else
+                gameObject.SetActive(false);
         }
         #endregion
     }
