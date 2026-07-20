@@ -26,9 +26,11 @@ Do not break these. Deviation only after explicit agreement in the current task.
 
 ## Generated code & codegen
 
-- **`Runtime/Generated/PopupLayerEnum.generated.cs` is fully regenerated** by the APS **Layers** panel — **never
-  hand-edit it** (edits are lost on next save). Add/remove/rename layers only through the window (see [[Layers]],
-  [[Editor & Codegen]]). Max 31 flags (`int` bitmask).
+- **`Runtime/Generated/PopupLayerEnum.generated.cs` is a projection, not the source** — regenerated from the external
+  layer store (`ProjectSettings/APS_Layers.json`, in the consumer project) by `LayerCatalog`. **Never hand-edit it**
+  (edits are lost). Add/remove/rename layers only through the Layers panel; the store survives package updates and the
+  shipped enum is a clean default healed on import by `LayerEnumSyncPostprocessor`. Max 31 flags (`int` bitmask). See
+  [[Layers]], [[Editor & Codegen]], [[Build & Packaging]].
 - **Display stubs are generated once, then owned by you.** The **Displays** panel creates
   `Runtime/Generated/Displays/<Name>Display/<Name>Display.generated.cs` + `<Name>Settings.generated.cs` **only if the
   folder is missing** (it never overwrites existing bodies). After generation, the animation body is yours to fill.
@@ -78,6 +80,19 @@ Do not break these. Deviation only after explicit agreement in the current task.
 - **`AdvancedPopupInstantiate` was removed** (a NoOp stub) in favor of `SpawnAsync`/`Despawn` + pooling — a **breaking**
   public-API change; record it in `CHANGELOG` on the next (user-gated) version bump ([[Shipped Docs]]).
 
+## Packaging & non-destructive updates
+
+- **Consumer state lives outside the package** so a `.unitypackage` update never clobbers it: settings in
+  `Assets/Resources/AP_Settings.json`, layers in `ProjectSettings/APS_Layers.json`. Do not move these back inside the
+  package; new consumer-editable state must follow the same rule ([[Build & Packaging]]).
+- **The shipped package is built only by `APSPackageExporter`** (`Editor/Build/`) — never a raw "Export Package" on the
+  folder (that leaks internal tooling). It excludes the vault, `CLAUDE.md`, and itself; ships samples as nested
+  `.unitypackage`s (not raw sources); resets `PopupLayerEnum`/`AddressablePopupIndex` to clean defaults; pulls **no**
+  third-party dependencies. Keep `Editor/Build/` on its deny-list.
+- **A missing generated file must seed a _compilable_ default, never empty** (`FileSearcher`) — an empty `.cs` drops the
+  `PopupLayerEnum` type / the `Entries` array and hard-fails the consumer compile.
+
 ## Depends on
 
-- [[Code Style]] (paired mandatory reading), [[Project Map]] (assemblies & namespaces), [[Shipped Docs]] (public sync).
+- [[Code Style]] (paired mandatory reading), [[Project Map]] (assemblies & namespaces), [[Shipped Docs]] (public sync),
+  [[Build & Packaging]] (what ships / update-safety).

@@ -17,6 +17,43 @@ namespace AdvancedPS.Core.Utils
         private const string LayersEnumFileName = "PopupLayerEnum.generated.cs";
         private const string AddressableIndexFileName = "AddressablePopupIndex.generated.cs";
 
+        // Minimal, COMPILABLE defaults used only as a safety net when a generated file is missing (a corrupted or
+        // partial import). Writing an empty file here would leave the project without the PopupLayerEnum type or the
+        // AddressablePopupIndex.Entries array — a hard compile error. The editor tooling regenerates the real content
+        // (layers from the external store, the index from a prefab scan) right after.
+        private const string DefaultLayersEnumContent =
+            "using System;\n" +
+            "namespace AdvancedPS.Core\n" +
+            "{\n" +
+            "    [Flags]\n" +
+            "    public enum PopupLayerEnum\n" +
+            "    {\n" +
+            "        None = 0,\n" +
+            "    }\n" +
+            "}\n";
+
+        private const string DefaultAddressableIndexContent =
+            "using System;\n" +
+            "namespace AdvancedPS.Core\n" +
+            "{\n" +
+            "    internal static partial class AddressablePopupIndex\n" +
+            "    {\n" +
+            "        internal readonly struct Entry\n" +
+            "        {\n" +
+            "            public readonly string TypeName;\n" +
+            "            public readonly string Address;\n" +
+            "            public readonly PopupLayerEnum Layer;\n" +
+            "            public readonly LoadMode LoadMode;\n" +
+            "            public readonly HideBehavior HideBehavior;\n" +
+            "            public Entry(string typeName, string address, PopupLayerEnum layer, LoadMode loadMode, HideBehavior hideBehavior)\n" +
+            "            {\n" +
+            "                TypeName = typeName; Address = address; Layer = layer; LoadMode = loadMode; HideBehavior = hideBehavior;\n" +
+            "            }\n" +
+            "        }\n" +
+            "        internal static readonly Entry[] Entries = Array.Empty<Entry>();\n" +
+            "    }\n" +
+            "}\n";
+
         public static readonly string ImagesFolderPath;
         public static readonly string DisplaysFolderPath;
         public static readonly string LayersEnumFilePath;
@@ -103,7 +140,10 @@ namespace AdvancedPS.Core.Utils
             string settingsFilePath = Path.Combine(layersEnumFolderPath, LayersEnumFileName);
             if (!File.Exists(settingsFilePath))
             {
-                File.WriteAllText(settingsFilePath, "");
+#if UNITY_EDITOR
+                // Seed a compilable default (never an empty file — that removes the PopupLayerEnum type).
+                File.WriteAllText(settingsFilePath, DefaultLayersEnumContent);
+#endif
             }
 
             return settingsFilePath;
@@ -130,7 +170,11 @@ namespace AdvancedPS.Core.Utils
             string filePath = Path.Combine(generatedFolderPath, fileName);
             if (!File.Exists(filePath))
             {
-                File.WriteAllText(filePath, "");
+#if UNITY_EDITOR
+                // Seed compilable default content (never an empty file — the hand-written partial reads Entries).
+                File.WriteAllText(filePath,
+                    fileName == AddressableIndexFileName ? DefaultAddressableIndexContent : string.Empty);
+#endif
             }
 
             return filePath;

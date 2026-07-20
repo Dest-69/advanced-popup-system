@@ -11,11 +11,13 @@ code_paths:
 - **Package root:** `Assets/advanced-popup-system/` — this folder **is** the published UPM package **and** its own git
   repo (`.git` here). Its `package.json`, `README.md`, `documentation.md`, `CHANGELOG.md`, `LICENSE.md` ship to users
   (see [[Shipped Docs]]). This vault + `.agents`/`.claude`/`CLAUDE.md` also live here (next to `.git`), versioned with
-  the asset — internal tooling; exclude them from the published package if you don't want them imported by consumers.
+  the asset — internal tooling; exclude them from the published package if you don't want them imported by consumers. The package is built by the dev-only exporter `Editor/Build/APSPackageExporter` (self-excluded) — see [[Build & Packaging]].
 - **Runtime code:** `Runtime/` (namespace root `AdvancedPS.Core`). **Editor code:** `Editor/` (`AdvancedPS.Editor`).
   **Generated code:** `Runtime/Generated/`. **Samples:** `Samples/` (`AdvancedPS.Core.Examples`).
 - **Settings JSON** is written to the **consumer project's** `Assets/Resources/AP_Settings.json` (via
   `Application.dataPath/Resources`), not into the package — see [[Settings & Logging]].
+- **Layer store** is written to the consumer project's `ProjectSettings/APS_Layers.json` (outside `Assets`, editor-only,
+  never shipped) — the update-safe source of truth for `PopupLayerEnum` ([[Layers]], [[Build & Packaging]]).
 - **Package-folder lookup:** `FileSearcher` finds the package by the folder name `advanced-popup-system`
   (AssetDatabase in editor), so codegen/image paths work regardless of where the package is imported.
 

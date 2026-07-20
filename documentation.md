@@ -416,7 +416,9 @@ Open from the top **`APS`** menu — one window, three tabs:
 
 - **`APS ▸ Layers`** — add / rename / delete `PopupLayerEnum` flags. Names are normalized to `UPPER_CASE`, and the enum
   file is **regenerated** on save (up to 31 flags). Do not hand-edit `PopupLayerEnum.generated.cs` — your edits are
-  overwritten here.
+  overwritten here. Your layer set is also saved **outside** the package, in `ProjectSettings/APS_Layers.json`, so
+  **updating APS never wipes your custom layers** — the enum is automatically restored from that file when the new
+  version is imported.
 - **`APS ▸ Displays`** — add a new display: APS generates `<Name>Display/<Name>Display.generated.cs` +
   `<Name>Settings.generated.cs` with ready-to-fill method stubs. Generation never overwrites an existing display, and
   delete removes the pair. The `Display` / `Settings` suffixes and folder name are required by the tooling — keep them.

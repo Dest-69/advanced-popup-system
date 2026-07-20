@@ -15,12 +15,22 @@ code_paths:
 (`APS/Layers`, `APS/Displays`, `APS/Settings`). Title shows the version from `PackageVersionHelper` (resolves via
 PackageManager or a walked `package.json`; `"Dev"` fallback).
 
-## Layer generation (`PopupLayerEditorPanel`)
+## Layer generation (`PopupLayerEditorPanel` → `LayerCatalog`)
 
-Edits `PopupLayerEnum` names, validates to `UPPER_CASE` (spaces/dashes → `_`), and **rewrites the whole**
-`PopupLayerEnum.generated.cs` (`None = 0`, then `1 << bit`, max 31) via `FileSearcher.LayersEnumFilePath` +
-`AssetDatabase.Refresh`. **Auto-Save** toggle persists in `PlayerPrefs` (`APS_AutoSaveEnabled`). Hand-editing the file
-is futile — it's regenerated ([[Invariants]], [[Layers]]).
+The panel edits names and validates to `UPPER_CASE` (spaces/dashes → `_`); **Auto-Save** persists in `PlayerPrefs`
+(`APS_AutoSaveEnabled`). All persistence/codegen is centralized in **`LayerCatalog`** (the single codegen path):
+
+- **Source of truth is external** — `LayerCatalog.SaveNames` writes the ordered list to `ProjectSettings/APS_Layers.json`
+  (outside the package, never shipped, never clobbered by import). `PopupLayerEnum.generated.cs` is a *projection*.
+- **`GenerateEnumSource`** builds the enum (`None = 0`, then `1 << bit`, max 31); **`Reconcile`** rewrites the file
+  from the store only when content differs (idempotent — no needless recompile).
+- **`LayerEnumSyncPostprocessor`** heals the enum after an import: `OnPostprocessAllAssets` runs on the *already-loaded*
+  editor assembly **before** the imported scripts recompile, so restoring the store's layers happens in time for
+  consumer code that references them to compile. `[InitializeOnLoadMethod]` is a secondary post-reload safety net; a
+  `SuppressReconcile` flag lets the exporter stage clean defaults without the heal fighting it. This is the
+  **non-destructive-update** mechanism ([[Layers]], [[Build & Packaging]]).
+
+Hand-editing the file is futile — it's regenerated from the store ([[Invariants]], [[Layers]]).
 
 ## Display generation (`PopupDisplaysEditorPanel`)
 

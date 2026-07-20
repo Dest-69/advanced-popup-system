@@ -15,7 +15,6 @@ namespace AdvancedPS.Editor
     {
         private static string[] _enumNames;
         private static bool[] _enumNameChanged;
-        private static string enumFilePath;
         private static bool autoSave;
         private static Vector2 scrollPosition;
 
@@ -23,7 +22,6 @@ namespace AdvancedPS.Editor
 
         public static void Initialize()
         {
-            enumFilePath = FileSearcher.LayersEnumFilePath;
             LoadEnumNames();
             autoSave = PlayerPrefs.GetInt(AutoSaveKey, 1) == 1;
         }
@@ -118,7 +116,9 @@ namespace AdvancedPS.Editor
 
         private static void LoadEnumNames()
         {
-            _enumNames = Enum.GetNames(typeof(PopupLayerEnum));
+            // Source of truth is the external store (outside the package); fall back to the compiled enum on first run.
+            string[] layers = LayerCatalog.LoadNames() ?? LayerCatalog.CurrentEnumNames();
+            _enumNames = new[] { "None" }.Concat(layers).ToArray();
             _enumNameChanged = new bool[_enumNames.Length];
         }
 
@@ -150,38 +150,11 @@ namespace AdvancedPS.Editor
 
         private static void SaveEnumChanges()
         {
-            if (!File.Exists(enumFilePath))
-            {
-                APLogger.LogError($"File not found: {enumFilePath}");
-                return;
-            }
+            // Persist to the external store (source of truth, outside the package), then regenerate the enum file
+            // from it via the single codegen path. The store is what survives a package update (see LayerCatalog).
+            LayerCatalog.SaveNames(_enumNames.Skip(1));
+            LayerCatalog.Reconcile();
 
-            StringBuilder enumFileContent = new StringBuilder();
-
-            enumFileContent.AppendLine("using System;");
-            enumFileContent.AppendLine("namespace AdvancedPS.Core");
-            enumFileContent.AppendLine("{");
-            enumFileContent.AppendLine("    [Flags]");
-            enumFileContent.AppendLine("    public enum PopupLayerEnum");
-            enumFileContent.AppendLine("    {");
-            enumFileContent.AppendLine("        None = 0,");
-
-            int bit = 0;
-            for (int i = 1; i < _enumNames.Length; i++) 
-            {
-                var name = _enumNames[i];
-                if (string.IsNullOrEmpty(name)) continue;
-                if (bit >= 31) { APLogger.LogError("Too many flags for int enum. Max 31."); break; }
-                enumFileContent.AppendLine($"        {name} = 1 << {bit},");
-                bit++;
-            }
-
-            enumFileContent.AppendLine("    }");
-            enumFileContent.AppendLine("}");
-
-            File.WriteAllText(enumFilePath, enumFileContent.ToString());
-            AssetDatabase.Refresh();
-            
             LoadEnumNames();
         }
     }

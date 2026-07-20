@@ -1,4 +1,10 @@
 # Changelog
+## [1.22.0] - 2026-07-22
+### Changed
+- **Layers survive updates** — your popup layer set is now saved in your project, so importing a new APS version keeps your custom layers instead of wiping them. *(Upgrading to 1.22.0 may reset them one last time — re-add them in `APS ▸ Layers`; every update after this preserves them.)*
+### Fixed
+- **Always compiles after import** — a missing generated file is now re-created as valid code instead of an empty file.
+
 ## [1.21.0] - 2026-07-19
 ### Added
 - **Addressables support** *(optional)* — mark a popup as Addressable and it loads only when needed: lazily on first show, or quietly preloaded in the background, instead of living in every scene. Setup is automatic, and popups you keep in the scene still work as before — so testing stays easy.

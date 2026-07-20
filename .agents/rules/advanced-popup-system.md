@@ -39,3 +39,4 @@ or behavior changes, and **never bump `package.json` version without asking the 
 | Shared helpers (`APLogger`/`FileSearcher`/`TaskUtils`/`TypeHelper`) | [[Utilities]] |
 | Sample scenes / faithful usage references | [[Samples]] |
 | Public docs (`README`/`documentation.md`/`CHANGELOG`), package version | [[Shipped Docs]] |
+| Building/exporting the `.unitypackage`, what ships vs. self-generates, non-destructive updates, the export tool | [[Build & Packaging]] |
