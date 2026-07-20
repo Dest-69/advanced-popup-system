@@ -16,8 +16,10 @@ Show/Hide/Switch overrides. **User popups extend `AdvancedPopup`.**
 ## Inspector fields (on the base)
 
 `PopupLayer` (which layers can show this), `ManualInit`, `AutoHideOnInit` (default `true`), `Inactive` (blocks Show),
-`DeepPopups` (child/dependent popups), `KeyBindingShowSettings`/`KeyBindingHideSettings` ([[Input & Hotkeys]]). Hidden:
-`RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**), `IsVisible` (set when it **ends**).
+`EscapePolicy` (`EscapePolicyEnum`: `Hide` default / `Ignore` / `Block` — escape-stack participation, see
+[[Core System]]), `DeepPopups` (child/dependent popups), `KeyBindingShowSettings`/`KeyBindingHideSettings`
+([[Input & Hotkeys]]). Hidden: `RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**),
+`IsVisible` (set when it **ends**), `ShownByCascade` (`[NonSerialized]`, system-managed — see "Deep popups").
 `AdvancedPopup` adds public `OnShowing`/`OnHided` actions and an optional `closeButton`.
 
 ## Init & cache
@@ -74,6 +76,13 @@ back to `IsBeVisible=true`). This rollback ordering is the contract displays rel
 `DeepPopups` are children/dependents animated **in parallel** with the parent; the parent's `ShowAsync`/`HideAsync`
 awaits all of them (`Task.WhenAll`). `ContainsDeepPopup(popup)` is a **cycle-safe DFS** (visited `HashSet`) — use it
 before wiring nested popups to avoid loops.
+
+**Cascade marking (escape grouping):** the parent's Show fan-out calls `MarkCascadeShow` on each deep popup and sets
+`ShownByCascade = true` **only** when it actually starts that child's show (skips `Inactive`/already-`IsBeVisible`);
+`Unsubscribe()` clears it at hide-start. The escape stack ([[Core System]]) skips flagged popups, so a cascade-shown
+group closes as **one step** via its root, while a deep popup shown *individually* later (no flag) keeps its own step —
+nested-dialog UX. The distinction is dynamic (who started the show), not static membership in `DeepPopups` — don't
+replace the flag with a `DeepPopups` lookup.
 
 ## `AdvancedPopupInstantiate`
 

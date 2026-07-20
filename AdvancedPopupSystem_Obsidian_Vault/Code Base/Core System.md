@@ -64,6 +64,17 @@ popup's `ShowAsync`/`HideAsync` via `Task.WhenAll`; exceptions are caught and lo
 Because manual `popup.Show()` doesn't touch `ActiveLayer`, mixing manual and layer control can desync what "active
 layer" means vs. what's visible ([[Layers]]).
 
+## Escape stack step
+
+`EscapeStep()` — one step of escape-close. Walks `ActivePopups` **from the end**: the list is a recency stack for free
+(`Subscribe` appends at show-start, `Unsubscribe` removes at hide-start — self-cleaning; no separate static stack, so
+no new leak guards). Skips `null`/`!IsBeVisible` (also shields the known cancel-rollback gap) and `ShownByCascade`
+popups (cascade groups are represented by their root — [[Popup Lifecycle]]). First relevant popup's `EscapePolicy`:
+`Hide` → `popup.Hide()` + consumed; `Block` → consumed without closing (modal); `Ignore` → keep walking. Returns false
+when nothing consumed → the key backends fall through to the normal binding scan ([[Input & Hotkeys]]). Public API —
+also drivable from a UI "back" button, independent of the key/settings toggles. `LayerShow` batches get one step per
+popup (no layer grouping in v1 — group via DeepPopups instead).
+
 ## Depends on
 
 - [[Popup Lifecycle]] (the `ShowAsync`/`HideAsync` it drives), [[Operations & Cancellation]] (return type), [[Layers]]

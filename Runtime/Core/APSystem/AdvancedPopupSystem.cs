@@ -334,7 +334,40 @@ namespace AdvancedPS.Core
             });
         }
         #endregion
-        
+
+        #region ESCAPE
+        /// <summary>
+        /// One step of the escape close stack: walks visible popups from the most recently shown to the
+        /// oldest and applies the first relevant popup's EscapePolicy — Hide closes it (together with its
+        /// DeepPopups), Block consumes the step without closing (modal), Ignore passes it to the next popup.
+        /// Popups shown as part of a parent's cascade (DeepPopups) don't get their own step — the cascade
+        /// root represents the whole group.
+        /// Invoked by KeyEventSystemAPS on the escape close key (see PopupSettings.EscapeCloseKey); call it
+        /// directly to drive the same behavior from a UI "back" button.
+        /// </summary>
+        /// <returns> True if the step was consumed — a popup was hidden or blocked it. </returns>
+        public static bool EscapeStep()
+        {
+            for (int i = ActivePopups.Count - 1; i >= 0; i--)
+            {
+                IAdvancedPopup popup = ActivePopups[i];
+                if (popup == null || !popup.IsBeVisible || popup.ShownByCascade)
+                    continue;
+
+                switch (popup.EscapePolicy)
+                {
+                    case EscapePolicyEnum.Hide:
+                        popup.Hide();
+                        return true;
+                    case EscapePolicyEnum.Block:
+                        return true;
+                }
+            }
+
+            return false;
+        }
+        #endregion
+
         #region Helpers
         /// <summary>
         /// Get popups by layer in any loaded scene.

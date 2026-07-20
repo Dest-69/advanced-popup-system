@@ -36,6 +36,16 @@ namespace AdvancedPS.Core.System
         [Tooltip("Set 'true' to prevent showing this popup.")]
         public bool Inactive;
         /// <summary>
+        /// How this popup reacts to the escape close key (see AdvancedPopupSystem.EscapeStep):
+        /// Hide — closes and consumes the press; Ignore — the press falls through to the popup below;
+        /// Block — consumes the press without closing (modal).
+        /// </summary>
+        [Tooltip("How this popup reacts to the escape close key:\n" +
+                 "Hide — closes and consumes the press.\n" +
+                 "Ignore — the press falls through to the popup below.\n" +
+                 "Block — consumes the press without closing (modal).")]
+        public EscapePolicyEnum EscapePolicy = EscapePolicyEnum.Hide;
+        /// <summary>
         /// Root transform.
         /// </summary>
         [HideInInspector] public RectTransform RootTransform;
@@ -51,6 +61,12 @@ namespace AdvancedPS.Core.System
         /// State changed after animation ended.
         /// </summary>
         [HideInInspector] public bool IsVisible;
+        /// <summary>
+        /// True while this popup is visible because a parent popup's Show cascaded into it via DeepPopups.
+        /// Managed by the system: set when a cascade show starts, cleared on hide. Cascaded popups don't get
+        /// their own escape-stack step — the cascade root represents the whole group (see AdvancedPopupSystem.EscapeStep).
+        /// </summary>
+        [NonSerialized] public bool ShownByCascade;
         /// <summary>
         /// Child or dependent popups of the current one, use if you need more control via Show/Hide.
         /// </summary>

@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 namespace AdvancedPS.Core.System
 {
@@ -9,6 +10,8 @@ namespace AdvancedPS.Core.System
         public bool KeyEventSystemEnabled { get; set; }
         public bool AutoSwitchInputModule { get; set; }
         public string LogType { get; set; }
+        public bool EscapeCloseEnabled { get; set; }
+        public KeyCode EscapeCloseKey { get; set; } = KeyCode.Escape;
     }
 
     public enum InspectorEnum : byte

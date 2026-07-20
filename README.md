@@ -51,6 +51,7 @@ Clone or copy this package into your Unity project's `Assets` folder, or add it 
 *   🎭 **Extensible Animation Pipeline** — Out-of-the-box support for **Fade**, **Scale**, and **Slide** transitions using custom easing curves, plus native [DOTween](https://github.com/Demigiant/dotween) integration.
 *   ⚡ **Async-First Execution** — Fully Task-based async/await transitions with automatic cancellation support via `CancellationToken`s.
 *   🎹 **Input System Binding** — Easily bind popups to keyboard hotkeys or controllers. Works seamlessly with both Legacy Input Manager and the New Input System.
+*   ⬅️ **Escape Close Stack** — One key (default `Escape`) steps back through open popups like the Android back button, closing the most recent one first. Per-popup policy (`Hide` / `Ignore` / `Block`) covers modals and pass-through popups.
 *   🌲 **Nested Popup Hierarchies** — Support for deep child popups that automatically animate and manage their states in alignment with their parent popups.
 *   ⏱️ **Cancellation-Aware** — Every transition returns an `Operation` you can `.Cancel()` or chain with `.OnComplete()`; starting a new show/hide auto-cancels the previous one.
 *   🛠️ **Editor Tooling** — A dedicated **APS** window with **Layers**, **Displays**, and **Settings** tabs: generate layer flags and custom display scripts, tune settings, and inspect active popups/operations in real-time.
@@ -131,7 +132,7 @@ Open the **APS** window from the top menu bar:
 | :--- | :--- |
 | **`APS ▸ Layers`** | Add / rename / delete `PopupLayerEnum` flags (the enum is code-generated for you). |
 | **`APS ▸ Displays`** | Scaffold a new custom display — APS generates the display + settings scripts with ready-to-fill stubs. |
-| **`APS ▸ Settings`** | Toggle key-event tracking, auto input-module switching, inspector view, and log verbosity. |
+| **`APS ▸ Settings`** | Toggle key-event tracking, the escape close stack, auto input-module switching, inspector view, and log verbosity. |
 
 See the [full documentation](documentation.md) for the complete API, custom-display authoring, and troubleshooting.
 

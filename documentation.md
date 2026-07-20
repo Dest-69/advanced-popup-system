@@ -118,6 +118,7 @@ uses the default **Scale** transition (see [§4](#4-animations--custom-transitio
 | **Auto Hide On Init** | Keep `true` so the popup starts hidden. Set `false` only for UI shown immediately on scene start. |
 | **Manual Init** | Keep `false` for scene popups. Set `true` if you instantiate at runtime and want to call `Init()` yourself. |
 | **Inactive** | `true` prevents the popup from ever showing (a hard gate on `Show`). |
+| **Escape Policy** | How the popup reacts to the escape close key: `Hide`, `Ignore`, or `Block` (see [§6.3](#63-escape-close-stack)). |
 | **Deep Popups** | Child/dependent popups that mirror this popup's show/hide (see [§6.1](#61-deep-popups)). |
 | **Key Binding Show / Hide Settings** | Hotkeys that toggle the popup (see [§6.2](#62-hotkey-bindings)). |
 
@@ -453,7 +454,35 @@ with **both** the legacy Input Manager and the new Input System (auto-selected).
 **Auto Switch Input Module** (see [§7](#7-settings--logging)) to have APS replace `StandaloneInputModule` with
 `InputSystemUIInputModule` automatically.
 
-### 6.3 Instantiating popups at runtime
+### 6.3 Escape close stack
+
+One key (default `Escape`) steps back through open popups — each press closes the **most recently shown** popup, like
+the Android back button. Opt in via `APS ▸ Settings ▸ Escape Close Stack` (see [§7](#7-settings--logging)); the key
+also requires **Key Event Tracking** to be on.
+
+On a key press APS walks the visible popups from the most recently shown to the oldest and applies the first relevant
+popup's **Escape Policy** (an inspector field on every popup):
+
+| Escape Policy | Behavior |
+| :--- | :--- |
+| `Hide` (default) | The popup closes (together with its deep popups) and the press is consumed. |
+| `Ignore` | The popup is transparent — the press falls through to the popup shown before it. |
+| `Block` | The press is consumed but nothing closes — for modal dialogs that must not be escaped. |
+
+**Grouping.** Popups shown by their parent's cascade (via **Deep Popups**) don't get their own step — closing the
+parent hides the whole group at once. A deep popup you later show **individually** (a nested dialog on top of its
+parent) gets its own step: the key closes it first, then its parent.
+
+Notes:
+
+- A consumed press eats the whole frame — it can't also trigger a hotkey binding from [§6.2](#62-hotkey-bindings).
+- The walk skips popups that are already hiding, so pressing repeatedly during animations steps on responsively.
+- `AdvancedPopupSystem.EscapeStep()` runs one step programmatically (returns `false` if nothing consumed it) — wire it
+  to a UI "Back" button for the same behavior without the keyboard. It works even with the key/toggle disabled.
+- With the legacy Input Manager on Android the hardware Back button arrives as `Escape`, so the stack can double as
+  back-button navigation.
+
+### 6.4 Instantiating popups at runtime
 
 Set **Manual Init** on the prefab, instantiate it, inject any data, then call `Init()` yourself before showing:
 
@@ -472,6 +501,9 @@ popup.Show();
 
 - **Key Event Tracking** — enable/disable the hotkey system globally.
 - **Auto Switch Input Module** — (new Input System) auto-swap the EventSystem's input module at startup.
+- **Escape Close Stack** — one key steps back through open popups (see [§6.3](#63-escape-close-stack)). Off by default;
+  needs Key Event Tracking on.
+- **Escape Close Key** — the key driving the escape close stack (default `Escape`).
 - **Inspector View** — `APSInspector` (full custom), `APSOptimized` (lighter), or `UnityInspector` (default Unity view).
 - **Log Type** — verbosity filter for APS logs, routed through `APLogger`:
 
@@ -537,5 +569,5 @@ public class DynamicSpawner : MonoBehaviour
 */
 ```
 
-Until then, the manual pattern in [§6.3](#63-instantiating-popups-at-runtime) is the supported way to spawn popups at
+Until then, the manual pattern in [§6.4](#64-instantiating-popups-at-runtime) is the supported way to spawn popups at
 runtime.

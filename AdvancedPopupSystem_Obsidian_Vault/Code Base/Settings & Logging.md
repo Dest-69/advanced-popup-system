@@ -13,8 +13,11 @@ code_paths:
 
 `PopupSettings` (`AdvancedPS.Core.System`) is the serialized config: `InspectorView` (`InspectorEnum` —
 `APSInspector`/`APSOptimized`/`UnityInspector`, drives which custom inspector renders), `KeyEventSystemEnabled`,
-`AutoSwitchInputModule`, `LogType` (`string`: `Error`/`Warning`/`Info`/`None`). Edited via the APS **Settings** panel
-([[Editor & Codegen]]).
+`AutoSwitchInputModule`, `LogType` (`string`: `Error`/`Warning`/`Info`/`None`), `EscapeCloseEnabled` (default
+**false** — upgrade-safe for existing consumers) + `EscapeCloseKey` (`KeyCode`, default `Escape` via **property
+initializer** so old JSON without the key keeps the default — don't move the default into `LoadSettings` only). Edited
+via the APS **Settings** panel ([[Editor & Codegen]]); the escape rows are disabled there without Key Event Tracking
+(the key path needs both — [[Input & Hotkeys]]).
 
 ## SettingsManager
 

@@ -67,7 +67,8 @@ namespace AdvancedPS.Core
             
             if (closeButton) closeButton.onClick.RemoveListener(OnCloseButtonPress);
             OnHided?.Invoke();
-            
+
+            ShownByCascade = false;
             AdvancedPopupSystem.ActivePopups.Remove(this);
         }
         #endregion
@@ -159,7 +160,11 @@ namespace AdvancedPS.Core
                 {
                     cachedShowDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings, token)
                 };
-                tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync(token)));
+                foreach (IAdvancedPopup deepPopup in DeepPopups)
+                {
+                    MarkCascadeShow(deepPopup);
+                    tasks.Add(deepPopup.ShowAsync(token));
+                }
 
                 if (tasks.Count > 0)
                     await Task.WhenAll(tasks);
@@ -215,7 +220,11 @@ namespace AdvancedPS.Core
                 IDisplay popupDisplay = DisplayRegistry.Get<T>();
                 tasks.Add(popupDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings as IDisplaySettings<T>, token));
 
-                tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync<T>(token)));
+                foreach (IAdvancedPopup deepPopup in DeepPopups)
+                {
+                    MarkCascadeShow(deepPopup);
+                    tasks.Add(deepPopup.ShowAsync<T>(token));
+                }
 
                 if (tasks.Count > 0)
                     await Task.WhenAll(tasks);
@@ -233,8 +242,19 @@ namespace AdvancedPS.Core
 
             IsVisible = true;
         }
+
+        /// <summary>
+        /// Marks a deep popup whose show is about to start as part of this popup's cascade, so the escape
+        /// stack treats the group as one step (see AdvancedPopupSystem.EscapeStep). Popups already visible
+        /// (shown independently before) keep their own stack entry.
+        /// </summary>
+        private static void MarkCascadeShow(IAdvancedPopup deepPopup)
+        {
+            if (deepPopup != null && !deepPopup.Inactive && !deepPopup.IsBeVisible)
+                deepPopup.ShownByCascade = true;
+        }
         #endregion
-        
+
         #region HIDE
         /// <summary>
         /// Hide popup command, mostly used for UnityEvent attachments in inspector.

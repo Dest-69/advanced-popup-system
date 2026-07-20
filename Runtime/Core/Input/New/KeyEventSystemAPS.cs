@@ -89,6 +89,15 @@ namespace AdvancedPS.Core.Input
             var kb = Keyboard.current;
             if (kb == null || !kb.anyKey.wasPressedThisFrame) return;
 
+            // Escape close stack has priority over per-popup bindings; a consumed step eats the whole frame
+            // so one press can't also trigger a binding (or an AnyHotKey show).
+            PopupSettings settings = SettingsManager.Settings;
+            if (settings.EscapeCloseEnabled &&
+                KeyCodeToKeyMap.TryGetValue(settings.EscapeCloseKey, out Key escapeKey) &&
+                kb[escapeKey].wasPressedThisFrame &&
+                AdvancedPopupSystem.EscapeStep())
+                return;
+
             var allPopups = AdvancedPopupSystem.AllPopups;
             for (int i = 0; i < allPopups.Count; i++)
             {

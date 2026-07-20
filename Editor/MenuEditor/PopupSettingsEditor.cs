@@ -13,6 +13,8 @@ namespace AdvancedPS.Editor
         private static byte _inspectorViewIndex;
         private static bool _keyEventSystemEnabled;
         private static bool _autoSwitchInputModule;
+        private static bool _escapeCloseEnabled;
+        private static KeyCode _escapeCloseKey;
         private static string[] _inspectorViewTypes;
         
         private static int _logTypeIndex;
@@ -65,6 +67,43 @@ namespace AdvancedPS.Editor
             GUILayout.Space(5);
 #endif
             
+            // Escape close stack settings (needs Key Event Tracking to actually fire)
+            EditorGUI.BeginDisabledGroup(!_keyEventSystemEnabled);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Escape Close Stack:", GUILayout.ExpandWidth(false));
+            string escapeToggleLabel = "";
+            if (EditorGUIUtility.isProSkin)
+                escapeToggleLabel = _escapeCloseEnabled ? "[x]" : "[ ]";
+            bool newEscapeCloseEnabled = GUILayout.Toggle(_escapeCloseEnabled, escapeToggleLabel, APSEditorStyles.ToggleStyle);
+            if (newEscapeCloseEnabled != _escapeCloseEnabled)
+            {
+                _escapeCloseEnabled = newEscapeCloseEnabled;
+                SaveSettings();
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.Space(5);
+
+            if (_escapeCloseEnabled)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Escape Close Key:", GUILayout.ExpandWidth(false));
+                KeyCode newEscapeCloseKey = (KeyCode)EditorGUILayout.EnumPopup(_escapeCloseKey);
+                if (newEscapeCloseKey != _escapeCloseKey)
+                {
+                    _escapeCloseKey = newEscapeCloseKey;
+                    SaveSettings();
+                }
+                GUILayout.EndHorizontal();
+                GUILayout.Space(5);
+            }
+            EditorGUI.EndDisabledGroup();
+
+            if (_escapeCloseEnabled && !_keyEventSystemEnabled)
+            {
+                EditorGUILayout.HelpBox("Escape Close Stack fires from the key event system — enable 'Key Event Tracking' for the key to work. AdvancedPopupSystem.EscapeStep() can still be called manually.", MessageType.Info);
+                GUILayout.Space(5);
+            }
+
             GUILayout.BeginHorizontal();
             GUILayout.Label("Inspector view:", GUILayout.ExpandWidth(false));
             int newinspectorViewIndex = EditorGUILayout.Popup(_inspectorViewIndex, _inspectorViewTypes);
@@ -93,6 +132,8 @@ namespace AdvancedPS.Editor
             _settings.LogType = LOGTypes[_logTypeIndex];
             _settings.KeyEventSystemEnabled = _keyEventSystemEnabled;
             _settings.AutoSwitchInputModule = _autoSwitchInputModule;
+            _settings.EscapeCloseEnabled = _escapeCloseEnabled;
+            _settings.EscapeCloseKey = _escapeCloseKey;
             
             SettingsManager.SaveSettings();
         }
@@ -104,6 +145,8 @@ namespace AdvancedPS.Editor
             _inspectorViewIndex = (byte)_settings.InspectorView;
             _keyEventSystemEnabled = _settings.KeyEventSystemEnabled;
             _autoSwitchInputModule = _settings.AutoSwitchInputModule;
+            _escapeCloseEnabled = _settings.EscapeCloseEnabled;
+            _escapeCloseKey = _settings.EscapeCloseKey;
             _logTypeIndex = Mathf.Clamp(Array.IndexOf(LOGTypes, _settings.LogType), 0, LOGTypes.Length - 1);
         }
     }

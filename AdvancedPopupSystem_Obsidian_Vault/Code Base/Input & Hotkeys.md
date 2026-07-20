@@ -40,6 +40,15 @@ A show binding fires when: popup **not** `IsBeVisible` **and** (`AnyHotKey` or a
 `struct` with two instances per popup (`KeyBindingShowSettings` / `KeyBindingHideSettings`): `AnyHotKey`, `HotKeys`
 (`List<KeyCode>`), `Layers` (gate), `Popups` (required visible), `OnTrigger` (`UnityEvent`).
 
+## Escape close stack
+
+One key steps back through open popups, Android-back style. Both backends, in `Update` **before** the binding scan:
+if `Settings.EscapeCloseEnabled`, the `Settings.EscapeCloseKey` was pressed and `AdvancedPopupSystem.EscapeStep()`
+returned true → the frame is **consumed** (binding scan skipped, so one press can't also fire a binding or an
+`AnyHotKey` show). The walk itself lives in [[Core System]]; per-popup `EscapePolicy` and the `ShownByCascade`
+grouping flag — in [[Popup Lifecycle]]. Key-driven path needs **both** `KeyEventSystemEnabled` and
+`EscapeCloseEnabled` ([[Settings & Logging]]); calling `EscapeStep()` manually (UI "back" button) works regardless.
+
 ## Auto Switch Input Module
 
 With New Input, `Settings.AutoSwitchInputModule` makes APS swap the EventSystem's `StandaloneInputModule` for
