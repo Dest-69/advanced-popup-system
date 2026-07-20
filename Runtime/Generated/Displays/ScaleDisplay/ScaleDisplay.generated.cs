@@ -67,7 +67,7 @@ namespace AdvancedPS.Core
 
             while (true)
             {
-                elapsedTime += Time.deltaTime;
+                elapsedTime += settings.UnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
                 float t = elapsedTime / settings.Duration;
                 float easedT = EasingFunctions.Get(settings.Easing, t);
                 
@@ -109,7 +109,7 @@ namespace AdvancedPS.Core
 
             while (true)
             {
-                elapsedTime += Time.deltaTime;
+                elapsedTime += settings.UnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
                 float t = elapsedTime / settings.Duration;
                 float easedT = EasingFunctions.Get(settings.Easing, t);
 

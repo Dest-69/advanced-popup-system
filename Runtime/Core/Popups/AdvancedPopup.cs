@@ -148,27 +148,33 @@ namespace AdvancedPS.Core
             Source = TaskUtils.UpdateCancellationTokenSource(Source, true, token);
             token = Source.Token;
             APSStats.RegisterTask();
-            
-            gameObject.SetActive(true);
-            
-            Subscribe();
-            
-            List<Task> tasks = new List<Task>
-            {
-                cachedShowDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings, token)
-            };
-            tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync(token)));
-            
-            if (tasks.Count > 0)
-                await Task.WhenAll(tasks);
 
-            APSStats.UnregisterTask();
+            try
+            {
+                gameObject.SetActive(true);
+
+                Subscribe();
+
+                List<Task> tasks = new List<Task>
+                {
+                    cachedShowDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings, token)
+                };
+                tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync(token)));
+
+                if (tasks.Count > 0)
+                    await Task.WhenAll(tasks);
+            }
+            finally
+            {
+                APSStats.UnregisterTask();
+            }
+
             if (TaskUtils.OperationCancelled(token))
             {
                 IsBeVisible = false;
                 return;
             }
-            
+
             IsVisible = true;
         }
         /// <summary>
@@ -197,28 +203,34 @@ namespace AdvancedPS.Core
             Source = TaskUtils.UpdateCancellationTokenSource(Source, true, token);
             token = Source.Token;
             APSStats.RegisterTask();
-            
-            gameObject.SetActive(true);
-            
-            Subscribe();
 
-            List<Task> tasks = new List<Task>();
+            try
+            {
+                gameObject.SetActive(true);
 
-            IDisplay popupDisplay = DisplayRegistry.Get<T>();
-            tasks.Add(popupDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings as IDisplaySettings<T>, token));
+                Subscribe();
 
-            tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync<T>(token)));
+                List<Task> tasks = new List<Task>();
 
-            if (tasks.Count > 0)
-                await Task.WhenAll(tasks);
-            
-            APSStats.UnregisterTask();
+                IDisplay popupDisplay = DisplayRegistry.Get<T>();
+                tasks.Add(popupDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings as IDisplaySettings<T>, token));
+
+                tasks.AddRange(DeepPopups.Select(popup => popup.ShowAsync<T>(token)));
+
+                if (tasks.Count > 0)
+                    await Task.WhenAll(tasks);
+            }
+            finally
+            {
+                APSStats.UnregisterTask();
+            }
+
             if (TaskUtils.OperationCancelled(token))
             {
                 IsBeVisible = false;
                 return;
             }
-            
+
             IsVisible = true;
         }
         #endregion
@@ -256,26 +268,32 @@ namespace AdvancedPS.Core
             Source = TaskUtils.UpdateCancellationTokenSource(Source, true, token);
             token = Source.Token;
             APSStats.RegisterTask();
-            
-            Unsubscribe();
-            
-            List<Task> tasks = new List<Task>
+
+            try
             {
-                cachedHideDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings, token)
-            };
-            
-            tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync(token)));
-            
-            if (tasks.Count > 0)
-                await Task.WhenAll(tasks);
-            
-            APSStats.UnregisterTask();
+                Unsubscribe();
+
+                List<Task> tasks = new List<Task>
+                {
+                    cachedHideDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings, token)
+                };
+
+                tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync(token)));
+
+                if (tasks.Count > 0)
+                    await Task.WhenAll(tasks);
+            }
+            finally
+            {
+                APSStats.UnregisterTask();
+            }
+
             if (TaskUtils.OperationCancelled(token))
             {
                 IsBeVisible = true;
                 return;
             }
-            
+
             if (this == null) return;
             gameObject.SetActive(false);
             IsVisible = false;
@@ -305,26 +323,32 @@ namespace AdvancedPS.Core
             Source = TaskUtils.UpdateCancellationTokenSource(Source, true, token);
             token = Source.Token;
             APSStats.RegisterTask();
-            
-            Unsubscribe();
 
-            List<Task> tasks = new List<Task>();
+            try
+            {
+                Unsubscribe();
 
-            IDisplay popupDisplay = DisplayRegistry.Get<T>();
-            tasks.Add(popupDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings as IDisplaySettings<T>, token));
+                List<Task> tasks = new List<Task>();
 
-            tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync<T>(token)));
+                IDisplay popupDisplay = DisplayRegistry.Get<T>();
+                tasks.Add(popupDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings as IDisplaySettings<T>, token));
 
-            if (tasks.Count > 0)
-                await Task.WhenAll(tasks);
+                tasks.AddRange(DeepPopups.Select(popup => popup.HideAsync<T>(token)));
 
-            APSStats.UnregisterTask();
+                if (tasks.Count > 0)
+                    await Task.WhenAll(tasks);
+            }
+            finally
+            {
+                APSStats.UnregisterTask();
+            }
+
             if (TaskUtils.OperationCancelled(token))
             {
                 IsBeVisible = true;
                 return;
             }
-            
+
             if (this == null) return;
             gameObject.SetActive(false);
             IsVisible = false;

@@ -52,13 +52,16 @@ Clone or copy this package into your Unity project's `Assets` folder, or add it 
 *   ⚡ **Async-First Execution** — Fully Task-based async/await transitions with automatic cancellation support via `CancellationToken`s.
 *   🎹 **Input System Binding** — Easily bind popups to keyboard hotkeys or controllers. Works seamlessly with both Legacy Input Manager and the New Input System.
 *   🌲 **Nested Popup Hierarchies** — Support for deep child popups that automatically animate and manage their states in alignment with their parent popups.
-*   🛠️ **Tailored Inspector Window** — Dedicated custom inspectors and a global APS Manager Window to debug active popups and operations in real-time.
+*   ⏱️ **Cancellation-Aware** — Every transition returns an `Operation` you can `.Cancel()` or chain with `.OnComplete()`; starting a new show/hide auto-cancels the previous one.
+*   🛠️ **Editor Tooling** — A dedicated **APS** window with **Layers**, **Displays**, and **Settings** tabs: generate layer flags and custom display scripts, tune settings, and inspect active popups/operations in real-time.
 
 ---
 
 ## 🚀 Quick Start
 
 ### 1. Define Your Popup & Configure Transitions
+> 💡 Tip: `GameObject ▸ UI ▸ Advanced Popup` creates a ready-to-use popup (and a Canvas if needed) in one click.
+
 Create a script that inherits from `AdvancedPopup` and attach it to your popup's `GameObject`. 
 
 To configure how the popup enters and exits the screen, override the `Init()` method and call `SetCachedDisplay()`. The system supports built-in transitions (Fade, Scale, Slide) or native [DOTween](https://github.com/Demigiant/dotween) sequences:
@@ -118,6 +121,20 @@ if (AdvancedPopupSystem.TryGetPopup<MySettingsPopup>(out var settingsPopup, acti
 // This will automatically open all HUB popups and hide other active layers
 AdvancedPopupSystem.LayerShow(PopupLayerEnum.HUB, autohide: true);
 ```
+---
+
+## ⚙️ Editor Workflow
+
+Open the **APS** window from the top menu bar:
+
+| Menu | Purpose |
+| :--- | :--- |
+| **`APS ▸ Layers`** | Add / rename / delete `PopupLayerEnum` flags (the enum is code-generated for you). |
+| **`APS ▸ Displays`** | Scaffold a new custom display — APS generates the display + settings scripts with ready-to-fill stubs. |
+| **`APS ▸ Settings`** | Toggle key-event tracking, auto input-module switching, inspector view, and log verbosity. |
+
+See the [full documentation](documentation.md) for the complete API, custom-display authoring, and troubleshooting.
+
 ---
 
 ## 📸 Showcase & Gallery

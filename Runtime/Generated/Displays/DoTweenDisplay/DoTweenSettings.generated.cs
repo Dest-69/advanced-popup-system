@@ -13,8 +13,7 @@ namespace AdvancedPS.Core
         /// </summary>
         public Func<RectTransform, Sequence> Factory { get; private set; }
         
-        // Engine-level knobs (optional)
-        public bool UnscaledTime = false;
+        // Engine-level knobs (optional). UnscaledTime is inherited from BaseSettings.
         public bool Recyclable   = true;
         public bool AutoKill     = true;
         public LinkBehaviour Link = LinkBehaviour.PauseOnDisable | LinkBehaviour.KillOnDestroy;

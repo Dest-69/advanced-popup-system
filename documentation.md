@@ -1,52 +1,73 @@
-# Advanced Popup System Documentation
+# Advanced Popup System — Documentation
 
-The **Advanced Popup System** is a modular, high-performance UI popup management framework for Unity. It provides automatic registration, layer-based management, custom easing animations, built-in DOTween integration, and task-based async/await support with cancellation tokens.
+The **Advanced Popup System (APS)** is a modular, high-performance UI popup framework for Unity. It provides
+automatic registration, layer-based grouping, a pluggable animation pipeline (custom easing, built-in Fade / Scale /
+Slide, and optional DOTween), and `Task`-based async/await transitions with first-class cancellation.
 
-This document serves as a complete technical guide for setting up popups in your project and interacting with the system's public API surface.
+This is the complete technical guide: how to set popups up and how to drive the public API.
 
 ---
 
 ## 📋 Table of Contents
+
 1. [Core Building Blocks](#1-core-building-blocks)
 2. [Step-by-Step Setup Guide](#2-step-by-step-setup-guide)
 3. [API Reference & Code Examples](#3-api-reference--code-examples)
 4. [Animations & Custom Transitions](#4-animations--custom-transitions)
-5. [Advanced Configuration](#5-advanced-configuration)
-6. [Troubleshooting Checklist](#6-troubleshooting-checklist)
-7. [Upcoming Feature: Dynamic Spawning & Pool Instancing (Planned)](#7-upcoming-feature-dynamic-spawning--pool-instancing-planned-)
+5. [The APS Editor Window](#5-the-aps-editor-window)
+6. [Advanced Configuration](#6-advanced-configuration)
+7. [Settings & Logging](#7-settings--logging)
+8. [Troubleshooting Checklist](#8-troubleshooting-checklist)
+9. [Upcoming: Dynamic Spawning & Pooling (Planned)](#9-upcoming-dynamic-spawning--pooling-planned-)
 
 ---
 
 ## 1. Core Building Blocks
 
-### 1.1 Core Classes & Structs
-- **`AdvancedPopup`**: The base `MonoBehaviour` component (implementing `IAdvancedPopup`) that you attach to your UI popups. It manages lifecycle events, subscribes to key bindings, handles close buttons, and implements animation triggers.
-- **`AdvancedPopupSystem`**: The main static manager that coordinates showing, hiding, tracking, and lookup operations.
-- **`Operation`**: A lightweight wrapper class returned by synchronous show/hide calls. It supports chaining callbacks via `.OnComplete()` and can cancel running transitions using `.Cancel()`.
-- **`PopupLayerEnum`**: A generated flags enum (defined in `PopupLayerEnum.generated.cs`) used to group popups into logic layers (e.g. `LOGIN`, `HUB`, `SETTINGS`). Multiple layers can be active simultaneously.
-- **`APSStats`**: A debugging tool that tracks current active operations, tasks, and registers/unregisters animations to help monitor allocations and lifecycle issues.
+### 1.1 Core types
 
-### 1.2 Global Collections
-- **`AdvancedPopupSystem.AllPopups`**: Keeps track of all loaded/instantiated popups in active scenes (whether visible or hidden).
-- **`AdvancedPopupSystem.ActivePopups`**: A list containing only the popups that are currently visible/active.
-- **`AdvancedPopupSystem.ActiveLayer`**: A bitmask value representing the combined flags of all currently active `PopupLayerEnum` layers.
+- **`AdvancedPopup`** — the `MonoBehaviour` you attach to a popup. It manages the lifecycle (`Init` → `Subscribe` /
+  `Unsubscribe`), wires an optional close button, plays show/hide animations, and propagates to child ("deep") popups.
+  Your popups inherit from it.
+- **`IAdvancedPopup`** — the **abstract base class** `AdvancedPopup` derives from (namespace `AdvancedPS.Core.System`;
+  the `I` prefix is historical — it is not an interface). It holds every inspector field, the cached display/settings,
+  and `Init()`.
+- **`AdvancedPopupSystem`** — the static manager. It registers/looks up popups and orchestrates layer-level show / hide.
+- **`Operation`** — the lightweight object returned by every non-`async` show/hide call. Chain a callback with
+  `.OnComplete(...)` or abort the running transition with `.Cancel()`.
+- **`PopupLayerEnum`** — a generated `[Flags]` enum (see `PopupLayerEnum.generated.cs`) that groups popups into logical
+  screens (e.g. `LOGIN`, `HUB`, `SETTINGS`). Several flags can be active at once. Edit it from the APS **Layers** panel.
+- **Displays & Settings** — a *display* runs an animation, a *settings* object holds its tunables. Built in:
+  `FadeDisplay`/`FadeSettings`, `ScaleDisplay`/`ScaleSettings`, `SlideDisplay`/`SlideSettings`, and (optional)
+  `DoTweenDisplay`/`DoTweenSettings`. `EasingType` provides 30 easing curves.
+- **`APSStats`** — runtime counters (`ActiveOperationsCount`, `ActiveTasksCount`) for monitoring live transitions.
+
+### 1.2 Global collections (on `AdvancedPopupSystem`)
+
+- **`AllPopups`** — every popup present in loaded scenes (visible or not).
+- **`ActivePopups`** — only the popups currently visible.
+- **`ActiveLayer`** — a bitmask of the layers currently shown. **Changed only by the `Layer*` / `HideAll` APIs** — a
+  manual `popup.Show()` / `Hide()` updates `ActivePopups` but not `ActiveLayer`.
 
 ---
 
 ## 2. Step-by-Step Setup Guide
 
-Follow these steps to create a new popup and configure it in Unity:
+### Step 1: Create the popup GameObject
 
-### Step 1: GameObject Setup in Hierarchy
-1. Under your UI `Canvas`, create a new empty GameObject and name it (e.g., `SettingsPopup`).
-2. Add your visual UI content, graphics, and interactive buttons as children of this GameObject.
-3. (Optional) Create a **Close Button** inside the popup's hierarchy.
+Fastest path: **`GameObject ▸ UI ▸ Advanced Popup`** — this creates a stretched popup under a `Canvas` (making the
+Canvas if needed) with an `AdvancedPopup` component already attached.
+
+Manually: under your UI `Canvas`, add an empty GameObject (e.g. `SettingsPopup`), then your visuals and buttons as
+children. Optionally add a **Close Button** inside the hierarchy.
 
 > [!NOTE]
-> `RectTransform` and `CanvasGroup` components are required by the system. However, they are automatically added during initialization if they are missing from the GameObject.
+> `RectTransform` and `CanvasGroup` are required, but APS **adds them automatically** during `Init()` if missing.
 
-### Step 2: Create a Custom Popup Script
-Create a C# script for your popup (e.g., `MainMenuPopup.cs`) that inherits from `AdvancedPopup` (namespace `AdvancedPS.Core`). Override `Subscribe` and `Unsubscribe` to wire up local button events:
+### Step 2: Write your popup script
+
+Create a class inheriting from `AdvancedPopup` (namespace `AdvancedPS.Core`). Override `Subscribe` / `Unsubscribe` to
+wire local UI events — always call `base`, and keep them symmetric:
 
 ```csharp
 using AdvancedPS.Core;
@@ -57,64 +78,54 @@ namespace MyGame.UI
 {
     public class MainMenuPopup : AdvancedPopup
     {
-        [Header("Main Menu UI References")]
+        [Header("Main Menu UI")]
         [SerializeField] private Button _playButton;
         [SerializeField] private Button _settingsButton;
 
-        /// <summary>
-        /// Subscribes to UI events when the popup is shown.
-        /// Ensure you call base.Subscribe()!
-        /// </summary>
         protected override void Subscribe()
         {
-            base.Subscribe(); // Hooks the closeButton click and registers with ActivePopups
-            
+            base.Subscribe(); // wires closeButton, fires OnShowing, adds to ActivePopups
+
             _playButton.onClick.AddListener(OnPlayPressed);
             _settingsButton.onClick.AddListener(OnSettingsPressed);
         }
 
-        /// <summary>
-        /// Unsubscribes from UI events when the popup is hidden.
-        /// Ensure you call base.Unsubscribe()!
-        /// </summary>
         protected override void Unsubscribe()
         {
-            base.Unsubscribe(); // Unhooks the closeButton and removes from ActivePopups
-            
+            base.Unsubscribe(); // unwires closeButton, fires OnHided, removes from ActivePopups
+
             _playButton.onClick.RemoveListener(OnPlayPressed);
             _settingsButton.onClick.RemoveListener(OnSettingsPressed);
         }
 
-        private void OnPlayPressed()
-        {
-            Debug.Log("Starting game...");
-            Hide(); // Hide this popup
-        }
+        private void OnPlayPressed() => Hide();
 
-        private void OnSettingsPressed()
-        {
-            // Open the settings popup by showing the SETTINGS layer
+        private void OnSettingsPressed() =>
             AdvancedPopupSystem.LayerShow(PopupLayerEnum.SETTINGS, autohide: false);
-        }
     }
 }
 ```
 
-### Step 3: Inspector Configuration
-1. Attach your script (e.g. `MainMenuPopup`) to the root of your popup GameObject.
-2. Fill the references in the inspector:
-   - **Popup Layer**: Select the appropriate flag (e.g., `HUB`).
-   - **Close Button**: Drag and drop the close button component. The system will automatically call `Hide()` when it is clicked.
-   - **Auto Hide On Init**: Keep checked (`true`) so it starts hidden. Uncheck only for UI that must be shown immediately on scene startup.
-   - **Manual Init**: Leave unchecked (`false`) for pre-placed scene popups. Check only if you instantiate popups dynamically via code and want to manually run `.Init()`.
-   - **Deep Popups**: Drag child popups here if you want them to automatically mirror the parent's show/hide operations.
+`Subscribe` runs at the start of a show, `Unsubscribe` at the start of a hide. If you don't override `Init`, the popup
+uses the default **Scale** transition (see [§4](#4-animations--custom-transitions) to pick another).
+
+### Step 3: Configure in the Inspector
+
+| Field | Meaning |
+| :--- | :--- |
+| **Popup Layer** | One or more layer flags this popup belongs to (used by `LayerShow` / `LayerHide`). |
+| **Close Button** | Optional. When clicked, APS calls `Hide()` automatically. |
+| **Auto Hide On Init** | Keep `true` so the popup starts hidden. Set `false` only for UI shown immediately on scene start. |
+| **Manual Init** | Keep `false` for scene popups. Set `true` if you instantiate at runtime and want to call `Init()` yourself. |
+| **Inactive** | `true` prevents the popup from ever showing (a hard gate on `Show`). |
+| **Deep Popups** | Child/dependent popups that mirror this popup's show/hide (see [§6.1](#61-deep-popups)). |
+| **Key Binding Show / Hide Settings** | Hotkeys that toggle the popup (see [§6.2](#62-hotkey-bindings)). |
 
 ---
 
 ## 3. API Reference & Code Examples
 
-### 3.1 Finding Popups
-Use `AdvancedPopupSystem` lookup helpers to find registered popups at runtime:
+### 3.1 Finding popups
 
 ```csharp
 using AdvancedPS.Core;
@@ -124,74 +135,45 @@ public class GameFlowController : MonoBehaviour
 {
     public void OpenMenu()
     {
-        // Find a registered popup of type MainMenuPopup (active or inactive in scene)
-        if (AdvancedPopupSystem.TryGetPopup<MainMenuPopup>(out var mainMenu, activeOnly: false))
-        {
-            mainMenu.Show();
-        }
+        // By type (active or inactive). The non-activeOnly path is O(1) via an internal type cache.
+        if (AdvancedPopupSystem.TryGetPopup<MainMenuPopup>(out var menu, activeOnly: false))
+            menu.Show();
         else
-        {
             Debug.LogError("MainMenuPopup was not found in the scene!");
-        }
     }
 
-    public void CheckActiveLayer()
+    public void Inspect()
     {
-        // Check if there is an active popup in the SETTINGS layer
+        // By layer (first match) …
         IAdvancedPopup settings = AdvancedPopupSystem.GetPopupByLayer(PopupLayerEnum.SETTINGS, activeOnly: true);
-        if (settings != null)
-        {
-            Debug.Log($"Active settings popup found: {settings.gameObject.name}");
-        }
+        // … or by GameObject name (case-sensitive).
+        IAdvancedPopup byName = AdvancedPopupSystem.GetPopupByName("SettingsPopup", activeOnly: false);
     }
 }
 ```
 
----
+### 3.2 Showing & hiding
 
-### 3.2 Showing and Hiding
+Every non-`async` call returns an **`Operation`**. Two workflows:
 
-#### A. Callback-Driven Workflow (`Operation`)
-`.Show()` and `.Hide()` run asynchronously but allow you to chain operations cleanly without using async/await keywords:
+**A. Callback-driven (`Operation`)**
 
 ```csharp
-using AdvancedPS.Core;
-using UnityEngine;
+_infoPopup.Show().OnComplete(() => Debug.Log("Fully visible!"));
+_infoPopup.Hide().OnComplete(() => Debug.Log("Fully closed."));
 
-public class SimpleTrigger : MonoBehaviour
-{
-    [SerializeField] private AdvancedPopup _infoPopup;
-
-    public void OnButtonClick()
-    {
-        // 1. Show the popup and hook a callback upon animation completion
-        _infoPopup.Show().OnComplete(() =>
-        {
-            Debug.Log("Popup is now fully visible!");
-        });
-    }
-
-    public void ClosePopup()
-    {
-        // 2. Hide the popup
-        _infoPopup.Hide().OnComplete(() =>
-        {
-            Debug.Log("Popup has finished closing.");
-        });
-    }
-}
+// Abort a running transition:
+Operation op = _infoPopup.Show();
+op.Cancel();
 ```
 
-You can cancel a running transition operation:
-```csharp
-Operation activeOperation = _infoPopup.Show();
+> [!NOTE]
+> `.OnComplete` fires only if the operation was **not** cancelled. Starting a new show/hide on the same popup
+> automatically cancels the one in flight.
 
-// Aborts the current show transition mid-way
-activeOperation.Cancel(); 
-```
+**B. Async-first (`async/await`)**
 
-#### B. Async-First Workflow (`async/await`)
-`.ShowAsync()` and `.HideAsync()` are fully compatible with async/await and support cancellations via `CancellationToken`:
+`ShowAsync` / `HideAsync` accept a `CancellationToken`:
 
 ```csharp
 using System.Threading;
@@ -201,93 +183,123 @@ using UnityEngine;
 
 public class AsyncTrigger : MonoBehaviour
 {
-    [SerializeField] private AdvancedPopup _dialogPopup;
+    [SerializeField] private AdvancedPopup _dialog;
     private CancellationTokenSource _cts;
 
     public async void OpenDialogAsync()
     {
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
-
         try
         {
-            Debug.Log("Starting animation...");
-            await _dialogPopup.ShowAsync(_cts.Token);
-            Debug.Log("Animation complete, dialog is fully open!");
+            await _dialog.ShowAsync(_cts.Token);
+            Debug.Log("Dialog fully open!");
         }
         catch (System.OperationCanceledException)
         {
-            Debug.LogWarning("Show transition was cancelled.");
+            Debug.LogWarning("Show cancelled.");
         }
     }
 
-    private void OnDestroy()
-    {
-        _cts?.Cancel();
-        _cts?.Dispose();
-    }
+    private void OnDestroy() { _cts?.Cancel(); _cts?.Dispose(); }
 }
 ```
 
----
+**Toggle & Inspector commands**
 
-### 3.3 Layer-based Popup Controls
-Instead of managing individual popups, control multiple popups grouped under specific layers (e.g. `LOGIN`, `HUB`, `SETTINGS`).
+- `SwitchShowHide()` (and `SwitchShowHideAsync`, plus `<T>` variants) — show if hidden, hide if visible.
+- `Cmd_Show()`, `Cmd_Hide()`, `Cmd_SwitchShowHide()` — `void` methods designed for wiring to `Button.onClick` /
+  `UnityEvent` fields directly in the Inspector.
+- `OnShowing` / `OnHided` (`Action` on `AdvancedPopup`) — fire from `Subscribe` / `Unsubscribe`; subscribe to react to
+  visibility changes.
+
+### 3.3 Layer controls
 
 ```csharp
 using AdvancedPS.Core;
-using UnityEngine;
 
-public class MenuManager : MonoBehaviour
-{
-    // Transitioning from one screen to another
-    public void NavigateToHub()
-    {
-        // Shows all popups on the HUB layer AND automatically hides other active layers
-        AdvancedPopupSystem.LayerShow(PopupLayerEnum.HUB, autohide: true);
-    }
+// Switch screens: show HUB and hide every other active layer.
+AdvancedPopupSystem.LayerShow(PopupLayerEnum.HUB, autohide: true);
 
-    // Overlaying a popup on top of the current screen
-    public void OpenSettingsOverlay()
-    {
-        // Shows all settings popups without closing the currently visible popups
-        AdvancedPopupSystem.LayerShow(PopupLayerEnum.SETTINGS, autohide: false);
-    }
+// Overlay: show SETTINGS on top without closing the current screen.
+AdvancedPopupSystem.LayerShow(PopupLayerEnum.SETTINGS, autohide: false);
 
-    public void CloseSettingsOnly()
-    {
-        // Hides all popups belonging to the SETTINGS layer
-        AdvancedPopupSystem.LayerHide(PopupLayerEnum.SETTINGS);
-    }
-
-    public void CloseAllPopups()
-    {
-        // Closes every active popup in the system
-        AdvancedPopupSystem.HideAll();
-    }
-}
+// Hide one layer, or everything.
+AdvancedPopupSystem.LayerHide(PopupLayerEnum.SETTINGS);
+AdvancedPopupSystem.HideAll();
 ```
+
+### 3.4 Overriding the animation per call (generics)
+
+Any show/hide can run a **specific display type** for that call instead of the popup's cached one — handy for a
+one-off transition or a screen-wide effect:
+
+```csharp
+// One popup, this call only, with explicit Fade settings:
+myPopup.Show<FadeDisplay>(new FadeSettings { Duration = 0.25f });
+
+// A whole layer with a chosen display / settings:
+AdvancedPopupSystem.LayerShow<ScaleDisplay>(PopupLayerEnum.HUB, new ScaleSettings { Duration = 0.4f });
+
+// Different displays for show vs hide across a transition:
+AdvancedPopupSystem.LayerShow<SlideDisplay, FadeDisplay>(PopupLayerEnum.HUB, slideIn, fadeOut);
+
+// Layer hide / hide-all with a chosen display:
+AdvancedPopupSystem.LayerHide<FadeDisplay>(PopupLayerEnum.SETTINGS);
+AdvancedPopupSystem.HideAll<FadeDisplay>();
+```
+
 ---
 
 ## 4. Animations & Custom Transitions
 
-### 4.1 Built-in Displays Reference
-Every popup is associated with a show and hide animation. The system ships with four built-in animation displays:
+### 4.1 Built-in displays
 
-| Display Name | Associated Settings Class | Modifies | Key Settings Fields |
+Each popup has a **show** display and a **hide** display. Ship-included:
+
+| Display | Settings | Animates | Key fields |
 | :--- | :--- | :--- | :--- |
-| **`FadeDisplay`** | `FadeSettings` | `CanvasGroup.alpha` | `Duration`, `Easing`, `MaxValue` (default 1), `MinValue` (default 0) |
-| **`ScaleDisplay`** | `ScaleSettings` | `transform.localScale` | `Duration`, `Easing`, `ShowScale` (Vector3.one), `HideScale` (Vector3.zero) |
-| **`SlideDisplay`** | `SlideSettings` | `RectTransform.anchoredPosition` | `Duration`, `Easing`, `TargetRectPosition` (Vector3), `TargetRectSize` (Vector2) |
-| **`DoTweenDisplay`**| `DoTweenSettings` | Custom DOTween Tween | `Factory` (build callback), `UnscaledTime`, `AutoKill`, `Link` |
+| **`ScaleDisplay`** *(default)* | `ScaleSettings` | `transform.localScale` | `Duration`, `Easing`, `ShowScale` (`one`), `HideScale` (`zero`) |
+| **`FadeDisplay`** | `FadeSettings` | `CanvasGroup.alpha` (+ scale one/zero) | `Duration`, `Easing`, `MaxValue` (`1`), `MinValue` (`0`) |
+| **`SlideDisplay`** | `SlideSettings` | `RectTransform.anchoredPosition` + `sizeDelta` | `Duration`, `Easing`, `TargetRectPosition`, `TargetRectSize` |
+| **`DoTweenDisplay`** | `DoTweenSettings` | any DOTween `Sequence` | `Factory` (build callback), `Recyclable`, `AutoKill`, `Link` |
 
 > [!NOTE]
-> All built-in settings support `OnAnimationStart` and `OnAnimationEnd` action events.
+> All settings expose `OnAnimationStart` / `OnAnimationEnd` actions and an `UnscaledTime` flag — set it `true` so the
+> popup keeps animating while the game is paused (`Time.timeScale == 0`), e.g. a pause menu; otherwise the transition
+> waits for time to resume. `Easing` accepts any of the 30 `EasingType` curves (`Linear`, `EaseInOutQuad`,
+> `EaseOutBack`, `EaseInOutElastic`, `EaseOutBounce`, …).
 
----
+> [!NOTE]
+> **`SlideDisplay`** is pivot/anchor-based (for min–max stretch anchors, wrap the popup in an empty parent and slide
+> that). Both show and hide lerp toward the same `TargetRectPosition`/`TargetRectSize`, and hide then collapses scale —
+> so it reads as a slide-**in**. For a distinct slide-**out**, pair it with another hide display via
+> `SetCachedDisplay<SlideDisplay, T>(...)`.
 
-### 4.2 Using DOTween Transitions
-The `DoTweenDisplay` allows you to create custom complex animations programmatically using DOTween:
+### 4.2 Choosing a transition on your popup
+
+Override `Init()`, call `SetCachedDisplay(...)`, then call `base.Init()` **last**:
+
+```csharp
+public override void Init()
+{
+    // Same display for show and hide, custom settings:
+    SetCachedDisplay<FadeDisplay>(new FadeSettings { Duration = 0.3f, Easing = EasingType.EaseOutQuad });
+
+    // Or different displays per direction:
+    // SetCachedDisplay<SlideDisplay, FadeDisplay>(slideInSettings, fadeOutSettings);
+
+    base.Init(); // finalizes cache, ensures components, applies auto-hide, registers with APS
+}
+```
+
+> [!IMPORTANT]
+> Call `SetCachedDisplay(...)` **before** `base.Init()`. `base.Init()` reads the cached display to apply the initial
+> auto-hide; if the cache is still empty it falls back to **Scale**. (Setting it first is what every example does.)
+
+### 4.3 DOTween transitions
+
+`DoTweenDisplay` (compiled only when DOTween is present) runs an arbitrary `Sequence` built per run:
 
 ```csharp
 using AdvancedPS.Core;
@@ -298,33 +310,34 @@ public class CustomTweenPopup : AdvancedPopup
 {
     public override void Init()
     {
-        // Configure custom show and hide transitions via DOTween sequences
         SetCachedDisplay(
-            // Show Transition
-            DoTweenSettings.Create((rectTransform, sequence) =>
+            // Show
+            DoTweenSettings.Create((rect, seq) =>
             {
-                sequence.Append(rectTransform.DOScale(Vector3.one, 0.5f).From(Vector3.zero).SetEase(Ease.OutBack))
-                        .Join(rectTransform.DORotate(new Vector3(0, 0, 360), 0.5f, RotateMode.FastBeyond360));
+                seq.Append(rect.DOScale(Vector3.one, 0.5f).From(Vector3.zero).SetEase(Ease.OutBack))
+                   .Join(rect.DORotate(new Vector3(0, 0, 360), 0.5f, RotateMode.FastBeyond360));
             }),
-            // Hide Transition
-            DoTweenSettings.Create((rectTransform, sequence) =>
+            // Hide
+            DoTweenSettings.Create((rect, seq) =>
             {
-                sequence.Append(rectTransform.DOScale(Vector3.zero, 0.3f).SetEase(Ease.InBack));
+                seq.Append(rect.DOScale(Vector3.zero, 0.3f).SetEase(Ease.InBack));
             })
         );
 
-        base.Init(); // Finalizes registration
+        base.Init();
     }
 }
 ```
 
----
+The display kills the sequence on cancellation and cleans it up (`AutoKill` / `Link`), so aborted transitions don't
+leak tweens. Fluent knobs: `.WithUnscaledTime(true)`, `.WithAutoKill(false)`, etc.
 
-### 4.3 Implementing Custom Displays
-You can implement completely custom animation engines (e.g. relying on your own script loops or other animation packages) by writing custom classes:
+### 4.4 Writing a custom display
 
-#### Step 1: Create a Custom Settings Class
-Create a settings class inheriting from `BaseSettings<T>` where `T` is your display runner class:
+Two ways — the **Displays** panel scaffolds the files for you ([§5](#5-the-aps-editor-window)), or write them by hand.
+A display is **stateless** (one instance is shared and reused): keep per-run state in locals or on the transform.
+
+**1) Settings** — inherit `BaseSettings<TDisplay>`:
 
 ```csharp
 using System;
@@ -339,8 +352,7 @@ public class RotateSettings : BaseSettings<RotateDisplay>
 }
 ```
 
-#### Step 2: Create a Custom Display Runner Class
-Create a display runner class inheriting from `DisplayBase<TSettings>`:
+**2) Display** — inherit `DisplayBase<TSettings>` and implement the four methods:
 
 ```csharp
 using System.Threading;
@@ -351,139 +363,164 @@ using UnityEngine;
 
 public class RotateDisplay : DisplayBase<RotateSettings>
 {
-    public override void ShowInstantlyMethod(RectTransform transform, RotateSettings settings)
-    {
-        transform.localRotation = Quaternion.Euler(0, 0, settings.TargetAngle);
-    }
+    public override void ShowInstantlyMethod(RectTransform t, RotateSettings s) =>
+        t.localRotation = Quaternion.Euler(0, 0, s.TargetAngle);
 
-    public override void HideInstantlyMethod(RectTransform transform, RotateSettings settings)
-    {
-        transform.localRotation = Quaternion.identity;
-    }
+    public override void HideInstantlyMethod(RectTransform t, RotateSettings s) =>
+        t.localRotation = Quaternion.identity;
 
-    public override async Task ShowMethod(RectTransform transform, RotateSettings settings, CancellationToken cancellationToken)
+    public override async Task ShowMethod(RectTransform t, RotateSettings s, CancellationToken token)
     {
-        float elapsedTime = 0;
-        Quaternion startRot = transform.localRotation;
-        Quaternion targetRot = Quaternion.Euler(0, 0, settings.TargetAngle);
-
-        while (elapsedTime < settings.Duration)
+        s.OnAnimationStart?.Invoke();
+        float elapsed = 0f;
+        Quaternion from = t.localRotation, to = Quaternion.Euler(0, 0, s.TargetAngle);
+        while (elapsed < s.Duration)
         {
-            if (TaskUtils.OperationCancelled(cancellationToken)) return;
-
-            elapsedTime += Time.deltaTime;
-            float t = elapsedTime / settings.Duration;
-            float easedT = EasingFunctions.Get(settings.Easing, t);
-            transform.localRotation = Quaternion.Lerp(startRot, targetRot, easedT);
-
+            if (TaskUtils.OperationCancelled(token)) return;
+            elapsed += Time.deltaTime;
+            float eased = EasingFunctions.Get(s.Easing, elapsed / s.Duration);
+            t.localRotation = Quaternion.LerpUnclamped(from, to, eased);
             await Task.Yield();
         }
-
-        transform.localRotation = targetRot;
+        t.localRotation = to;
+        s.OnAnimationEnd?.Invoke();
     }
 
-    public override async Task HideMethod(RectTransform transform, RotateSettings settings, CancellationToken cancellationToken)
+    public override async Task HideMethod(RectTransform t, RotateSettings s, CancellationToken token)
     {
-        float elapsedTime = 0;
-        Quaternion startRot = transform.localRotation;
-        Quaternion targetRot = Quaternion.identity;
-
-        while (elapsedTime < settings.Duration)
-        {
-            if (TaskUtils.OperationCancelled(cancellationToken)) return;
-
-            elapsedTime += Time.deltaTime;
-            float t = elapsedTime / settings.Duration;
-            float easedT = EasingFunctions.Get(settings.Easing, t);
-            transform.localRotation = Quaternion.Lerp(startRot, targetRot, easedT);
-
-            await Task.Yield();
-        }
-
-        transform.localRotation = targetRot;
+        // mirror of ShowMethod, lerping back to Quaternion.identity
     }
 }
 ```
 
-#### Step 3: Cache the Custom Transition on Your Popup
-In your popup's script, register it by calling `SetCachedDisplay()` before calling `base.Init()`:
+**3) Cache it** on the popup:
 
 ```csharp
-using AdvancedPS.Core;
-
-public class SpinPopup : AdvancedPopup
+public override void Init()
 {
-    public override void Init()
-    {
-        // Cache Custom Rotate transition for both Show and Hide
-        SetCachedDisplay<RotateDisplay>(new RotateSettings 
-        { 
-            Duration = 0.8f, 
-            TargetAngle = 360f 
-        });
-
-        base.Init();
-    }
+    SetCachedDisplay<RotateDisplay>(new RotateSettings { Duration = 0.8f, TargetAngle = 360f });
+    base.Init();
 }
+```
+
+> [!TIP]
+> For factory defaults, add a `public static TSettings Default()` to your settings class — APS prefers it over the
+> parameterless constructor when producing default settings.
+
+---
+
+## 5. The APS Editor Window
+
+Open from the top **`APS`** menu — one window, three tabs:
+
+- **`APS ▸ Layers`** — add / rename / delete `PopupLayerEnum` flags. Names are normalized to `UPPER_CASE`, and the enum
+  file is **regenerated** on save (up to 31 flags). Do not hand-edit `PopupLayerEnum.generated.cs` — your edits are
+  overwritten here.
+- **`APS ▸ Displays`** — add a new display: APS generates `<Name>Display/<Name>Display.generated.cs` +
+  `<Name>Settings.generated.cs` with ready-to-fill method stubs. Generation never overwrites an existing display, and
+  delete removes the pair. The `Display` / `Settings` suffixes and folder name are required by the tooling — keep them.
+- **`APS ▸ Settings`** — see [§7](#7-settings--logging).
+
+Both Layers and Displays have an **Auto-Save** toggle; with it off, use the **Save** button to apply changes.
+
+---
+
+## 6. Advanced Configuration
+
+### 6.1 Deep popups
+
+Add child/dependent popups to a parent's **Deep Popups** list. When the parent shows or hides:
+
+- the operation propagates to each deep popup,
+- all animations run **in parallel**,
+- the parent's `ShowAsync` / `HideAsync` resolves only after **all** child animations complete.
+
+Cycles are safe — APS traverses with a visited-set DFS (`ContainsDeepPopup`).
+
+### 6.2 Hotkey bindings
+
+Configure `Key Binding Show Settings` / `Key Binding Hide Settings` on the popup to toggle it via keys (handled by
+`KeyEventSystemAPS`):
+
+- **`Any Hot Key`** — trigger on any key.
+- **`Hot Keys`** — specific keys (e.g. `Escape`, `Tab`).
+- **`Layers`** — only when one of these layers is active (empty = no layer restriction).
+- **`Popups`** — only when these popups are visible (empty = no restriction).
+- **`On Trigger`** — a `UnityEvent` fired when the key triggers.
+
+A key only fires when the popup's ancestor popups are all visible, so nested popups' keys are context-aware. APS works
+with **both** the legacy Input Manager and the new Input System (auto-selected). With the new Input System, enable
+**Auto Switch Input Module** (see [§7](#7-settings--logging)) to have APS replace `StandaloneInputModule` with
+`InputSystemUIInputModule` automatically.
+
+### 6.3 Instantiating popups at runtime
+
+Set **Manual Init** on the prefab, instantiate it, inject any data, then call `Init()` yourself before showing:
+
+```csharp
+var popup = Instantiate(_popupPrefab, _canvasRoot);
+// popup.SetData(...);
+popup.Init();   // registers with APS and applies auto-hide
+popup.Show();
 ```
 
 ---
 
-## 5. Advanced Configuration
+## 7. Settings & Logging
 
-### 5.1 Deep Popups Hierarchy
-If your popup contains child sub-popups, add them to the **`Deep Popups`** list in the parent's inspector. 
-- When the parent's `Show()` / `Hide()` method is invoked, it propagates down.
-- All showing or hiding animations run in parallel.
-- The parent popup's await tasks (`ShowAsync` / `HideAsync`) will wait until **all** child animations have completed before resolving.
+`APS ▸ Settings` (persisted to `Assets/Resources/AP_Settings.json` in your project):
 
-### 5.2 Hotkey Bindings
-You can configure popups to toggle visibility automatically in response to key presses (wired up via `KeyEventSystemAPS`):
-- Locate `KeyBindingShowSettings` / `KeyBindingHideSettings` on your popup component.
-- **`AnyHotKey`**: Toggles popup if any key is pressed.
-- **`HotKeys`**: A list of specific keys (e.g. `KeyCode.Escape`, `KeyCode.Tab`) mapped to the popup.
-- **`Layers`**: Restricts key activation to times when specific layers are active.
-- **`Popups`**: Restricts key activation to times when other listed popups are visible.
-- **`OnTrigger`**: A `UnityEvent` callback that fires when the key is successfully triggered.
+- **Key Event Tracking** — enable/disable the hotkey system globally.
+- **Auto Switch Input Module** — (new Input System) auto-swap the EventSystem's input module at startup.
+- **Inspector View** — `APSInspector` (full custom), `APSOptimized` (lighter), or `UnityInspector` (default Unity view).
+- **Log Type** — verbosity filter for APS logs, routed through `APLogger`:
+
+| Log Type | Emits |
+| :--- | :--- |
+| `Info` | info + warnings + errors (most verbose) |
+| `Warning` | warnings + errors (default) |
+| `Error` | errors only |
+| `None` | nothing (exceptions still surface) |
 
 ---
 
-## 6. Troubleshooting Checklist
+## 8. Troubleshooting Checklist
 
 > [!WARNING]
-> If a popup is not functioning as expected, verify the following points:
+> If a popup misbehaves, check these first.
 
-- **Popup does not appear or remains invisible:**
-  - Verify that the component's `Init()` function has executed (check that `ManualInit` is `false` or that you are calling `Init()` manually after dynamic instantiation).
-  - Ensure that the GameObject is active or that the parent Canvas is active.
-  - Verify that the popup exists in `AdvancedPopupSystem.AllPopups`.
+- **Popup never appears / stays invisible**
+  - Confirm `Init()` ran — `Manual Init` must be `false`, or you must call `Init()` after instantiating.
+  - Ensure the GameObject and its parent Canvas are active.
+  - Verify it's registered: it should be in `AdvancedPopupSystem.AllPopups`.
+  - A missing `CanvasGroup` logs a warning — APS adds one in `Init()`, but a display run before init can warn.
 
-- **Popup transitions are stuck or OnComplete/Async tasks never finish:**
-  - Ensure that custom displays are not throwing silent exceptions.
-  - Verify that your custom display logic completes and does not loop infinitely. If your transition relies on `Duration`, ensure it updates correctly and exits the loop.
-  - Ensure you are not canceling the transition immediately after starting it.
+- **Transition sticks / `OnComplete` or `await` never resolves**
+  - A custom display must exit its loop (respect `Duration` and `TaskUtils.OperationCancelled`) and not throw silently.
+  - Don't cancel a transition immediately after starting it (a new show/hide cancels the previous one).
 
-- **Incorrect popups open or close when calling LayerShow/LayerHide:**
-  - Inspect the bitmask flags assigned in the inspector under `Popup Layer` for each popup. Ensure flags are properly separated (e.g., bit values like `1`, `2`, `4`, `8`, etc.).
-  - Remember that `LayerShow` with `autohide = true` hides all other layers automatically. Use `autohide = false` if you want to display multiple overlay layers concurrently.
+- **Wrong popups open/close with `LayerShow` / `LayerHide`**
+  - Check each popup's **Popup Layer** flags in the Inspector.
+  - Remember `LayerShow(..., autohide: true)` hides all other layers; use `autohide: false` to overlay.
+  - Mixing manual `Show()/Hide()` with layer calls can desync `ActiveLayer` from what's actually visible.
+
+- **DOTween display missing** — the `DoTweenDisplay` compiles only when DOTween is installed (behind the `DOTWEEN`
+  define).
+
+- **Hotkeys/clicks not registering (new Input System)** — enable **Auto Switch Input Module**, or make sure your
+  EventSystem uses `InputSystemUIInputModule`.
 
 ---
 
-## 7. Upcoming Feature: Dynamic Spawning & Pool Instancing (Planned ⏳)
+## 9. Upcoming: Dynamic Spawning & Pooling (Planned ⏳)
 
 > [!CAUTION]
-> **UNDER DEVELOPMENT** — Real-time dynamic instantiation and pool-based spawning are planned for future versions. The API described below is a conceptual preview and is currently not active in the codebase.
-
-<span style="color: gray;">
-When instantiating popups dynamically (e.g., from Resources, prefabs, or Addressables), the planned flow will allow manual initialization and spawning as shown below:
-</span>
+> **UNDER DEVELOPMENT.** Real-time instantiation and pool-based spawning are planned. `AdvancedPopupInstantiate`
+> currently exists only as a no-op stub — the API below is a conceptual preview and is not active yet.
 
 ```csharp
 /*
-using AdvancedPS.Core;
-using UnityEngine;
-
-// THIS IS A PREVIEW OF AN UNRELEASED FEATURE
+// PREVIEW OF AN UNRELEASED FEATURE
 public class DynamicSpawner : MonoBehaviour
 {
     [SerializeField] private AdvancedPopup _popupPrefab;
@@ -491,18 +528,14 @@ public class DynamicSpawner : MonoBehaviour
 
     public void SpawnAndOpen()
     {
-        // 1. Instantiate the prefab (Make sure 'Manual Init' is checked in the prefab)
-        AdvancedPopup popupInstance = Instantiate(_popupPrefab, _canvasRoot);
-
-        // 2. Inject parameters/data if required
-        // popupInstance.SetData(...);
-
-        // 3. Call Init() manually. This registers it to AllPopups and hides it instantly if AutoHideOnInit is true
-        popupInstance.Init();
-
-        // 4. Play show transition
-        popupInstance.Show();
+        AdvancedPopup popup = Instantiate(_popupPrefab, _canvasRoot); // 'Manual Init' checked on the prefab
+        // popup.SetData(...);
+        popup.Init(); // registers, applies auto-hide
+        popup.Show();
     }
 }
 */
 ```
+
+Until then, the manual pattern in [§6.3](#63-instantiating-popups-at-runtime) is the supported way to spawn popups at
+runtime.

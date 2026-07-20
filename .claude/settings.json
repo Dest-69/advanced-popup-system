@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(find Runtime:*)",
+      "Bash(find AdvancedPopupSystem_Obsidian_Vault:*)",
+      "mcp__unityMCP__read_console",
+      "mcp__unityMCP__refresh_unity",
+      "mcp__unityMCP__validate_script"
+    ]
+  }
+}

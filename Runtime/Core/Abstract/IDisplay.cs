@@ -23,13 +23,21 @@ namespace AdvancedPS.Core.System
     public abstract class DisplayBase<TSettings> : IDisplay<TSettings> where TSettings : IDisplaySettings, new()
     {
         void IDisplay.ShowInstantlyMethod(RectTransform transform, IDisplaySettings settings) =>
-            ShowInstantlyMethod(transform, (TSettings)settings);
+            ShowInstantlyMethod(transform, Resolve(settings));
         void IDisplay.HideInstantlyMethod(RectTransform transform, IDisplaySettings settings) =>
-            HideInstantlyMethod(transform, (TSettings)settings);
+            HideInstantlyMethod(transform, Resolve(settings));
         Task IDisplay.ShowMethod(RectTransform transform, IDisplaySettings settings, CancellationToken cancellationToken) =>
-            ShowMethod(transform, (TSettings)settings, cancellationToken);
+            ShowMethod(transform, Resolve(settings), cancellationToken);
         Task IDisplay.HideMethod(RectTransform transform, IDisplaySettings settings, CancellationToken cancellationToken) =>
-            HideMethod(transform, (TSettings)settings, cancellationToken);
+            HideMethod(transform, Resolve(settings), cancellationToken);
+
+        /// <summary>
+        /// Coerces untyped settings to <typeparamref name="TSettings"/>, substituting fresh defaults when they are
+        /// null or of a mismatched type — the "if null, default settings are used" contract every method below
+        /// documents. Guards typed calls (Show&lt;T&gt;/LayerShow&lt;T&gt;/HideAll&lt;T&gt;) against a popup whose
+        /// cached settings are a different display type (would otherwise be a NullReference/InvalidCast).
+        /// </summary>
+        private static TSettings Resolve(IDisplaySettings settings) => settings is TSettings typed ? typed : new TSettings();
         
         /// <summary>
         /// Logic for instant popup show.

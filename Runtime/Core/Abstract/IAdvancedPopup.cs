@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using AdvancedPS.Core.Utils;
 using UnityEngine;
 
 namespace AdvancedPS.Core.System
@@ -79,25 +80,18 @@ namespace AdvancedPS.Core.System
         
         protected CancellationTokenSource Source;
         
-        [SerializeField] private IDisplaySettings cachedShowSettings;
         /// <summary>
-        /// Cached settings for the showing animation. To change it by call 'AdvancedPopupSystem.SetCachedDisplay'.
+        /// Cached settings for the showing animation — set at runtime via 'SetCachedDisplay'. Runtime-only: it is an
+        /// interface reference, which Unity's serializer ignores (real inspector persistence would need
+        /// [SerializeReference] + a custom drawer), so a plain [SerializeField] here was a no-op.
         /// </summary>
-        public IDisplaySettings CachedShowSettings
-        {
-            get => cachedShowSettings;
-            private set => cachedShowSettings = value;
-        }
-        
-        [SerializeField] private IDisplaySettings cachedHideSettings;
+        public IDisplaySettings CachedShowSettings { get; private set; }
+
         /// <summary>
-        /// Cached settings for the hiding animation. To change it by call 'AdvancedPopupSystem.SetCachedDisplay'.
+        /// Cached settings for the hiding animation — set at runtime via 'SetCachedDisplay'. Runtime-only (see
+        /// <see cref="CachedShowSettings"/>).
         /// </summary>
-        public IDisplaySettings CachedHideSettings
-        {
-            get => cachedHideSettings;
-            private set => cachedHideSettings = value;
-        }
+        public IDisplaySettings CachedHideSettings { get; private set; }
         #endregion
 
         #region Init
@@ -108,6 +102,11 @@ namespace AdvancedPS.Core.System
         }
         private void OnDestroy()
         {
+            // Cancel any in-flight show/hide so its animation loop stops touching this destroyed transform,
+            // and release the per-popup source (the last one is otherwise never disposed).
+            TaskUtils.CancelAndDispose(Source);
+            Source = null;
+
             AdvancedPopupSystem.DeactivateAdvancedPopup(this);
         }
 

@@ -456,7 +456,23 @@ namespace AdvancedPS.Core
         {
             AllPopups.Remove(popup);
             ActivePopups.Remove(popup);
-            PopupCacheByType.Remove(popup.GetType());
+
+            // Only touch the type cache if THIS popup is the cached representative — another live instance of the same
+            // type may still exist. If it is, re-point the cache to a survivor instead of dropping the entry (which
+            // would silently degrade TryGetPopup<T> to a linear scan for the rest of the session).
+            Type type = popup.GetType();
+            if (PopupCacheByType.TryGetValue(type, out var cached) && ReferenceEquals(cached, popup))
+            {
+                PopupCacheByType.Remove(type);
+                for (int i = 0; i < AllPopups.Count; i++)
+                {
+                    if (AllPopups[i] != null && AllPopups[i].GetType() == type)
+                    {
+                        PopupCacheByType[type] = AllPopups[i];
+                        break;
+                    }
+                }
+            }
         }
         
         private static void SortPopups()

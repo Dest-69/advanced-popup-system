@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace AdvancedPS.Core.Utils
 {
@@ -8,14 +7,14 @@ namespace AdvancedPS.Core.Utils
     {
         public static Type GetDisplaySettings(string displayName)
         {
-            string settingsClassName = RemoveDisplaySuffix(displayName) + "Settings";
-            return Type.GetType(settingsClassName);
+            // Scan loaded assemblies by simple name — Type.GetType(shortName) only resolves the calling assembly/mscorlib,
+            // so it always returned null for APS display/settings types living in their own assemblies.
+            return GetTypeByName(RemoveDisplaySuffix(displayName) + "Settings");
         }
-        
+
         public static Type GetDisplay(string displayName)
         {
-            string settingsClassName = RemoveDisplaySuffix(displayName) + "Display";
-            return Type.GetType(settingsClassName);
+            return GetTypeByName(RemoveDisplaySuffix(displayName) + "Display");
         }
         
         public static Type GetTypeByFullName(string typeFullName)
@@ -31,12 +30,23 @@ namespace AdvancedPS.Core.Utils
                 .FirstOrDefault(type => type.Name == typeName);
         }
         
+        /// <summary>
+        /// Strips a single trailing Display/Settings suffix (case-insensitive): "FadeDisplay" → "Fade",
+        /// "ScaleSettings" → "Scale". Only the trailing suffix is removed, so names that merely contain the words
+        /// (e.g. "DisplayBoardWidget") are left intact — unlike a blanket replace-anywhere.
+        /// </summary>
         public static string RemoveDisplaySuffix(string input)
         {
-            string[] suffixes =
-                { "display", "Display", "displays", "Displays", "settings", "Settings", "Setting", "setting" };
-            return suffixes.Aggregate(input,
-                (current, suffix) => Regex.Replace(current, suffix, "", RegexOptions.IgnoreCase));
+            if (string.IsNullOrEmpty(input)) return input;
+
+            // Longest variants first so the plural/longer form wins over its own prefix.
+            string[] suffixes = { "Displays", "Settings", "Display", "Setting" };
+            foreach (string suffix in suffixes)
+            {
+                if (input.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    return input.Substring(0, input.Length - suffix.Length);
+            }
+            return input;
         }
     }
 }

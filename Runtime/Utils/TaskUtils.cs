@@ -17,9 +17,21 @@ namespace AdvancedPS.Core.Utils
                 if (dispose) source.Dispose();
             }
             
-            return linkedToken == default 
-                ? new CancellationTokenSource() 
+            return linkedToken == default
+                ? new CancellationTokenSource()
                 : CancellationTokenSource.CreateLinkedTokenSource(linkedToken);
+        }
+
+        /// <summary>
+        /// Terminal teardown for a source (e.g. on <c>OnDestroy</c>): cancels any in-flight transition and disposes it,
+        /// without creating a replacement. Null-safe. Use this instead of a hand-rolled Cancel()/Dispose() pair.
+        /// </summary>
+        public static void CancelAndDispose(CancellationTokenSource source)
+        {
+            if (source == null) return;
+
+            source.Cancel();
+            source.Dispose();
         }
     }
 }

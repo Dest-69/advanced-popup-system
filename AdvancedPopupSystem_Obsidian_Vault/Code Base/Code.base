@@ -1,0 +1,21 @@
+filters:
+  and:
+    - file.inFolder("Code Base")
+    - type == "code"
+properties:
+  file.name:
+    displayName: Note
+  status:
+    displayName: Status
+  description:
+    displayName: About
+  code_paths:
+    displayName: Code
+views:
+  - type: table
+    name: Code docs
+    order:
+      - file.name
+      - status
+      - description
+      - code_paths
