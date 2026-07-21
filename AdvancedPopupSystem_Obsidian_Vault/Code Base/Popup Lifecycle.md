@@ -18,10 +18,14 @@ Show/Hide/Switch overrides. **User popups extend `AdvancedPopup`.**
 `PopupLayer` (which layers can show this), `ManualInit`, `AutoHideOnInit` (default `true`), `Inactive` (blocks Show),
 `EscapePolicy` (`EscapePolicyEnum`: `Hide` default / `Ignore` / `Block` — escape-stack participation, see
 [[Core System]]), `DeepPopups` (child/dependent popups), `KeyBindingShowSettings`/`KeyBindingHideSettings`
-([[Input & Hotkeys]]); the **Addressable** box `Addressable` / `AddressableLoadMode` / `AddressableHideBehavior`
-([[Addressables]]). Hidden: `RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**),
-`IsVisible` (set when it **ends**), `ShownByCascade` (`[NonSerialized]`, system-managed — see "Deep popups").
-`AdvancedPopup` adds public `OnShowing`/`OnHided` actions and an optional `closeButton`.
+([[Input & Hotkeys]]); the **Addressable** box `Addressable` / `AddressableLoadMode` + the per-scene selection
+`PreloadSceneGuids` (empty = Everyone) / `UnloadSceneGuids` (empty = None), both scene **GUIDs**, and the **Pool** box
+`PoolCapacity` (unified on-hide + pool control: -1 unlimited / 0 despawn / N keep — all [[Addressables]]).
+Hidden: `RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**), `IsVisible` (set when it
+**ends**), `ShownByCascade` (`[NonSerialized]`, system-managed — see "Deep popups").
+`AdvancedPopup` adds public `OnShowing`/`OnHided` actions. The optional **close button** is no longer a field here — it
+moved into `Modules` as the `Closable` feature (`Modules.Close.CloseButton`, revealed when the flag is set); the base
+still wires it in Subscribe/Unsubscribe (see below and [[Interaction Modules]]).
 
 ## Init & cache
 
@@ -44,9 +48,10 @@ Show/Hide/Switch overrides. **User popups extend `AdvancedPopup`.**
 
 ## Subscribe / Unsubscribe
 
-Guarded by `_isSubscribed` (idempotent). Base `Subscribe()`: wires `closeButton.onClick → OnCloseButtonPress` (→
-`Hide()`), invokes `OnShowing`, adds to `ActivePopups`. Base `Unsubscribe()`: unwires, invokes `OnHided`, removes from
-`ActivePopups`. **Overrides must call base and stay symmetric** ([[Invariants]]) — add/remove your local listeners in
+Guarded by `_isSubscribed` (idempotent). Base `Subscribe()`: wires `Modules.CloseButton.onClick → OnCloseButtonPress`
+(→ `Hide()`; `Modules.CloseButton` is the flag-gated accessor — null unless `Closable` is set, see
+[[Interaction Modules]]), invokes `OnShowing`, adds to `ActivePopups`. Base `Unsubscribe()`: unwires, invokes `OnHided`,
+removes from `ActivePopups`. **Overrides must call base and stay symmetric** ([[Invariants]]) — add/remove your local listeners in
 the matching method. `Subscribe` runs at the start of a show, `Unsubscribe` at the start of a hide.
 
 ## Show / Hide
@@ -66,7 +71,7 @@ Four entry shapes, each in a cached-display and a typed (`<T>`) variant:
 brackets the run in a **`try/finally`** (an exception from a display can't leak the `APSStats` task counter).
 `HideAsync` is the mirror: `Unsubscribe()`, animate, and on success `SetActive(false)` + `IsVisible=false` (cancel rolls
 back to `IsBeVisible=true`). This rollback ordering is the contract displays rely on ([[Invariants]]). For an Addressable
-Lane-A popup with `HideBehavior.Despawn` the success path **releases the handle** instead of `SetActive(false)` ([[Addressables]]).
+Lane-A popup with `PoolCapacity == 0` (despawn on hide) the success path **releases the handle** instead of `SetActive(false)` ([[Addressables]]).
 
 > **Known gap (not yet fixed):** a Show cancelled by an *external* token (not by a following `Hide`) rolls back only
 > `IsBeVisible`; it does **not** `Unsubscribe()` / `SetActive(false)`, so the popup can linger in `ActivePopups` and on
@@ -89,8 +94,8 @@ replace the flag with a `DeepPopups` lookup.
 ## Spawning & pooling (was `AdvancedPopupInstantiate`)
 
 The old `AdvancedPopupInstantiate` NoOp stub is **removed** (breaking — [[Invariants]]). Runtime spawn + pooling is now
-`AdvancedPopupSystem.SpawnAsync<T>`/`Despawn` over Addressable prefabs (Lane B), and a Lane-A popup's `HideBehavior`
-(`Deactivate` default / `Despawn`) decides whether hide keeps it resident or releases its handle. See [[Addressables]].
+`AdvancedPopupSystem.SpawnAsync<T>`/`Despawn` over Addressable prefabs (Lane B), and a popup's `PoolCapacity` (`-1`
+resident default / `0` despawn on hide / `N` keep-up-to-N) decides retention for both lanes. See [[Addressables]].
 
 ## Depends on
 

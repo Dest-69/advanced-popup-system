@@ -10,7 +10,7 @@ code_paths:
 
 # Layers
 
-Layers group popups into logical screens (`LOGIN`, `HUB`, `SETTINGS`, …) so you control many popups with one call
+Layers group popups into logical screens (`GUI`, `GAME`, `MENU`, …) so you control many popups with one call
 instead of per-popup.
 
 - **`PopupLayerEnum`** is a **generated** `[Flags]` enum (`None = 0`, then `1 << 0`, `1 << 1`, …). It is **fully
@@ -32,6 +32,15 @@ instead of per-popup.
   control desyncs "what layer is active" from "what's visible", and the layer calls' idempotency guards
   (`ActiveLayer == layer`) may then no-op unexpectedly.
 - Layers also **gate hotkeys**: a `PopupKeyBinding.Layers` value restricts when a key fires ([[Input & Hotkeys]]).
+- Layers also **select a canvas** for popups the system instantiates. Configured in the **Layers panel**
+  ([[Editor & Codegen]]): each layer carries a **sorting order** + optional **canvas prefab**, persisted to the runtime
+  `LayerCanvasConfig` asset (`Assets/Resources/APS_LayerCanvasConfig.asset`, consumer-side like `AP_Settings.json`). APS
+  gives each layer its own canvas (the prefab, or an auto-created overlay) at that sort order, created **lazily** on the
+  first load/spawn of one of its popups; a runtime `AdvancedPopupSystem.RegisterLayerCanvas(layer, canvas)` still
+  overrides. Unmapped → `Root`; scene-authored popups unaffected; multi-flag popups resolve to the lowest-bit mapped
+  layer. The panel's **sorting order is display + canvas order only — it never reorders the name/bit store**, so
+  serialized `PopupLayer` masks stay valid. Mechanism in [[Core System]] ("Canvas routing"); parenting sites in
+  [[Addressables]].
 
 ## Depends on
 

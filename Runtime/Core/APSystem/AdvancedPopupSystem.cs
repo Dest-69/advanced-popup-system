@@ -49,9 +49,18 @@ namespace AdvancedPS.Core
         /// </summary>
         public static readonly List<IAdvancedPopup> SpawnedPopups = new List<IAdvancedPopup>();
         /// <summary>
-        /// Despawned-but-retained instances, keyed by type full name, reused by <see cref="SpawnAsync{T}"/>.
+        /// Despawned-but-retained instances (<see cref="IAdvancedPopup.PoolCapacity"/> ≥ 2 or unlimited), keyed by type
+        /// full name, reused by <see cref="SpawnAsync{T}"/>.
         /// </summary>
         private static readonly Dictionary<string, List<IAdvancedPopup>> _pool = new();
+        /// <summary>
+        /// Single retained instance per type for <see cref="IAdvancedPopup.PoolCapacity"/> == 1 — the "on/off" case:
+        /// keep one idle copy for reuse without allocating a whole pool <see cref="List{T}"/>. Reused by
+        /// <see cref="SpawnAsync{T}"/> ahead of <see cref="_pool"/>.
+        /// </summary>
+        private static readonly Dictionary<string, IAdvancedPopup> _singlePool = new();
+        /// <summary> Scratch reused by <see cref="OnSceneUnloaded"/> to prune dead single-slot entries without allocating. </summary>
+        private static readonly List<string> _deadPoolKeys = new();
         #endregion
 
         #region INIT
@@ -78,9 +87,15 @@ namespace AdvancedPS.Core
                 ActiveLayer = 0;
                 SpawnedPopups.Clear();
                 _pool.Clear();
+                _singlePool.Clear();
+                _layerCanvases.Clear();
                 // The runtime APS_Root GameObject is destroyed by Unity on play-mode exit; drop the reference so a
                 // fresh one is created next play (new static state → same leak-guard treatment, see Invariants).
                 _root = null;
+                // Drop the cached config assets so play-mode edits to APS_LayerCanvasConfig / the Addressable index
+                // are picked up next run.
+                LayerCanvasConfig.ClearCache();
+                AddressablePopupIndexAsset.ClearCache();
             }
         }
 #endif
@@ -115,6 +130,28 @@ namespace AdvancedPS.Core
                         bucket.RemoveAt(i);
                 }
             }
+            // Single-slot pool (PoolCapacity == 1): drop entries whose instance was destroyed. Collect first, then
+            // remove — can't mutate the dictionary mid-enumeration.
+            if (_singlePool.Count > 0)
+            {
+                _deadPoolKeys.Clear();
+                foreach (var kv in _singlePool)
+                    if (kv.Value == null)
+                        _deadPoolKeys.Add(kv.Key);
+                for (int i = 0; i < _deadPoolKeys.Count; i++)
+                    _singlePool.Remove(_deadPoolKeys[i]);
+            }
+            // A registered layer canvas may be a scene object destroyed on unload — drop dead mappings (those layers
+            // fall back to Root). Collect first, then remove: can't mutate the dictionary mid-enumeration.
+            if (_layerCanvases.Count > 0)
+            {
+                _deadCanvasKeys.Clear();
+                foreach (var kv in _layerCanvases)
+                    if (kv.Value == null)
+                        _deadCanvasKeys.Add(kv.Key);
+                for (int i = 0; i < _deadCanvasKeys.Count; i++)
+                    _layerCanvases.Remove(_deadCanvasKeys[i]);
+            }
 
             // Rebuild type cache
             PopupCacheByType.Clear();
@@ -141,28 +178,145 @@ namespace AdvancedPS.Core
             get
             {
                 if (_root == null)
-                    _root = CreateDefaultRoot();
+                    _root = CreateCanvas("APS_Root", short.MaxValue);
                 return _root;
             }
             set => _root = value;
         }
 
         /// <summary>
-        /// Builds the default overlay Canvas used when <see cref="Root"/> was not assigned. Kept on top by default;
-        /// override <see cref="Root"/> if you need a different render mode or ordering.
+        /// Builds a persistent (DontDestroyOnLoad) ScreenSpaceOverlay Canvas with a scaler + raycaster at
+        /// <paramref name="sortingOrder"/>. Backs the default <see cref="Root"/> (kept on top) and the auto-created
+        /// per-layer canvases for layers that have canvas config but no assigned prefab (see <see cref="GetCanvasForLayer"/>).
         /// </summary>
-        private static Transform CreateDefaultRoot()
+        private static Transform CreateCanvas(string name, int sortingOrder)
         {
-            var go = new GameObject("APS_Root");
+            var go = new GameObject(name);
             UnityEngine.Object.DontDestroyOnLoad(go);
 
             var canvas = go.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = short.MaxValue;
+            canvas.sortingOrder = sortingOrder;
             go.AddComponent<CanvasScaler>();
             go.AddComponent<GraphicRaycaster>();
 
             return go.transform;
+        }
+        #endregion
+
+        #region LAYER CANVAS
+        /// <summary>
+        /// Per-layer canvas routing. Maps a single <see cref="PopupLayerEnum"/> flag to the Transform (usually a
+        /// Canvas) that popups of that layer are parented under when the system instantiates them — Addressable
+        /// lazy/preload loads and <see cref="SpawnAsync{T}"/>. Lets you split popups across canvases with independent
+        /// sort orders (a HUD canvas below, a dialog canvas above, …). Unmapped layers fall back to <see cref="Root"/>.
+        /// Scene-authored popups are unaffected — they keep their own hierarchy. Cleared on play-mode exit; entries
+        /// whose canvas was destroyed are pruned on scene unload (leak-guard rule, see Invariants).
+        /// </summary>
+        private static readonly Dictionary<PopupLayerEnum, Transform> _layerCanvases = new();
+        /// <summary> Scratch reused by <see cref="OnSceneUnloaded"/> to collect dead mappings without allocating. </summary>
+        private static readonly List<PopupLayerEnum> _deadCanvasKeys = new();
+
+        /// <summary>
+        /// Route popups of <paramref name="layer"/> under <paramref name="canvas"/> when the system instantiates them
+        /// (Addressable load / <see cref="SpawnAsync{T}"/>). Pass a mask with several flags to map them all to the same
+        /// canvas. Re-registering a layer overwrites it; a null <paramref name="canvas"/> clears those flags (same as
+        /// <see cref="UnregisterLayerCanvas"/>). You own the canvas' lifetime, sort order and render mode — APS only
+        /// parents to it. Scene-authored popups keep their own hierarchy and ignore this.
+        /// </summary>
+        public static void RegisterLayerCanvas(PopupLayerEnum layer, Transform canvas)
+        {
+            for (int bit = 0; bit < 31; bit++)
+            {
+                var flag = (PopupLayerEnum)(1 << bit);
+                if ((layer & flag) == 0) continue;
+                if (canvas == null) _layerCanvases.Remove(flag);
+                else _layerCanvases[flag] = canvas;
+            }
+        }
+
+        /// <summary>
+        /// Remove the canvas mapping for every flag in <paramref name="layer"/>; those popups fall back to <see cref="Root"/>.
+        /// </summary>
+        public static void UnregisterLayerCanvas(PopupLayerEnum layer)
+        {
+            for (int bit = 0; bit < 31; bit++)
+            {
+                var flag = (PopupLayerEnum)(1 << bit);
+                if ((layer & flag) != 0) _layerCanvases.Remove(flag);
+            }
+        }
+
+        /// <summary>
+        /// The canvas a popup with <paramref name="popupLayer"/> is parented under, or <see cref="Root"/> when none of
+        /// its layers are mapped. Mappings come from two sources, checked together: a manual <see cref="RegisterLayerCanvas"/>
+        /// (runtime override) and the APS Layers tool's <see cref="LayerCanvasConfig"/> — the latter's canvases are
+        /// created lazily on first use here. If a popup carries several mapped layers the lowest-bit layer wins
+        /// (deterministic) — give a popup a single layer to avoid the tie. Used by the load/spawn paths; scene-authored
+        /// popups don't call it.
+        /// </summary>
+        public static Transform GetCanvasForLayer(PopupLayerEnum popupLayer)
+        {
+            EnsureLayerCanvases(popupLayer);
+
+            if (_layerCanvases.Count > 0)
+            {
+                Transform best = null;
+                int bestBit = int.MaxValue;
+                foreach (var kv in _layerCanvases)
+                {
+                    if (kv.Value == null) continue;
+                    int key = (int)kv.Key;
+                    if (((int)popupLayer & key) != 0 && key < bestBit)
+                    {
+                        bestBit = key;
+                        best = kv.Value;
+                    }
+                }
+                if (best != null) return best;
+            }
+            return Root;
+        }
+
+        /// <summary>
+        /// Lazily materialize the canvases configured via the Layers tool (<see cref="LayerCanvasConfig"/>) for the
+        /// flags set in <paramref name="popupLayer"/> that aren't mapped yet. A layer already mapped — by a manual
+        /// <see cref="RegisterLayerCanvas"/> or an earlier call — is left untouched, so the manual override wins.
+        /// No-op when no config asset exists (scene-only projects pay nothing but the load path).
+        /// </summary>
+        private static void EnsureLayerCanvases(PopupLayerEnum popupLayer)
+        {
+            LayerCanvasConfig config = LayerCanvasConfig.Loaded;
+            if (config == null || config.Entries == null) return;
+
+            for (int i = 0; i < config.Entries.Count; i++)
+            {
+                LayerCanvasConfig.Entry entry = config.Entries[i];
+                if (entry == null) continue;
+                if (!LayerCanvasConfig.TryParseLayer(entry.Layer, out PopupLayerEnum flag)) continue;
+                if (((int)popupLayer & (int)flag) == 0) continue;
+                if (_layerCanvases.TryGetValue(flag, out Transform existing) && existing != null) continue;
+
+                _layerCanvases[flag] = CreateLayerCanvas(entry);
+            }
+        }
+
+        /// <summary>
+        /// Builds the canvas for one configured layer: the assigned <see cref="LayerCanvasConfig.Entry.CanvasPrefab"/>
+        /// (instantiated), or a plain overlay canvas when none is assigned. Either way its <c>sortingOrder</c> is forced
+        /// to the entry's value — the tool always wins over a value baked into the prefab. Kept persistent so it
+        /// survives scene loads like <see cref="Root"/>.
+        /// </summary>
+        private static Transform CreateLayerCanvas(LayerCanvasConfig.Entry entry)
+        {
+            if (entry.CanvasPrefab != null)
+            {
+                Canvas canvas = UnityEngine.Object.Instantiate(entry.CanvasPrefab);
+                canvas.sortingOrder = entry.SortingOrder;
+                UnityEngine.Object.DontDestroyOnLoad(canvas.gameObject);
+                return canvas.transform;
+            }
+            return CreateCanvas($"APS_Canvas_{entry.Layer}", entry.SortingOrder);
         }
         #endregion
 
@@ -458,15 +612,26 @@ namespace AdvancedPS.Core
         /// visible (it enters <see cref="ActivePopups"/> on Show). Requires the popup type to be flagged Addressable
         /// and the Addressables integration present — returns null otherwise (logged).
         /// </summary>
-        /// <param name="parent">Parent for the instance; defaults to <see cref="Root"/>.</param>
+        /// <param name="parent">Parent for the instance; when null, the popup's layer canvas
+        /// (<see cref="GetCanvasForLayer"/>) or <see cref="Root"/> if the layer is unmapped.</param>
         /// <param name="token">Cancels the load in flight.</param>
         public static async Task<T> SpawnAsync<T>(Transform parent = null, CancellationToken token = default)
             where T : IAdvancedPopup
         {
             string typeName = typeof(T).FullName;
-            parent = parent != null ? parent : Root;
 
-            // Reuse a pooled instance first (a previous Despawn without release).
+            // Reuse a retained instance first (a previous Despawn without release): the single-slot (PoolCapacity == 1)
+            // ahead of the multi-copy pool.
+            if (typeName != null && _singlePool.TryGetValue(typeName, out var single))
+            {
+                _singlePool.Remove(typeName);
+                if (single != null)
+                {
+                    single.transform.SetParent(parent != null ? parent : GetCanvasForLayer(single.PopupLayer), false);
+                    SpawnedPopups.Add(single);
+                    return (T)single;
+                }
+            }
             if (typeName != null && _pool.TryGetValue(typeName, out var bucket))
             {
                 while (bucket.Count > 0)
@@ -474,7 +639,7 @@ namespace AdvancedPS.Core
                     IAdvancedPopup reused = bucket[bucket.Count - 1];
                     bucket.RemoveAt(bucket.Count - 1);
                     if (reused == null) continue; // destroyed straggler
-                    reused.transform.SetParent(parent, false);
+                    reused.transform.SetParent(parent != null ? parent : GetCanvasForLayer(reused.PopupLayer), false);
                     SpawnedPopups.Add(reused);
                     return (T)reused;
                 }
@@ -486,7 +651,8 @@ namespace AdvancedPS.Core
                 return null;
             }
 
-            IAdvancedPopup popup = await Resolver.LoadAsync(entry.Address, parent, token);
+            Transform target = parent != null ? parent : GetCanvasForLayer(entry.Layer);
+            IAdvancedPopup popup = await Resolver.LoadAsync(entry.Address, target, token);
             if (popup == null)
                 return null;
 
@@ -503,32 +669,52 @@ namespace AdvancedPS.Core
         /// </summary>
         /// <param name="popup">The spawned instance.</param>
         /// <param name="release">
-        /// false (default) — deactivate and keep in the pool for the next <see cref="SpawnAsync{T}"/> of that type;
-        /// true — release the instance and its Addressables handle (destroyed, memory can unload).
+        /// false (default) — honor the popup's <see cref="IAdvancedPopup.PoolCapacity"/>: keep the instance in the pool
+        /// for the next <see cref="SpawnAsync{T}"/> of that type (capacity permitting), else release it; true — force
+        /// release the instance and its Addressables handle (destroyed, memory can unload) regardless of capacity.
         /// </param>
         public static void Despawn(IAdvancedPopup popup, bool release = false)
         {
             if (popup == null) return;
             SpawnedPopups.Remove(popup);
 
-            if (release)
+            string typeName = popup.GetType().FullName;
+            int cap = popup.PoolCapacity;
+
+            // Force release, unknown type, or PoolCapacity 0 ("despawn") → free it now instead of retaining.
+            if (release || typeName == null || cap == 0)
+            {
+                Resolver?.Release(popup);
+                return;
+            }
+
+            // PoolCapacity 1 → "on/off": keep a single idle instance in a light single-slot, no pool list. A second
+            // idle copy of the type is released (one is the whole point of capacity 1).
+            if (cap == 1)
+            {
+                if (_singlePool.TryGetValue(typeName, out var held) && held != null && !ReferenceEquals(held, popup))
+                {
+                    Resolver?.Release(popup);
+                    return;
+                }
+                popup.gameObject.SetActive(false);
+                _singlePool[typeName] = popup;
+                return;
+            }
+
+            // PoolCapacity -1 → unlimited pool; N ≥ 2 → keep at most N idle copies, release beyond that.
+            if (!_pool.TryGetValue(typeName, out var bucket))
+            {
+                bucket = new List<IAdvancedPopup>();
+                _pool[typeName] = bucket;
+            }
+            if (cap > 1 && bucket.Count >= cap)
             {
                 Resolver?.Release(popup);
                 return;
             }
 
             popup.gameObject.SetActive(false);
-            string typeName = popup.GetType().FullName;
-            if (typeName == null)
-            {
-                Resolver?.Release(popup);
-                return;
-            }
-            if (!_pool.TryGetValue(typeName, out var bucket))
-            {
-                bucket = new List<IAdvancedPopup>();
-                _pool[typeName] = bucket;
-            }
             bucket.Add(popup);
         }
         #endregion
@@ -569,22 +755,78 @@ namespace AdvancedPS.Core
         }
 
         /// <summary>
-        /// Boot preload pass. AfterSceneLoad (not Before): scene-authored popups have Awoken and registered by now, so
-        /// the scene-wins dedup can suppress loading a second copy of a popup already placed in the scene. The optional
-        /// resolver registers earlier (BeforeSceneLoad), so it is set by the time this runs.
+        /// Boot pass + scene-load subscription. AfterSceneLoad (not Before): scene-authored popups have Awoken and
+        /// registered by now, so scene-wins can suppress a duplicate; the resolver registered earlier (BeforeSceneLoad),
+        /// so it is set. Subscribes <see cref="SceneManager.sceneLoaded"/> for every later scene and runs the first pass
+        /// here for the boot scene — <c>sceneLoaded</c> does not fire for the already-loaded first scene.
         /// </summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static async void PreloadOnBoot()
+        private static void PreloadOnBoot()
         {
-            if (Resolver == null || !AddressablePopupIndex.HasEntries) return;
-            try
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            ProcessScene(SceneManager.GetActiveScene().path);
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode) => ProcessScene(scene.path);
+
+        /// <summary>
+        /// Per-scene preload/unload driver — run for the boot scene and on every <see cref="SceneManager.sceneLoaded"/>.
+        /// Releases Addressable popups whose <see cref="IAdvancedPopup.UnloadSceneGuids"/> contains this scene, then
+        /// eagerly loads Preload popups that want it (all-scenes, or <see cref="IAdvancedPopup.PreloadSceneGuids"/>) and
+        /// are not already live. Unload runs first so a scene listed in both sets ends up loaded. Matched by
+        /// <see cref="Scene.path"/> against the baked scene paths in the index — identity-based, so reordering Build
+        /// Settings never shifts it. No-op without the Addressables resolver.
+        /// </summary>
+        private static void ProcessScene(string scenePath)
+        {
+            if (Resolver == null || !AddressablePopupIndex.HasEntries || string.IsNullOrEmpty(scenePath)) return;
+
+            foreach (var entry in AddressablePopupIndex.UnloadsForScene(scenePath))
+                UnloadType(entry.TypeName);
+
+            foreach (var entry in AddressablePopupIndex.PreloadsForScene(scenePath))
+                if (!IsLive(entry.TypeName))
+                    PreloadEntryAsync(entry);
+        }
+
+        /// <summary> Fire-and-forget one eager preload with the same error logging as the boot/preload paths. </summary>
+        private static async void PreloadEntryAsync(AddressablePopupIndexAsset.Entry entry)
+        {
+            try { await EnsureEntryLoadedAsync(entry, CancellationToken.None); }
+            catch (Exception ex) { APLogger.LogError($"Exception during APS scene preload: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// Release an Addressable popup type from memory for the per-scene unload pass: the resident unique (Lane-A)
+        /// instance via the <see cref="Resolver"/> (its <c>OnDestroy</c> prunes the registries) plus any idle pooled
+        /// copies of the type. A currently-visible instance and user-owned spawned copies (<see cref="SpawnedPopups"/>)
+        /// are left alone; releasing a scene-authored popup is a no-op (the resolver only frees what it created).
+        /// No-op without a resolver.
+        /// </summary>
+        private static void UnloadType(string typeName)
+        {
+            if (Resolver == null || typeName == null) return;
+
+            // Resident unique instance — skip if visible so we don't yank on-screen UI mid-transition.
+            for (int i = AllPopups.Count - 1; i >= 0; i--)
             {
-                foreach (var entry in AddressablePopupIndex.Preloads)
-                    await EnsureEntryLoadedAsync(entry, CancellationToken.None);
+                IAdvancedPopup popup = AllPopups[i];
+                if (popup != null && !popup.IsBeVisible && popup.GetType().FullName == typeName)
+                    Resolver.Release(popup);
             }
-            catch (Exception ex)
+
+            // Idle pooled copies of the type: the single-slot (PoolCapacity == 1) and the multi-copy pool.
+            if (_singlePool.TryGetValue(typeName, out var single))
             {
-                APLogger.LogError($"Exception occurred during APS preload: {ex.Message}");
+                _singlePool.Remove(typeName);
+                if (single != null) Resolver.Release(single);
+            }
+            if (_pool.TryGetValue(typeName, out var bucket))
+            {
+                for (int i = bucket.Count - 1; i >= 0; i--)
+                    if (bucket[i] != null) Resolver.Release(bucket[i]);
+                bucket.Clear();
             }
         }
         #endregion
@@ -610,10 +852,10 @@ namespace AdvancedPS.Core
         /// The new instance's Init() registers it, so the caller's next GetPopupsByLayer picks it up. Callers guard
         /// that Resolver is non-null.
         /// </summary>
-        private static async Task EnsureEntryLoadedAsync(AddressablePopupIndex.Entry entry, CancellationToken token)
+        private static async Task EnsureEntryLoadedAsync(AddressablePopupIndexAsset.Entry entry, CancellationToken token)
         {
             if (IsLive(entry.TypeName)) return;
-            await Resolver.LoadAsync(entry.Address, Root, token);
+            await Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), token);
         }
 
         /// <summary>

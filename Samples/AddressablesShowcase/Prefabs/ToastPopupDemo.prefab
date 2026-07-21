@@ -501,10 +501,16 @@ MonoBehaviour:
         m_Right: 0
         m_Top: 0
         m_Bottom: 0
+      ChangeCursor: 1
+      Cursors: {fileID: 0}
+    Close:
+      CloseButton: {fileID: 2839824520923788444}
   Addressable: 1
   AddressableLoadMode: 0
-  AddressableHideBehavior: 0
-  closeButton: {fileID: 0}
+  PoolCapacity: 16
+  PreloadScenes: -1
+  UnloadScenes: 0
+  _sceneMaskInitialized: 1
 --- !u!225 &4585778016544547766
 CanvasGroup:
   m_ObjectHideFlags: 0

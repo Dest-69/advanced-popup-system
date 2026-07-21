@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ea32d6bff67495f8cfe40f9f4a1621a, type: 3}
+  m_Name: APS_ResizeCursorSet
+  m_EditorClassIdentifier: 
+  Horizontal: {fileID: 2800000, guid: 36d834aa68dd44bf931dd079b720bf1b, type: 3}
+  Vertical: {fileID: 2800000, guid: 4302bd0df85d44128919223eb25e5961, type: 3}
+  DiagonalNWSE: {fileID: 2800000, guid: c1a42d1df5fb48409cbd203402c3bc14, type: 3}
+  DiagonalNESW: {fileID: 2800000, guid: bbc308bd3e994258bb537fac20f2b827, type: 3}
+  Hotspot: {x: 16, y: 16}

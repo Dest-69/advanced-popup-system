@@ -18,5 +18,11 @@ namespace AdvancedPS.Core
         Draggable = 1 << 0,
         /// <summary> Popup can be resized by dragging grips (see <see cref="ResizeConfig"/>). </summary>
         Resizable = 1 << 1,
+        /// <summary>
+        /// Popup has a close button that hides it when clicked (see <see cref="CloseConfig"/>). Unlike Draggable /
+        /// Resizable this is not a pointer gesture — it is wired as a Button.onClick listener by the base popup's
+        /// Subscribe/Unsubscribe, so it has no <see cref="System.IPopupFeatureHandler"/> in <see cref="PopupFeatureRegistry"/>.
+        /// </summary>
+        Closable = 1 << 2,
     }
 }

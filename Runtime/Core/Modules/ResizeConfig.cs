@@ -27,5 +27,11 @@ namespace AdvancedPS.Core
 
         [Tooltip("Extra inset (px) applied to the bounds on each side.")]
         public RectOffset Padding = new RectOffset();
+
+        [Tooltip("Change the OS cursor to a directional arrow while the pointer hovers a grip.")]
+        public bool ChangeCursor = true;
+
+        [Tooltip("Cursor icons used for the hover feedback. Leave empty to use the package default set.")]
+        public ResizeCursorSet Cursors;
     }
 }

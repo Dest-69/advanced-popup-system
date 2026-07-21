@@ -1,4 +1,16 @@
 # Changelog
+## [1.24.0] - 2026-07-21
+### Added
+- **Per-scene preload & unload** — each Addressable popup can now pick *which scenes* preload it and *which scenes* free it from memory, right in the inspector. Preload a screen's popups only when their scene loads (default: on the first scene), and drop them again when you move on — so memory follows the player through your game. A popup you open before its preload scene still loads on the spot, no setup needed. Choices are remembered per scene, so reordering your Build Settings never disturbs them.
+### Changed
+- **Close button is now a module** — the popup's close button moved into the **Modules** box next to Draggable and Resizable: tick **Closable** and drop your button in. One tidy place for every per-popup feature instead of a stray field at the bottom of the inspector. *Upgrading: re-assign your close button under **Modules ▸ Close** and enable **Closable** — the old Close Button field no longer carries over.*
+
+## [1.23.0] - 2026-07-21
+### Added
+- **Popups on separate canvases** — in **APS ▸ Layers**, give each layer its own sort order and, optionally, its own canvas prefab; APS then puts that layer's on-demand and spawned popups on their own canvas, so your HUD, dialogs, and tooltips sit on independent sort orders instead of stacking on a single overlay. Popups you place in a scene keep their own canvas.
+### Changed
+- **Pool control in one setting** — a single **Pool Capacity** per popup now decides what happens to its copies when hidden: keep them all for reuse, free their memory immediately, keep just one, or cap how many stay around. This replaces the earlier On-Hide option. *Upgrading: existing Addressable popups read Pool Capacity as `0` (free on hide) — set it to `-1` to keep them resident as before.*
+
 ## [1.22.0] - 2026-07-22
 ### Changed
 - **Layers survive updates** — your popup layer set is now saved in your project, so importing a new APS version keeps your custom layers instead of wiping them. *(Upgrading to 1.22.0 may reset them one last time — re-add them in `APS ▸ Layers`; every update after this preserves them.)*

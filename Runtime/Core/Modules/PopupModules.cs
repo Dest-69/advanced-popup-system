@@ -1,5 +1,6 @@
 using System;
 using AdvancedPS.Core.System;
+using UnityEngine.UI;
 
 namespace AdvancedPS.Core
 {
@@ -21,7 +22,17 @@ namespace AdvancedPS.Core
         /// <summary> Resize settings — used when <see cref="PopupFeatureEnum.Resizable"/> is set. </summary>
         public ResizeConfig Resize = new ResizeConfig();
 
+        /// <summary> Close settings — used when <see cref="PopupFeatureEnum.Closable"/> is set. </summary>
+        public CloseConfig Close = new CloseConfig();
+
         /// <summary> True if any interactive feature is enabled. </summary>
         public bool HasAny => Features != PopupFeatureEnum.None;
+
+        /// <summary>
+        /// The active close button: the configured <see cref="CloseConfig.CloseButton"/> when
+        /// <see cref="PopupFeatureEnum.Closable"/> is enabled, otherwise null. The base popup wires this on show and
+        /// unwires it on hide (see AdvancedPopup.Subscribe / Unsubscribe).
+        /// </summary>
+        public Button CloseButton => (Features & PopupFeatureEnum.Closable) != 0 ? Close.CloseButton : null;
     }
 }

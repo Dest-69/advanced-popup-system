@@ -32,7 +32,7 @@ or behavior changes, and **never bump `package.json` version without asking the 
 | Drag/resize a popup, `Modules`/`PopupFeatureEnum`, pointer system, grips, bounds/anchors, new interactive feature | [[Interaction Modules]] |
 | `Operation`, `OnComplete`/`Cancel`, `CancellationToken` flow, `APSStats` | [[Operations & Cancellation]] |
 | Layers, `PopupLayerEnum`, `ActiveLayer`, autohide | [[Layers]] |
-| On-demand loading: Addressables, lazy/preload, `SpawnAsync`/pool, the resolver seam & generated index | [[Addressables]] |
+| On-demand loading: Addressables, lazy/preload, `SpawnAsync`/pool, the resolver seam & index asset | [[Addressables]] |
 | Hotkeys, key-triggered show/hide, New vs Old input, input-module switch | [[Input & Hotkeys]] |
 | Settings, `AP_Settings.json`, log levels / `APLogger` | [[Settings & Logging]] |
 | APS editor window, generating layers/displays, inspectors, create-popup menu | [[Editor & Codegen]] |

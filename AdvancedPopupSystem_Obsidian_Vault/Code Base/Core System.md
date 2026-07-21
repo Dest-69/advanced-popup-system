@@ -21,16 +21,28 @@ popup ([[Popup Lifecycle]]).
 - **`ActiveLayer`** (`PopupLayerEnum` bitmask) — combined active layers; **only** `Layer*`/`HideAll` here change it
   ([[Layers]]).
 - **Addressables surface** (optional, [[Addressables]]): `Resolver` (`IPopupResolver`, null default → scene-only),
-  `SpawnedPopups` (Lane B, kept out of `AllPopups`), the reuse pool, and `Root` (parent for loaded/spawned popups —
-  auto persistent Canvas, overridable). All follow the leak-guard rule.
+  `SpawnedPopups` (Lane B, kept out of `AllPopups`), the reuse pool, and `Root` (default parent for loaded/spawned
+  popups — auto persistent Canvas, overridable). All follow the leak-guard rule.
+- **`_layerCanvases`** (`Dictionary<PopupLayerEnum, Transform>`, keyed by **single** flag) — per-layer canvas routing
+  (see "Canvas routing" below). Leak-guarded like the rest.
 
 ## Lifetime & cleanup
 
 - `Initialize()` (`[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]`) subscribes `SceneManager.sceneUnloaded` and, in
-  editor, `playModeStateChanged`.
+  editor, `playModeStateChanged`. `SceneManager.sceneLoaded` is subscribed later, in `PreloadOnBoot` (AfterSceneLoad),
+  which also runs the first per-scene pass for the boot scene — `sceneLoaded` doesn't fire for the already-loaded first
+  scene ([[Addressables]] "Per-scene preload/unload").
+- **Per-scene preload/unload (Addressables):** `OnSceneLoaded` → `ProcessScene(scene.path)` releases popups whose
+  unload set includes the scene (`UnloadType`) then eager-loads `Preload` popups that want it. Matched by `Scene.path`
+  against the index's baked scene paths (popups store stable scene **GUIDs**; the generator bakes them to paths) — so
+  reordering Build Settings can't shift it. `UnloadType(typeName)` frees a type's resident unique (Lane-A) instance
+  (`Resolver.Release`, skipping a visible one) and drains its `_pool`/`_singlePool`; scene-authored and user-spawned
+  popups are untouched. **No new static collection** — it reuses the existing registries/pools, so no new leak guard.
+  Mechanism/gotchas in [[Addressables]].
 - **Leak guards ([[Invariants]]):** on `ExitingPlayMode` all registries + `ActiveLayer` are cleared; on scene unload,
-  destroyed (`== null`) entries are pruned and `PopupCacheByType` is rebuilt from survivors. Any new static collection
-  needs the same treatment.
+  destroyed (`== null`) entries are pruned and `PopupCacheByType` is rebuilt from survivors. `_layerCanvases` gets the
+  same pass — mappings whose **canvas** was destroyed are dropped (a reused scratch key-list avoids alloc). Any new
+  static collection needs the same treatment.
 - **Registration:** `InitAdvancedPopup(popup)` (called from `AdvancedPopup.Init`) adds to `AllPopups` + type cache and
   re-sorts; `DeactivateAdvancedPopup(popup)` (from `OnDestroy`) removes from `AllPopups`/`ActivePopups`, and from the
   type cache **only if this popup was the cached representative** — then re-points that type to a surviving instance if
@@ -73,6 +85,35 @@ layer" means vs. what's visible ([[Layers]]). The batch path (`GetPopupsByLayer`
 `Show/HidePopupsAsync` → `HideAllPopupsAsync`) is deliberately LINQ-free — manual loops into pre-sized `List<Task>`, the
 `HideAll` snapshot is a plain `List` copy (still required: `Unsubscribe` mutates `ActivePopups` mid-batch). Don't
 reintroduce `Where`/`Select`/`ToList` on these navigation-triggered paths.
+
+## Canvas routing (per layer)
+
+Only popups **the system instantiates** need routing — Addressable lazy/preload loads (`EnsureEntryLoadedAsync`) and
+`SpawnAsync` (Lane B). Scene-authored popups keep their own hierarchy and never touch this. Both instantiation sites
+resolve the parent through **`GetCanvasForLayer(popupLayer)`** instead of always using `Root`. Mappings live in
+`_layerCanvases` (`Dictionary<single-flag, Transform>`) and come from **two sources**, checked together:
+
+- **Tool config (primary)** — the Layers panel writes a per-layer sorting order + optional canvas prefab to the runtime
+  `LayerCanvasConfig` SO (`Runtime/Settings/LayerCanvasConfig.cs`; cached `Resources.Load`, consumer asset in
+  `Assets/Resources/`; [[Editor & Codegen]], [[Layers]]). `GetCanvasForLayer` → `EnsureLayerCanvases` **lazily
+  materializes** each matching layer's canvas on first use: `CreateLayerCanvas` instantiates the entry's prefab (its
+  `sortingOrder` **forced** to the entry's value — tool beats prefab) or a plain overlay via the shared
+  `CreateCanvas(name, order)` (also backs `Root`), `DontDestroyOnLoad`, cached into `_layerCanvases[flag]`. Name↔flag via
+  `LayerCanvasConfig.TryParseLayer` (`Enum.TryParse`); stale/renamed entries just don't parse and are skipped.
+- **Runtime override** — `RegisterLayerCanvas(layer, canvas)` / `UnregisterLayerCanvas(layer)` split the mask into single
+  bits and store one entry per flag (null clears). A pre-populated `_layerCanvases[flag]` makes `EnsureLayerCanvases` skip
+  that flag → the manual mapping **wins** over the config.
+
+`GetCanvasForLayer` then returns the mapped canvas for the popup's layer, else `Root`. A popup carrying **several mapped
+layers** resolves deterministically to the **lowest-bit** layer's canvas — documented tie-break; give a popup one layer
+to avoid it. Lane A reads the popup's layer from the index asset's `Entry.Layer` (no instance yet at load); Lane B from
+the pooled instance (reuse) or `Entry.Layer` (fresh load). The cached SO is dropped on play-mode exit
+(`LayerCanvasConfig.ClearCache`, beside `_layerCanvases.Clear`); auto-created canvases are `DontDestroyOnLoad` (Unity
+destroys them on exit like `APS_Root`) and dead mappings are pruned on scene unload.
+
+- **Gotcha:** `Preload`/boot loads (`AfterSceneLoad`) may run **before** a consumer's runtime `RegisterLayerCanvas` →
+  those popups take the tool config (or `Root`). Register in `BeforeSceneLoad` (or before `PreloadAll`) if a preloaded
+  popup must start on a specific *runtime-registered* canvas.
 
 ## Escape stack step
 

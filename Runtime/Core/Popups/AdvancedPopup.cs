@@ -21,12 +21,6 @@ namespace AdvancedPS.Core
         /// For public events.
         /// </summary>
         public Action OnHided;
-        /// <summary>
-        /// This field can be null.
-        /// </summary>
-        [Header("REF's")]
-        [Tooltip("This field can be null")]
-        public Button closeButton;
         #endregion
 
         #region Private
@@ -49,7 +43,8 @@ namespace AdvancedPS.Core
         {
             if (_isSubscribed) return;
             _isSubscribed = true;
-            
+
+            Button closeButton = Modules.CloseButton;
             if (closeButton) closeButton.onClick.AddListener(OnCloseButtonPress);
             OnShowing?.Invoke();
             
@@ -63,7 +58,8 @@ namespace AdvancedPS.Core
         {
             if (!_isSubscribed) return;
             _isSubscribed = false;
-            
+
+            Button closeButton = Modules.CloseButton;
             if (closeButton) closeButton.onClick.RemoveListener(OnCloseButtonPress);
             OnHided?.Invoke();
 
@@ -316,9 +312,10 @@ namespace AdvancedPS.Core
 
             if (this == null) return;
             IsVisible = false;
-            // Addressable + Despawn (Lane A only): release the handle so memory can unload; else keep resident.
-            // Spawned Lane B instances are pool-managed via AdvancedPopupSystem.Despawn(), so HideBehavior is ignored here.
-            if (Addressable && AddressableHideBehavior == HideBehavior.Despawn
+            // Addressable Lane-A popup with PoolCapacity 0 ("despawn on hide"): release the handle so memory can unload;
+            // any other capacity keeps the instance resident. Spawned Lane-B instances apply PoolCapacity in
+            // AdvancedPopupSystem.Despawn(), not here.
+            if (Addressable && PoolCapacity == 0
                 && AdvancedPopupSystem.Resolver != null && !AdvancedPopupSystem.SpawnedPopups.Contains(this))
                 AdvancedPopupSystem.Resolver.Release(this);
             else
@@ -378,9 +375,10 @@ namespace AdvancedPS.Core
 
             if (this == null) return;
             IsVisible = false;
-            // Addressable + Despawn (Lane A only): release the handle so memory can unload; else keep resident.
-            // Spawned Lane B instances are pool-managed via AdvancedPopupSystem.Despawn(), so HideBehavior is ignored here.
-            if (Addressable && AddressableHideBehavior == HideBehavior.Despawn
+            // Addressable Lane-A popup with PoolCapacity 0 ("despawn on hide"): release the handle so memory can unload;
+            // any other capacity keeps the instance resident. Spawned Lane-B instances apply PoolCapacity in
+            // AdvancedPopupSystem.Despawn(), not here.
+            if (Addressable && PoolCapacity == 0
                 && AdvancedPopupSystem.Resolver != null && !AdvancedPopupSystem.SpawnedPopups.Contains(this))
                 AdvancedPopupSystem.Resolver.Release(this);
             else

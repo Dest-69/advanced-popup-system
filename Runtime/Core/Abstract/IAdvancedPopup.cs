@@ -103,12 +103,35 @@ namespace AdvancedPS.Core.System
         [Tooltip("When the Addressable asset is loaded: Lazy (on first show) or Preload (up-front on boot).")]
         public LoadMode AddressableLoadMode = LoadMode.Lazy;
         /// <summary>
-        /// What Hide does once the animation finishes: Deactivate (keep the instance resident) or Despawn (release the
-        /// Addressables handle so memory can unload; the popup reloads on the next show). Ignored for spawned (Lane B)
-        /// instances — those are pooled/released via <see cref="AdvancedPopupSystem.Despawn"/>.
+        /// How many idle copies of this popup to keep alive for reuse instead of releasing them — the unified pool /
+        /// on-hide control for Addressable popups. Applies both to a hidden unique popup (Lane A) and to the spawn pool
+        /// (Lane B — <see cref="AdvancedPopupSystem.SpawnAsync{T}"/> / <see cref="AdvancedPopupSystem.Despawn"/>):
+        /// <list type="bullet">
+        /// <item><c>-1</c> — keep unlimited (never released; the default, like a resident scene popup).</item>
+        /// <item><c>0</c> — despawn on hide: release the Addressables handle so memory can unload (reloads next show).</item>
+        /// <item><c>1</c> — a single on/off instance: keep one idle copy for reuse, without allocating a pool.</item>
+        /// <item><c>N</c> (≥2) — pool up to N idle copies; releasing beyond that frees the extras.</item>
+        /// </list>
         /// </summary>
-        [Tooltip("What Hide does once the animation finishes: Deactivate (keep resident) or Despawn (release the handle).")]
-        public HideBehavior AddressableHideBehavior = HideBehavior.Deactivate;
+        [Tooltip("Idle copies kept for reuse:\n-1 = unlimited (never released)\n0 = despawn on hide (free memory)\n1 = single on/off instance (no pool)\n2+ = pool up to N.")]
+        [Min(-1)]
+        public int PoolCapacity = -1;
+        /// <summary>
+        /// Scenes in which a <see cref="LoadMode.Preload"/> popup is <b>preloaded up-front</b>, stored as their
+        /// <b>asset GUIDs</b> (stable identity — reordering Build Settings never remaps them). <b>Empty (the default) =
+        /// "Everyone"</b>: preloaded on every scene, so it loads on the very first scene (the classic boot-preload); list
+        /// specific scenes to preload only when those load. Ignored for Lazy popups (they load purely on demand). On each
+        /// scene load a matching popup is materialized if not already live — a popup shown before its scene arrives still
+        /// loads on demand. The index bakes these GUIDs to scene paths for runtime matching (see AddressablePopupIndex).
+        /// </summary>
+        public List<string> PreloadSceneGuids = new List<string>();
+        /// <summary>
+        /// Scenes on entering which this popup is <b>released from memory</b>, stored as their <b>asset GUIDs</b> (stable
+        /// identity). Applies to any Addressable popup, Lazy or Preload. When a listed scene loads, the resolver releases
+        /// the resident instance (and any pooled idle copies of its type) so the asset can unload; a currently-visible
+        /// instance is skipped. Empty (the default) = "None": never unloads.
+        /// </summary>
+        public List<string> UnloadSceneGuids = new List<string>();
         #endregion
         
         #region Protected
@@ -345,7 +368,7 @@ namespace AdvancedPS.Core.System
         {
             MoveComponentToTop(this);
         }
-        
+
         private static void MoveComponentToTop(Component component)
         {
             Component[] components = component.gameObject.GetComponents<Component>();

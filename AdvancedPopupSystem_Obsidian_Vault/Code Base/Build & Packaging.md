@@ -24,18 +24,20 @@ update. The fix is to keep consumer state **out of the shipped package**, and to
 | Layer set | `ProjectSettings/APS_Layers.json` (consumer project) | outside the package; enum is healed from it ([[Layers]]) |
 | Custom displays | consumer's own `<Name>Display/` folders | not in the package → import never deletes them |
 | `PopupLayerEnum.generated.cs` | ships (needed at compile time) | shipped as a **clean default**, then healed from the store |
-| `AddressablePopupIndex.generated.cs` | ships (needed at compile time) | shipped **empty**; rescanned from the consumer's prefabs |
+| Addressable index | `Assets/Resources/APS_AddressablePopupIndex.asset` (consumer project) | outside the package; rescanned from the consumer's prefabs |
 
-**Why the two generated files must still ship:** both are compile-time dependencies of the public API
-(`LayerShow(PopupLayerEnum)`, `AddressablePopupIndex.Entries`). Omitting them breaks the *fresh*-install compile before
-any generator could run, so "generate only at startup" is impossible for them — ship a clean default and protect it from
-overwrite instead (layer heal; index rescan).
+**Why the layer enum must still ship:** `PopupLayerEnum` is a compile-time dependency of the public API
+(`LayerShow(PopupLayerEnum)`). Omitting it breaks the *fresh*-install compile before any generator could run, so
+"generate only at startup" is impossible for it — ship a clean default and heal it from the store instead. The
+Addressable index has no such constraint: it is **data** (`AddressablePopupIndexAsset`, read at runtime), so it lives in
+the consumer's Resources like the settings and is simply rescanned — a missing asset is just an empty catalog.
 
 ## `FileSearcher` default-content safety net
 
-When a generated file is missing, `FileSearcher` seeds a **compilable** default (never an empty `.cs` — that removes the
-`PopupLayerEnum` type / the `Entries` array and hard-fails compilation). `DefaultLayersEnumContent` = `None`-only enum;
-`DefaultAddressableIndexContent` = empty index. Guarded `#if UNITY_EDITOR` (only meaningful in the editor).
+When the generated `PopupLayerEnum` file is missing, `FileSearcher` seeds a **compilable** default (never an empty `.cs`
+— that removes the `PopupLayerEnum` type and hard-fails compilation): `DefaultLayersEnumContent` = `None`-only enum,
+guarded `#if UNITY_EDITOR`. The Addressable index needs no such seed — it is a data asset, so a missing asset is simply
+an empty catalog.
 
 ## The exporter (`APSPackageExporter`)
 

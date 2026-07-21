@@ -8,8 +8,9 @@ namespace AdvancedPS.Core
     /// <summary>
     /// Resizes the popup while the pointer drags a grip, keeping the opposite edge fixed and clamping size + bounds.
     /// Size is applied with <see cref="RectTransform.SetSizeWithCurrentAnchors"/> so it is correct for any anchors.
+    /// Also drives the hover cursor (<see cref="IPopupCursorHandler"/>): a directional arrow over each grip.
     /// </summary>
-    public class ResizeFeatureHandler : IPopupFeatureHandler
+    public class ResizeFeatureHandler : IPopupFeatureHandler, IPopupCursorHandler
     {
         public bool TryBegin(IAdvancedPopup popup, Vector2 pointerScreen, Canvas canvas, Camera camera, out GestureState state)
         {
@@ -20,29 +21,19 @@ namespace AdvancedPS.Core
             if (rect == null || parent == null) return false;
 
             ResizeConfig cfg = popup.Modules.Resize;
-            if (cfg == null || cfg.Grips == null) return false;
+            if (!TryGetGrip(cfg, pointerScreen, camera, out ResizeGrip grip)) return false;
+            if (!PopupRectUtility.ScreenToLocal(parent, pointerScreen, camera, out Vector2 startLocal)) return false;
 
-            List<ResizeGrip> grips = cfg.Grips;
-            for (int i = 0; i < grips.Count; i++)
-            {
-                ResizeGrip grip = grips[i];
-                if (grip.Rect == null || grip.Direction == ResizeDirection.None) continue;
-                if (!RectTransformUtility.RectangleContainsScreenPoint(grip.Rect, pointerScreen, camera)) continue;
-                if (!PopupRectUtility.ScreenToLocal(parent, pointerScreen, camera, out Vector2 startLocal)) continue;
-
-                state.Popup = popup;
-                state.Rect = rect;
-                state.Parent = parent;
-                state.Canvas = canvas;
-                state.Camera = camera;
-                state.PointerStartLocal = startLocal;
-                state.InitialAnchoredPos = rect.anchoredPosition;
-                state.InitialSize = rect.rect.size;
-                state.GripDir = grip.Direction;
-                return true;
-            }
-
-            return false;
+            state.Popup = popup;
+            state.Rect = rect;
+            state.Parent = parent;
+            state.Canvas = canvas;
+            state.Camera = camera;
+            state.PointerStartLocal = startLocal;
+            state.InitialAnchoredPos = rect.anchoredPosition;
+            state.InitialSize = rect.rect.size;
+            state.GripDir = grip.Direction;
+            return true;
         }
 
         public void Update(Vector2 pointerScreen, ref GestureState state)
@@ -65,5 +56,47 @@ namespace AdvancedPS.Core
         }
 
         public void End(ref GestureState state) { }
+
+        /// <summary>
+        /// Cursor feedback: when the pointer is over a grip, report the matching directional arrow from the popup's
+        /// <see cref="ResizeConfig.Cursors"/> (or the shipped <see cref="ResizeCursorSet.Default"/> when unset).
+        /// </summary>
+        public bool TryGetCursor(IAdvancedPopup popup, Vector2 pointerScreen, Camera camera, out PopupCursor cursor)
+        {
+            cursor = default;
+
+            ResizeConfig cfg = popup.Modules.Resize;
+            if (cfg == null || !cfg.ChangeCursor) return false;
+            if (!TryGetGrip(cfg, pointerScreen, camera, out ResizeGrip grip)) return false;
+
+            ResizeCursorSet set = cfg.Cursors != null ? cfg.Cursors : ResizeCursorSet.Default;
+            if (set == null) return false;
+
+            Texture2D texture = set.Resolve(grip.Direction);
+            if (texture == null) return false;
+
+            cursor = new PopupCursor(texture, set.Hotspot);
+            return true;
+        }
+
+        /// <summary> First grip whose rect contains the pointer (shared by begin + cursor hit-testing). </summary>
+        private static bool TryGetGrip(ResizeConfig cfg, Vector2 pointerScreen, Camera camera, out ResizeGrip grip)
+        {
+            grip = default;
+            if (cfg == null || cfg.Grips == null) return false;
+
+            List<ResizeGrip> grips = cfg.Grips;
+            for (int i = 0; i < grips.Count; i++)
+            {
+                ResizeGrip candidate = grips[i];
+                if (candidate.Rect == null || candidate.Direction == ResizeDirection.None) continue;
+                if (!RectTransformUtility.RectangleContainsScreenPoint(candidate.Rect, pointerScreen, camera)) continue;
+
+                grip = candidate;
+                return true;
+            }
+
+            return false;
+        }
     }
 }

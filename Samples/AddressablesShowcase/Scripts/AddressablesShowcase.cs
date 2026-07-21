@@ -5,7 +5,7 @@ namespace AdvancedPS.Core.Examples
 {
     /// <summary>
     /// Addressables feature demo. Builds a small button bar at runtime and drives popups through the public API:
-    /// a SCENE popup (immediate), a LAZY Addressable HUB popup (loads on first show), a PRELOAD Addressable LOGIN popup
+    /// a SCENE popup (immediate), a LAZY Addressable MENU popup (loads on first show), a PRELOAD Addressable GUI popup
     /// (loaded at boot → instant), and pooled TOASTs via SpawnAsync. Every popup is draggable. Intentionally small —
     /// see documentation §9 "On-Demand Loading with Addressables".
     /// </summary>
@@ -23,8 +23,8 @@ namespace AdvancedPS.Core.Examples
 
             RectTransform bar = BuildColumn();
             // LayerShow returns an Operation; fire-and-forget from a button is fine (autohide:false so they stack).
-            ShowcaseUI.Button(bar, "Show HUB (lazy load)", () => AdvancedPopupSystem.LayerShow(PopupLayerEnum.HUB, autohide: false));
-            ShowcaseUI.Button(bar, "Show LOGIN (preloaded)", () => AdvancedPopupSystem.LayerShow(PopupLayerEnum.LOGIN, autohide: false));
+            ShowcaseUI.Button(bar, "Show MENU (lazy load)", () => AdvancedPopupSystem.LayerShow(PopupLayerEnum.MENU, autohide: false));
+            ShowcaseUI.Button(bar, "Show GUI (preloaded)", () => AdvancedPopupSystem.LayerShow(PopupLayerEnum.GUI, autohide: false));
             ShowcaseUI.Button(bar, "Toggle SCENE popup", ToggleScene);
             ShowcaseUI.Button(bar, "Spawn toast", SpawnToast);
             ShowcaseUI.Button(bar, "Hide all", () => AdvancedPopupSystem.HideAll());

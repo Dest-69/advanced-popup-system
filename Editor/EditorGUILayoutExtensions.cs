@@ -6,6 +6,17 @@ namespace AdvancedPS.Editor
 {
     public static class EditorGUILayoutExtensions
     {
+        /// <summary>
+        /// Centered, bold section title followed by a divider — the shared header for the inspector's boxes
+        /// (General Settings, Modules, Addressable, Pool, …). Replaces the repeated FlexibleSpace/Label/FlexibleSpace
+        /// blocks so every section reads the same.
+        /// </summary>
+        public static void DrawSectionHeader(string title)
+        {
+            GUILayout.Label(title, APSEditorStyles.HeaderLabelStyle);
+            DrawHorizontalLine();
+        }
+
         public static void DrawHorizontalLine(Color color = default, float thickness = 1f, float padding = 5f, float margin = 0f)
         {
             if (color == default)

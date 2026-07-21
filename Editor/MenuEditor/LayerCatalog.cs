@@ -21,7 +21,7 @@ namespace AdvancedPS.Editor
     internal static class LayerCatalog
     {
         /// <summary>Starter layers a fresh consumer gets when no external store exists yet.</summary>
-        internal static readonly string[] DefaultLayerNames = { "LOGIN", "REGISTRATION", "HUB", "SETTINGS" };
+        internal static readonly string[] DefaultLayerNames = { "GUI", "GAME", "MENU", "OVERLAY" };
 
         private const string StoreFileName = "APS_Layers.json";
 

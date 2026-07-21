@@ -534,7 +534,7 @@ MonoBehaviour:
       m_PersistentCalls:
         m_Calls: []
   Modules:
-    Features: -1
+    Features: 6
     Drag:
       DragZone: {fileID: 0}
       Bounds: 0
@@ -571,10 +571,17 @@ MonoBehaviour:
         m_Right: 0
         m_Top: 0
         m_Bottom: 0
+      ChangeCursor: 1
+      Cursors: {fileID: 0}
+    Close:
+      CloseButton: {fileID: 656733710934973990}
   Addressable: 1
   AddressableLoadMode: 1
-  AddressableHideBehavior: 0
-  closeButton: {fileID: 0}
+  PoolCapacity: 1
+  PreloadInAllScenes: 1
+  PreloadSceneGuids: []
+  UnloadSceneGuids: []
+  _sceneMaskInitialized: 1
 --- !u!225 &4889653640107928591
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -738,7 +745,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "PRELOAD popup\n\n\u2014 drag me \u2014\n\u2014 resize me \u2014"
+  m_Text: "PRELOAD popup\n\n\u2014 resize me \u2014"
 --- !u!1 &8619230809317641761
 GameObject:
   m_ObjectHideFlags: 0

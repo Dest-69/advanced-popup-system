@@ -18,7 +18,7 @@ They are also the most faithful **usage references** for the public API.
 - **EasingShowcase** — demonstrates the `EasingType` curves (with `InfoBlock`) via the built-in displays.
 - **PerformanceShowcase** — stress test of many simultaneous show/hide operations.
 - **AddressablesShowcase** (`APS_ADDRESSABLES` define) — demos on-demand loading ([[Addressables]]): a scene popup
-  (immediate), a lazy Addressable popup (HUB), a preloaded-at-boot Addressable popup (LOGIN), and pooled `SpawnAsync`
+  (immediate), a lazy Addressable popup (MENU), a preloaded-at-boot Addressable popup (GUI), and pooled `SpawnAsync`
   toasts, driven by a code-built button bar; all draggable. The demo popups build their own visuals in `Init`, so the
   prefabs are bare (one distinct `AdvancedPopup` subclass per type — the index is type-keyed).
 - **InputSwitcher** (`Samples/Utils`) — auto-swaps the EventSystem input module under `ENABLE_INPUT_SYSTEM` when

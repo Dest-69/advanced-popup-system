@@ -24,7 +24,7 @@ namespace AdvancedPS.Core.Examples
         {
             _buttonShow.onClick.AddListener(() =>
             {
-                AdvancedPopupSystem.LayerShow(PopupLayerEnum.HUB);
+                AdvancedPopupSystem.LayerShow(PopupLayerEnum.MENU);
                 _buttonShow.interactable = false;
                 _buttonHide.interactable = true;
             });
@@ -32,7 +32,7 @@ namespace AdvancedPS.Core.Examples
             _buttonHide.interactable = false;
             _buttonHide.onClick.AddListener(() =>
             {
-                AdvancedPopupSystem.LayerHide(PopupLayerEnum.HUB);
+                AdvancedPopupSystem.LayerHide(PopupLayerEnum.MENU);
                 _buttonShow.interactable = true;
                 _buttonHide.interactable = false;
             });

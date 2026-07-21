@@ -1,11 +1,11 @@
 ---
 type: code
 status: active
-description: On-demand popup loading via Addressables — the resolver seam, the generated index, the two loading lanes (unique auto-resolve vs explicit spawn/pool), Root parenting, preload, and the optional runtime/editor assemblies. Read when touching loading, spawning, or the index codegen.
+description: On-demand popup loading via Addressables — the resolver seam, the index data asset, the two loading lanes (unique auto-resolve vs explicit spawn/pool), Root parenting, preload, and the optional runtime/editor assemblies. Read when touching loading, spawning, or the index asset.
 code_paths:
   - Assets/advanced-popup-system/Runtime/Core/APSystem/IPopupResolver.cs
   - Assets/advanced-popup-system/Runtime/Core/APSystem/AddressablePopupIndex.cs
-  - Assets/advanced-popup-system/Runtime/Generated/AddressablePopupIndex.generated.cs
+  - Assets/advanced-popup-system/Runtime/Core/APSystem/AddressablePopupIndexAsset.cs
   - Assets/advanced-popup-system/Runtime/Addressables/
   - Assets/advanced-popup-system/Editor/Addressables/
 ---
@@ -26,10 +26,17 @@ into the seam at load; without the package the seam stays null.
 
 ## The index (catalog)
 
-`AddressablePopupIndex` (`internal`, partial): the **generated data half**
-(`Runtime/Generated/AddressablePopupIndex.generated.cs`) is an `Entry[]` of `{TypeName, Address, Layer, LoadMode,
-HideBehavior}`; the **hand-written half** (`AddressablePopupIndex.cs`) is the queries (`ForLayer`, `Preloads`,
-`TryGetByTypeName`, `HasEntries`).
+The catalog is a **data asset**: `AddressablePopupIndexAsset` (a `ScriptableObject` at the consumer's
+`Assets/Resources/APS_AddressablePopupIndex.asset`, loaded once + cached via `Loaded`) holds an `Entry[]` of
+`{TypeName, Address, Layer, LoadMode, PreloadScenePaths, UnloadScenePaths}` (empty `PreloadScenePaths` = every scene;
+empty `UnloadScenePaths` = never unload). `AddressablePopupIndex` (`internal static`) is the **query half**
+(`ForLayer`, `Preloads`, `PreloadsForScene(scenePath)`,
+`UnloadsForScene(scenePath)`, `TryGetByTypeName`, `HasEntries`). **Scene selection is by stable identity, not
+position:** the popup stores scene **asset GUIDs**; the generator resolves them to current scene **paths**
+(`PreloadScenePaths`/`UnloadScenePaths`) and bakes those, so the runtime matches `Scene.path` with **no AssetDatabase**
+and reordering Build Settings never shifts anything (see "Per-scene preload/unload"). **Data, not codegen:** the
+generator writes the asset (so flagging a popup Addressable no longer recompiles or reloads the domain), and the `Entry`
+shape lives in **one** place — the SO — with no kept-in-sync copies to break.
 
 - **Keyed by type `FullName` (string), not `Type`** — deliberate: user popups live in the **consumer** assembly, which
   references APS, not vice-versa, so this core-side file cannot `typeof` them. The string also bridges the scene-wins
@@ -51,16 +58,45 @@ HideBehavior}`; the **hand-written half** (`AddressablePopupIndex.cs`) is the qu
 
 ## Loading, parenting, preload
 
-- **Parenting:** loaded/spawned popups go under `AdvancedPopupSystem.Root` — an auto-created persistent
-  (DontDestroyOnLoad) overlay Canvas by default, overridable (assign your own before the first load); `SpawnAsync` takes
-  an explicit parent. Scene-authored popups never touch it.
-- **Preload:** `LoadMode.Preload` entries load up-front. `PreloadOnBoot` (`[RuntimeInitializeOnLoadMethod`
-  **`AfterSceneLoad`**`]`) runs the pass — *after* scene load so scene-authored popups have registered and scene-wins
-  can suppress duplicates. The resolver registers at **`BeforeSceneLoad`**, so it is set in time. `PreloadAll()` /
-  `PreloadLayer(layer)` return `Operation`s to gate a loading screen.
-- **HideBehavior** (Lane A, in `AdvancedPopup.HideAsync`): `Deactivate` keeps the instance resident (default, like
-  scene popups); `Despawn` releases the Addressables handle on hide so memory can unload. Spawned Lane B instances
-  ignore it (pool-managed via `Despawn`).
+- **Parenting:** loaded/spawned popups go under **`GetCanvasForLayer(popupLayer)`** — the canvas mapped to the popup's
+  layer via `RegisterLayerCanvas`, else `AdvancedPopupSystem.Root` (auto persistent DontDestroyOnLoad overlay Canvas,
+  overridable). This is the per-layer canvas routing (HUD vs dialogs vs … on independent sort orders — mechanism in
+  [[Core System]] "Canvas routing", surfaced on [[Layers]]). `SpawnAsync` still takes an explicit `parent` that wins
+  when non-null. Scene-authored popups never touch any of this.
+- **Per-scene preload/unload:** `ProcessScene(scenePath)` (`Core System`) runs for the boot scene and on every
+  `SceneManager.sceneLoaded`, matched by **`Scene.path`** against the entries' baked paths (identity-based → reordering
+  Build Settings never shifts it; no 31-scene cap). It **unloads then preloads** (a scene in both a popup's sets ends up
+  loaded): release entries whose `UnloadScenePaths` contains the path via `UnloadType`, then eager-load `LoadMode.Preload`
+  entries that want it (**empty** `PreloadScenePaths` = every scene, else `PreloadScenePaths` contains it) and aren't
+  `IsLive`. **Empty = Everyone** for preload (so the untouched default → matches the first scene → boot preload) and
+  **empty = None** for unload (never) — no separate flag, and a fresh/old popup deserializes to empty either way, so
+  there is no migration. **Preload is a hint, not a gate:** a popup shown before its preload scene still loads on demand
+  (the show / `EnsureLayerLoadedAsync` path is scene-agnostic — the "load, don't fall back" requirement). `LoadMode` is
+  **kept** and orthogonal: `Lazy` ignores the preload scenes (on-demand only, and the inspector hides them), `Preload`
+  adds the eager scene loads; the unload set applies to both.
+- **Boot wiring gotcha:** `sceneLoaded` does **not** fire for the already-loaded first scene, so `PreloadOnBoot`
+  (`[RuntimeInitializeOnLoadMethod` **`AfterSceneLoad`**`]`) both *subscribes* `sceneLoaded` (idempotent `-=`/`+=`)
+  **and** runs `ProcessScene` once for the boot scene. AfterSceneLoad (not Before) so scene-authored popups have
+  registered and scene-wins can suppress duplicates; the resolver registered at **`BeforeSceneLoad`**, so it is set.
+  `PreloadAll()` / `PreloadLayer(layer)` still return `Operation`s and load **all** `Preload` entries regardless of
+  scene — for gating a loading screen.
+- **`UnloadType(typeName)`** (`Core System`): releases the resident unique (Lane-A) instance via `Resolver.Release`
+  (its `OnDestroy` prunes the registries) + drains `_pool`/`_singlePool` of that type; **skips a visible
+  (`IsBeVisible`) instance** and user-owned `SpawnedPopups`. Releasing a scene-authored popup is a no-op (the resolver
+  only frees what it created), so scene-wins popups are safe. No new static collection → no new leak guard.
+- **`IAdvancedPopup.PoolCapacity`** (one value, both lanes): how many idle copies to keep alive instead of releasing.
+  `-1` = keep unlimited (default; resident, like a scene popup), `0` = **despawn on hide** (release the handle so memory
+  can unload; reloads next show), `1` = a **single on/off instance** (one idle copy, no pool list), `N` (≥2) = keep at
+  most N idle copies. This **replaced** the old `HideBehavior` enum (`Despawn` ≡ capacity `0`) + `MaxPoolCount` — one
+  field, no separate enum.
+  - **Lane A** (`AdvancedPopup.HideAsync`): only `0` vs non-`0` matters — a unique popup either releases on hide (`0`) or
+    stays resident (any other value; the single instance can't "pool").
+  - **Lane B** (`AdvancedPopupSystem.Despawn`, `release:false`): `0` → release now; `1` → **`_singlePool`** (one retained
+    instance per type, a light `Dictionary<string, IAdvancedPopup>` — no list allocated for the single-instance case);
+    `-1` → unlimited **`_pool`** list; `N` (≥2) → `_pool` list of up to N, release the extra. `SpawnAsync` reuses
+    `_singlePool` before `_pool`. `Despawn(…, release:true)` always releases regardless of capacity. Both stores obey the
+    leak-guard rule (cleared on play-mode exit, dead entries pruned on scene unload — [[Core System]]).
+  - Inspector: the **Pool** box — an info box + a `Pool Capacity` slider (−1…64, manual entry allows >64), see "Editor tooling".
 
 ## Optional assemblies (isolation, mirrors DoTween/input)
 
@@ -77,10 +113,18 @@ Both gated by `APS_ADDRESSABLES` (a `versionDefine` on `com.unity.addressables`,
 `AddressablePopupIndexGenerator.Regenerate()` (menu `Tools/Advanced Popup System/…`, and auto via
 `AddressablePopupPostprocessor` on any `.prefab` change, deferred + idempotent): scans `t:Prefab` for
 `IAdvancedPopup.Addressable`, `CreateOrMoveEntry` into the **"Advanced Popup System"** group with address = type
-FullName, prunes un-flagged entries, and rewrites the index (only when content changed → no recompile churn). The
-inspector (`IAdvancedPopupEditor`) shows an "Addressable" box (toggle + `LoadMode`) and a **separate "Pool" box**
-(`HideBehavior`, labelled "On Hide"); both are editable only on the prefab asset (`IsEditingPrefabAsset`), read-only with
-a small note on a scene object.
+FullName, prunes un-flagged entries, and writes the `AddressablePopupIndexAsset` (only when the catalog changed → no
+recompile, no domain reload). The
+inspector (`IAdvancedPopupEditor`) shows an "Addressable" box (toggle + `LoadMode`, plus a **Preload Scenes** control
+shown only when `LoadMode == Preload` and always an **Unload Scenes** checklist) and a **separate "Pool" box** — an info
+box explaining the values plus a custom `Pool Capacity` control (`PoolCapacity`): a slider (−1…64) fed a clamped value +
+an `IntField` that is the source of truth and accepts manual values >64 (lower-clamped to −1). Both boxes are editable
+only on the prefab asset (`IsEditingPrefabAsset`), read-only with a small note on a scene object. Scene selection:
+`DrawPreloadScenes` = a `DrawSceneChecklist` + a hint when nothing is checked ("→ preloads in every scene", i.e. the
+empty=Everyone default); `DrawSceneChecklist` writes scene **GUIDs** into the `List<string>` (`s.guid.ToString()` from
+`EditorBuildSettings.scenes`, unioned with any already-stored GUID so a scene later dropped from Build Settings stays
+removable). **Single-object edit only** — multi-select shows a note (per-object lists differ). Toggling a row does
+`arraySize++`/`DeleteArrayElementAtIndex` on the list property.
 
 ## Gotchas
 
@@ -92,11 +136,21 @@ a small note on a scene object.
   sharing a type. Give each Addressable popup a distinct `AdvancedPopup` subclass.
 - **`TryGetPopup<T>` stays synchronous** → returns only *resident* popups (scene / preloaded / already loaded); "load if
   missing" happens only on the async paths (`LayerShow`/`Show`/`SpawnAsync`). This is why `Preload` matters for sync gets.
+- **Empty preload list = Everyone (no migration).** There is deliberately no "all scenes" bool: an **empty**
+  `PreloadSceneGuids` means "preload everywhere" (the default), a non-empty list narrows it. Because empty is the natural
+  deserialization default for both a fresh popup and one serialized before the field existed, no migration guard is
+  needed. Trade-off: a popup scoped to specific scenes that are **all later deleted** goes empty → flips to "everywhere"
+  (rare; "preload nowhere" is what Lazy already expresses).
+- **Determinism: identity, not position.** The popup stores scene **GUIDs**, so reordering / adding / removing scenes in
+  Build Settings never re-points a selection (the whole reason for GUIDs over a build-index bitmask). The generator bakes
+  GUID→**path** for runtime; a scene **rename/move** changes the path, so `AddressablePopupPostprocessor` also regenerates
+  on moved/deleted `.unity` (a plain scene *save* re-imports without a path change and is ignored — no churn). A stored
+  GUID that no longer resolves (scene deleted) is skipped by `GuidsToScenePaths` and simply drops from the baked paths.
 - `AdvancedPopupInstantiate` (the old NoOp stub) was **removed** — its planned role is now `SpawnAsync`/`Despawn` + the
   pool ([[Popup Lifecycle]]). Breaking API change — see [[Shipped Docs]] CHANGELOG.
 
 ## Depends on
 
 - [[Invariants]] (lean runtime / optional-assembly rule, static cleanup), [[Core System]] (registries, Root, preload,
-  HideAll), [[Popup Lifecycle]] (fields, HideBehavior, spawn), [[Operations & Cancellation]] (`Operation` return type),
+  HideAll), [[Popup Lifecycle]] (fields, PoolCapacity, spawn), [[Operations & Cancellation]] (`Operation` return type),
   [[Editor & Codegen]] (the generator), [[Project Map]] (assemblies & the `APS_ADDRESSABLES` define)

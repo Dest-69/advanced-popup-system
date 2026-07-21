@@ -24,7 +24,7 @@ namespace AdvancedPS.Core.System
         /// <paramref name="parent"/>. The new instance's <c>Init()</c> self-registers it with the system, so callers
         /// find it in the usual registries afterwards. Returns null on failure (the resolver logs the reason).
         /// </summary>
-        /// <param name="address">Addressable key from the generated index.</param>
+        /// <param name="address">Addressable key from the index.</param>
         /// <param name="parent">Where to parent the instance — typically <see cref="AdvancedPopupSystem.Root"/>.</param>
         /// <param name="token">Cancels the load in flight (e.g. a following transition on the same popup).</param>
         Task<IAdvancedPopup> LoadAsync(string address, Transform parent, CancellationToken token);
