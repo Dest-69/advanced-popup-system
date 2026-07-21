@@ -148,9 +148,9 @@ See the [full documentation](documentation.md) for the complete API, custom-disp
 The **APS Editor Window** allows you to see all registered popups and trace active operations or tasks at runtime.
 
 <p align="center">
-  <img width="32%" alt="Editor View 1" src="https://github.com/user-attachments/assets/e2dff5a4-a9ba-42b1-864d-9c1542a8f464" />
-  <img width="32%" alt="Editor View 2" src="https://github.com/user-attachments/assets/e3aa166e-9ec5-42db-870c-1641192fc5ff" />
-  <img width="32%" alt="Editor View 3" src="https://github.com/user-attachments/assets/0af6ae6c-4b52-4f80-b53b-e96861a661a3" />
+  <img width="32%" alt="Editor View 1" src="https://github.com/user-attachments/assets/f484cfa7-addc-4af8-bbd2-5b9b18427674" />
+  <img width="32%" alt="Editor View 2" src="https://github.com/user-attachments/assets/d7663a35-f90a-4745-9255-9c9b67468293" />
+  <img width="32%" alt="Editor View 3" src="https://github.com/user-attachments/assets/8b8f56a8-543e-48ca-a61e-ed56e7cb5128" />
 </p>
 
 ### Popup Inspector Configuration
@@ -158,7 +158,8 @@ The **APS Editor Window** allows you to see all registered popups and trace acti
 Configure custom animations, keys, child popups, and layer masks directly in the inspector:
 
 <p align="center">
-  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/bfbb330a-639e-4d9b-9aaa-fb431146e640" />
+  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/54e29df7-a352-4394-8304-b058e8342b22" />
+  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/e29c4014-9be0-4f9e-9f53-7d21746e1ec0" />
 </p>
 
 ### Animation Showcases
