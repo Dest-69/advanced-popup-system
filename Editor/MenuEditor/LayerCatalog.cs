@@ -211,14 +211,17 @@ namespace AdvancedPS.Editor
 
         #region Helpers
 
-        /// <summary>Uppercase, spaces/dashes → underscore, collapse repeats — mirrors the Layers panel validation.</summary>
+        /// <summary>
+        /// Uppercase, spaces/dashes → underscore, collapse repeats — mirrors the Layers panel validation. Allows digits
+        /// but not as the first char (valid C# enum-member rule); must stay in sync with that panel's validator.
+        /// </summary>
         internal static string Sanitize(string name)
         {
             if (name == null) return null;
             name = Regex.Replace(name, @"[\s-]+", "_");
             name = Regex.Replace(name, "_+", "_");
             name = name.ToUpperInvariant();
-            return name.Length > 0 && Regex.IsMatch(name, @"^[A-Z_]+$") ? name : null;
+            return Regex.IsMatch(name, @"^[A-Z_][A-Z0-9_]*$") ? name : null;
         }
 
         private static string[] Normalize(IEnumerable<string> names)

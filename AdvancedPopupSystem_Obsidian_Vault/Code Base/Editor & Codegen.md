@@ -17,7 +17,9 @@ PackageManager or a walked `package.json`; `"Dev"` fallback).
 
 ## Layer generation (`PopupLayerEditorPanel` → `LayerCatalog`)
 
-The panel edits names and validates to `UPPER_CASE` (spaces/dashes → `_`); **Auto-Save** persists in `PlayerPrefs`
+The panel edits names and validates to `UPPER_CASE` (spaces/dashes → `_`; ASCII letters/digits/underscore, no leading
+digit — `ValidateAndFormatEnumName` and `LayerCatalog.Sanitize` share the `^[A-Z_][A-Z0-9_]*$` rule and **must stay in
+sync**, else a name the panel accepts is stripped on save); **Auto-Save** persists in `PlayerPrefs`
 (`APS_AutoSaveEnabled`). All persistence/codegen is centralized in **`LayerCatalog`** (the single codegen path):
 
 - **Source of truth is external** — `LayerCatalog.SaveNames` writes the ordered list to `ProjectSettings/APS_Layers.json`
@@ -29,6 +31,11 @@ The panel edits names and validates to `UPPER_CASE` (spaces/dashes → `_`); **A
   consumer code that references them to compile. `[InitializeOnLoadMethod]` is a secondary post-reload safety net; a
   `SuppressReconcile` flag lets the exporter stage clean defaults without the heal fighting it. This is the
   **non-destructive-update** mechanism ([[Layers]], [[Build & Packaging]]).
+- **Gotcha — "+" adds an empty "being named" row that must NOT dirty the set.** `AddLayer` appends a blank entry to
+  `_enumNames` but leaves `_namesChanged` false. `SaveChanges` strips empty names, so if adding dirtied the set, with
+  Auto-Save on `DrawFooter` would run `SaveChanges` + `LoadState` in the *same* OnGUI pass and wipe the row before it
+  could be typed into — the "+ button does nothing" bug. The set is dirtied only when `RenameLayer` gives the row a
+  valid name (which then triggers the codegen path).
 
 Hand-editing the file is futile — it's regenerated from the store ([[Invariants]], [[Layers]]).
 

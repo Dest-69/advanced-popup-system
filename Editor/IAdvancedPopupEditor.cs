@@ -337,7 +337,15 @@ namespace AdvancedPS.Editor
         
         private void DrawBoolPropertiesInGrid()
         {
-            DrawInlineToggle(_autoHideOnInitProperty);
+            // Addressable popups always initialize hidden (see IAdvancedPopup.Init) — the flag does nothing for them,
+            // so show it read-only with a note instead of a toggle that looks meaningful but is ignored.
+            bool addressable = _addressableProperty != null && _addressableProperty.boolValue;
+            using (new EditorGUI.DisabledScope(addressable))
+                DrawInlineToggle(_autoHideOnInitProperty);
+            if (addressable)
+                GUILayout.Label("Ignored — Addressable popups always load hidden (shown via Show()).",
+                    APSEditorStyles.WarpedTextStyle);
+
             DrawInlineToggle(_manualInitProperty);
         }
 

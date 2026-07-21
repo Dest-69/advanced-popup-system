@@ -182,7 +182,7 @@ namespace AdvancedPS.Editor
             string validated = ValidateAndFormatEnumName(raw);
             if (validated == null)
             {
-                APLogger.LogWarning("Invalid layer name.");
+                APLogger.LogWarning($"Invalid layer name '{raw}'. Use Latin letters, digits and underscore only; it can't start with a digit.");
                 return;
             }
 
@@ -206,9 +206,12 @@ namespace AdvancedPS.Editor
 
         private static void AddLayer()
         {
+            // Append an empty "being named" row. Deliberately do NOT set _namesChanged: an unnamed row is not part of
+            // the persisted set (SaveChanges strips empties), and with Auto-Save on it would make DrawFooter run
+            // SaveChanges + LoadState this same OnGUI pass, wiping the row before it can be typed into — the "+" button
+            // would look like a no-op. RenameLayer dirties the set once the row gets a valid name.
             System.Array.Resize(ref _enumNames, _enumNames.Length + 1);
             _enumNames[_enumNames.Length - 1] = string.Empty;
-            _namesChanged = true;
         }
 
         private static void DeleteLayer(int i)
@@ -302,7 +305,9 @@ namespace AdvancedPS.Editor
             enumName = Regex.Replace(enumName, "_+", "_");       // collapse consecutive underscores
             enumName = enumName.ToUpper();
             if (enumName.Length == 0) return string.Empty;
-            return !Regex.IsMatch(enumName, @"^[A-Z_]+$") ? null : enumName;
+            // Enum members may contain digits (UI2, LAYER1) but must not start with one, and stay ASCII — matches C#
+            // identifier rules and LayerCatalog.Sanitize (which must agree, or a name the panel accepts is stripped on save).
+            return !Regex.IsMatch(enumName, @"^[A-Z_][A-Z0-9_]*$") ? null : enumName;
         }
 
         #endregion
