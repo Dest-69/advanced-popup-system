@@ -1,4 +1,8 @@
 # Changelog
+## [1.25.0] - 2026-07-22
+### Added
+- **Open a popup in one line** — call any popup straight by its type: it loads from Addressables on the spot if it isn't in the scene yet, then shows (and a matching one-liner hides it). Need the popup object itself? A new await-able getter returns it, loading it first when necessary. No more grabbing a reference or opening a whole layer just to show one screen.
+
 ## [1.24.0] - 2026-07-21
 ### Added
 - **Per-scene preload & unload** — each Addressable popup can now pick *which scenes* preload it and *which scenes* free it from memory, right in the inspector. Preload a screen's popups only when their scene loads (default: on the first scene), and drop them again when you move on — so memory follows the player through your game. A popup you open before its preload scene still loads on the spot, no setup needed. Choices are remembered per scene, so reordering your Build Settings never disturbs them.

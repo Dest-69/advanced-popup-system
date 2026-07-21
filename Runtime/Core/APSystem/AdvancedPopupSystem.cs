@@ -61,6 +61,14 @@ namespace AdvancedPS.Core
         private static readonly Dictionary<string, IAdvancedPopup> _singlePool = new();
         /// <summary> Scratch reused by <see cref="OnSceneUnloaded"/> to prune dead single-slot entries without allocating. </summary>
         private static readonly List<string> _deadPoolKeys = new();
+        /// <summary>
+        /// Loads currently in flight for a Lane-A unique type, keyed by popup <see cref="Type"/>. Lets concurrent
+        /// <see cref="GetPopupAsync{T}"/> / <see cref="Show{T}"/> calls for the same not-yet-loaded type share one load
+        /// instead of each instantiating a duplicate. An entry lives only for its load — <see cref="RemoveInFlightWhenComplete"/>
+        /// drops it on completion. Cleared on play-mode exit; needs no scene-unload prune (entries are self-removing and
+        /// hold a Task, never a destroyable Unity reference — unlike the instance pools).
+        /// </summary>
+        private static readonly Dictionary<Type, Task<IAdvancedPopup>> _inFlightLoads = new();
         #endregion
 
         #region INIT
@@ -88,6 +96,7 @@ namespace AdvancedPS.Core
                 SpawnedPopups.Clear();
                 _pool.Clear();
                 _singlePool.Clear();
+                _inFlightLoads.Clear();
                 _layerCanvases.Clear();
                 // The runtime APS_Root GameObject is destroyed by Unity on play-mode exit; drop the reference so a
                 // fresh one is created next play (new static state → same leak-guard treatment, see Invariants).
@@ -364,8 +373,79 @@ namespace AdvancedPS.Core
                 if (list[i].name == name) return list[i];
             return null;
         }
+
+        /// <summary>
+        /// Get the unique (Lane-A) popup of type <typeparamref name="T"/>, loading it from Addressables first when it is
+        /// not already present. The async counterpart to <see cref="TryGetPopup{T}"/>: a resident popup (scene-authored,
+        /// preloaded, or loaded earlier) is returned right away — so the scene-wins / dedup rule is honored — otherwise
+        /// the type is resolved in the Addressable index and instantiated via <see cref="Resolver"/> under its layer
+        /// canvas, awaiting the load. The new instance self-registers as the unique instance (unlike
+        /// <see cref="SpawnAsync{T}"/>, which pulls its copy back out of the registries). Concurrent calls for the same
+        /// not-yet-loaded type <b>share one load</b>, so no duplicate instance is created. Returns null when the popup is
+        /// neither in a loaded scene nor flagged Addressable, the Addressables integration is absent (logged), or
+        /// <paramref name="token"/> was cancelled by the time the load finished.
+        /// </summary>
+        /// <param name="token">Cancels this caller's get. The shared load itself always runs to completion (the unique
+        /// instance stays resident for other callers); a cancelled caller simply receives null.</param>
+        public static async Task<T> GetPopupAsync<T>(CancellationToken token = default) where T : IAdvancedPopup
+        {
+            // Already resident (scene / preloaded / loaded earlier) — hand it back; this is also the scene-wins/dedup guard.
+            if (TryGetPopup<T>(out T resident))
+                return resident;
+
+            Type type = typeof(T);
+            // Reuse a load already in flight for this type instead of starting a second one (which would create a
+            // duplicate instance). The entry is published synchronously below, before the first await, so a concurrent
+            // caller that runs while this one is suspended finds it here.
+            if (!_inFlightLoads.TryGetValue(type, out Task<IAdvancedPopup> load))
+            {
+                string typeName = type.FullName;
+                if (Resolver == null || typeName == null || !AddressablePopupIndex.TryGetByTypeName(typeName, out var entry))
+                {
+                    APLogger.LogError($"<color=red>[AdvancedPopupSystem]</color> GetPopupAsync<{typeName}> needs the popup present in a loaded scene, or flagged Addressable with the Addressables integration present.");
+                    return default;
+                }
+
+                // CancellationToken.None on purpose, not this caller's token: a unique popup is a singleton, so one
+                // caller cancelling must not release the shared instance out from under the others. Each caller honors
+                // its own token after the await instead. The instance's Init() self-registers it as the unique instance.
+                load = Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), CancellationToken.None);
+                _inFlightLoads[type] = load;
+                RemoveInFlightWhenComplete(type, load);
+            }
+
+            IAdvancedPopup popup;
+            try
+            {
+                popup = await load;
+            }
+            catch (Exception ex)
+            {
+                APLogger.LogError($"<color=red>[AdvancedPopupSystem]</color> GetPopupAsync<{type.FullName}> load failed: {ex.Message}");
+                return default;
+            }
+
+            if (token.IsCancellationRequested)
+                return default;
+            return popup is T typed ? typed : default;
+        }
+
+        /// <summary>
+        /// Drops the <see cref="_inFlightLoads"/> entry for <paramref name="type"/> once its shared load finishes
+        /// (success or failure), so the type can load again later and a failed load never poisons the map. The reference
+        /// check avoids evicting a newer entry re-registered meanwhile. The awaiting caller in <see cref="GetPopupAsync{T}"/>
+        /// observes the result/exception; this fire-and-forget cleanup only swallows it (mirrors <see cref="PreloadEntryAsync"/>).
+        /// </summary>
+        private static async void RemoveInFlightWhenComplete(Type type, Task<IAdvancedPopup> load)
+        {
+            try { await load; }
+            catch { /* outcome handled by the awaiting caller; here we only clean up the map */ }
+
+            if (_inFlightLoads.TryGetValue(type, out Task<IAdvancedPopup> current) && ReferenceEquals(current, load))
+                _inFlightLoads.Remove(type);
+        }
         #endregion
-        
+
         #region LAYER SHOW
 
         /// <summary>
@@ -521,6 +601,74 @@ namespace AdvancedPS.Core
                 {
                     APLogger.LogError($"Exception occurred: {ex.Message}");
                 }
+            });
+        }
+        #endregion
+
+        #region SHOW / HIDE (BY TYPE)
+        /// <summary>
+        /// Show the unique popup of type <typeparamref name="T"/> in one call — loading it from Addressables first when
+        /// needed (see <see cref="GetPopupAsync{T}"/>), then playing its cached display. The by-type counterpart to
+        /// <see cref="LayerShow(PopupLayerEnum, bool)"/>: summons a single known popup without holding a reference or
+        /// driving a whole layer. It does not touch <see cref="ActiveLayer"/> — a by-type show is a manual show, so it
+        /// never autohides other layers (mixing it with layer control follows the same rule as <c>popup.Show()</c>).
+        /// No-op when the popup can neither be found nor loaded (logged by the getter).
+        /// </summary>
+        /// <param name="settings">Optional open-animation settings; the popup's cached display is used when null.</param>
+        public static Operation Show<T>(IDisplaySettings settings = null) where T : IAdvancedPopup
+        {
+            return new Operation(async token =>
+            {
+                T popup = await GetPopupAsync<T>(token);
+                if (popup != null)
+                    await popup.ShowAsync(token, settings);
+            });
+        }
+
+        /// <summary>
+        /// Show the unique popup of type <typeparamref name="TPopup"/> with a per-call display type
+        /// <typeparamref name="TDisplay"/> instead of its cached display — loading it from Addressables first when
+        /// needed. See <see cref="Show{T}"/> for the semantics.
+        /// </summary>
+        /// <param name="settings">Optional settings for the <typeparamref name="TDisplay"/> animation; defaults when null.</param>
+        public static Operation Show<TPopup, TDisplay>(IDisplaySettings<TDisplay> settings = null)
+            where TPopup : IAdvancedPopup where TDisplay : IDisplay, new()
+        {
+            return new Operation(async token =>
+            {
+                TPopup popup = await GetPopupAsync<TPopup>(token);
+                if (popup != null)
+                    await popup.ShowAsync<TDisplay>(token, settings);
+            });
+        }
+
+        /// <summary>
+        /// Hide the unique popup of type <typeparamref name="T"/> if it is currently resident, playing its cached
+        /// display. A no-op when no instance exists — hiding never triggers an Addressable load (nothing to hide), so
+        /// this is a synchronous lookup wrapped in an <see cref="Operation"/>. Does not touch <see cref="ActiveLayer"/>.
+        /// </summary>
+        /// <param name="settings">Optional hide-animation settings; the popup's cached display is used when null.</param>
+        public static Operation Hide<T>(IDisplaySettings settings = null) where T : IAdvancedPopup
+        {
+            return new Operation(async token =>
+            {
+                if (TryGetPopup<T>(out T popup))
+                    await popup.HideAsync(token, settings);
+            });
+        }
+
+        /// <summary>
+        /// Hide the unique popup of type <typeparamref name="TPopup"/> with a per-call display type
+        /// <typeparamref name="TDisplay"/> instead of its cached display, if an instance is resident (no load).
+        /// </summary>
+        /// <param name="settings">Optional settings for the <typeparamref name="TDisplay"/> animation; defaults when null.</param>
+        public static Operation Hide<TPopup, TDisplay>(IDisplaySettings<TDisplay> settings = null)
+            where TPopup : IAdvancedPopup where TDisplay : IDisplay, new()
+        {
+            return new Operation(async token =>
+            {
+                if (TryGetPopup<TPopup>(out TPopup popup))
+                    await popup.HideAsync<TDisplay>(token, settings);
             });
         }
         #endregion

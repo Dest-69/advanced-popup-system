@@ -122,12 +122,14 @@ MonoBehaviour:
   m_GameObject: {fileID: 5260147549247655260}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f9504d829d1936b489ac08bd482e906e, type: 3}
+  m_Script: {fileID: 11500000, guid: 536ed6b4bf8040959fe5ef85df0cab29, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  PopupLayer: 4
+  PopupLayer: 0
   ManualInit: 0
   AutoHideOnInit: 1
+  Inactive: 0
+  EscapePolicy: 0
   RootTransform: {fileID: 0}
   canvasGroup: {fileID: 0}
   IsBeVisible: 0
@@ -149,7 +151,37 @@ MonoBehaviour:
     OnTrigger:
       m_PersistentCalls:
         m_Calls: []
-  closeButton: {fileID: 0}
+  Modules:
+    Features: 0
+    Drag:
+      DragZone: {fileID: 0}
+      Bounds: 0
+      CustomBounds: {fileID: 0}
+      Padding:
+        m_Left: 0
+        m_Right: 0
+        m_Top: 0
+        m_Bottom: 0
+    Resize:
+      Grips: []
+      MinSize: {x: 100, y: 100}
+      MaxSize: {x: 0, y: 0}
+      Bounds: 0
+      CustomBounds: {fileID: 0}
+      Padding:
+        m_Left: 0
+        m_Right: 0
+        m_Top: 0
+        m_Bottom: 0
+      ChangeCursor: 1
+      Cursors: {fileID: 0}
+    Close:
+      CloseButton: {fileID: 0}
+  Addressable: 1
+  AddressableLoadMode: 0
+  PoolCapacity: -1
+  PreloadSceneGuids: []
+  UnloadSceneGuids: []
 --- !u!225 &5260147549247655233
 CanvasGroup:
   m_ObjectHideFlags: 0

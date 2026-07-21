@@ -645,11 +645,31 @@ shows them:
 await AdvancedPopupSystem.LayerShow(PopupLayerEnum.MENU);
 ```
 
+**Or summon one popup by its type — a single line, loading included.** When you want a specific popup instead of a whole
+layer, `Show<T>()` loads it from Addressables if it isn't present yet and shows it; `Hide<T>()` closes it again. These
+are manual shows — they don't autohide other layers:
+
+```csharp
+AdvancedPopupSystem.Show<SettingsPopup>();                       // loads if Addressable, then shows
+AdvancedPopupSystem.Show<SettingsPopup, FadeDisplay>();          // with a per-call animation type
+AdvancedPopupSystem.Hide<SettingsPopup>();                       // close it again (never loads)
+```
+
+**Need the instance itself?** `GetPopupAsync<T>()` is the async companion to `TryGetPopup<T>`: it returns a resident
+popup immediately, otherwise loads it from Addressables and hands you the loaded instance (null if the type is neither
+in a scene nor Addressable):
+
+```csharp
+SettingsPopup popup = await AdvancedPopupSystem.GetPopupAsync<SettingsPopup>();
+if (popup != null) popup.Show();
+```
+
 **Testing one screen stays trivial:** if a popup of that type is already in the loaded scene, APS uses it and skips
 Addressables entirely — drop the prefab into a test scene and press Play, exactly like a normal popup.
 
-> `TryGetPopup<T>` is synchronous, so it returns a popup only once it's resident (in a scene, preloaded, or already
-> loaded). Use `Preload` (with its scene reached) for popups you want to fetch synchronously.
+> `TryGetPopup<T>` stays synchronous — it returns a popup only once it's resident (in a scene, preloaded, or already
+> loaded), so reach for it (with `Preload`) when you want a popup with no `await`. When the popup may still need loading,
+> use `GetPopupAsync<T>` (to fetch) or `Show<T>` (to fetch + show) instead.
 
 ### 9.3 Preload & unload per scene
 

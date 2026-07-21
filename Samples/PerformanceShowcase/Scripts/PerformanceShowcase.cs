@@ -11,17 +11,15 @@ namespace AdvancedPS.Core.Examples
     public class PerformanceShowcase : MonoBehaviour
     {
         [SerializeField] private int CountOfPopups;
-        
-        [SerializeField] private AdvancedPopup _demoPopupPrefab;
-        
+
         [SerializeField] private Canvas _canvas;
         [SerializeField] private Transform _popupsRoot;
-        
+
         [SerializeField] private Button _buttonStart;
         [SerializeField] private Button _buttonStop;
         [SerializeField] private Text _infoPanel;
         [SerializeField] private Text _stats;
-        
+
         private List<AdvancedPopup> _popups;
         private bool isStop;
 
@@ -34,7 +32,9 @@ namespace AdvancedPS.Core.Examples
                 _buttonStart.interactable = false;
                 _buttonStop.interactable = true;
             });
-            
+
+            // Disabled until the Addressable popups finish spawning (GeneratePopups is async now).
+            _buttonStart.interactable = false;
             _buttonStop.interactable = false;
             _buttonStop.onClick.AddListener(() =>
             {
@@ -43,18 +43,19 @@ namespace AdvancedPS.Core.Examples
                 _buttonStop.interactable = false;
             });
         }
-        
-        private void Start()
+
+        private async void Start()
         {
-            _popups = GeneratePopups();
+            _popups = await GeneratePopups();
             _infoPanel.text += $"\n Max popup's count: {_popups.Count}";
+            _buttonStart.interactable = true;
         }
-        
+
         private void FixedUpdate()
         {
             _stats.text = $"ActivePopups={AdvancedPopupSystem.ActivePopups.Count}\nActiveOperations={APSStats.ActiveOperationsCount}\nActiveTasks={APSStats.ActiveTasksCount}";
         }
-        
+
         private void InfintLoop()
         {
             foreach (AdvancedPopup demoPopup in _popups)
@@ -62,7 +63,7 @@ namespace AdvancedPS.Core.Examples
                 void tempExec()
                 {
                     if (isStop || !Application.isPlaying) return;
-                    
+
                     demoPopup.Show().OnComplete(() =>
                     {
                         demoPopup.Hide().OnComplete(tempExec);
@@ -72,12 +73,12 @@ namespace AdvancedPS.Core.Examples
                 tempExec();
             }
         }
-        
-        private List<AdvancedPopup> GeneratePopups()
+
+        private async Task<List<AdvancedPopup>> GeneratePopups()
         {
             List<AdvancedPopup> popups = new List<AdvancedPopup>();
             RectTransform canvasRectTransform = _canvas.GetComponent<RectTransform>();
-            
+
             float canvasWidth = canvasRectTransform.rect.width;
             float canvasHeight = canvasRectTransform.rect.height;
             int easingTypesCount = Enum.GetValues(typeof(EasingType)).Length;
@@ -87,16 +88,21 @@ namespace AdvancedPS.Core.Examples
 
             for (int i = 0; i < CountOfPopups; i++)
             {
-                AdvancedPopup popup = Instantiate(_demoPopupPrefab, _popupsRoot);
+                // Lane B: load a pooled copy from Addressables instead of Instantiate(prefab). Returns null without the
+                // Addressables integration or before the index is (re)generated — bail so the demo degrades gracefully.
+                AdvancedPopup popup = await AdvancedPopupSystem.SpawnAsync<PerformancePopupDemo>(_popupsRoot);
+                if (popup == null)
+                    break;
+
                 popup.RootTransform.sizeDelta = new Vector2(popupWidth, popupWidth);
-                
+
                 float posX = i * (popupWidth + spacing) - (canvasWidth / 2) + (popupWidth / 2);
                 float posY = -canvasHeight / 2 + popup.RootTransform.sizeDelta.y / 2;
                 popup.RootTransform.anchoredPosition3D = new Vector3(posX, posY, 0);
 
                 float duration = Random.Range(0.5f, 4);
                 EasingType type = (EasingType)Random.Range(0, easingTypesCount - 1);
-                
+
                 popup.SetCachedDisplay<SlideDisplay, SlideDisplay>(new SlideSettings
                     {
                         Duration = duration,
@@ -113,7 +119,7 @@ namespace AdvancedPS.Core.Examples
                     });
                 popups.Add(popup);
             }
-            
+
             return popups;
         }
     }

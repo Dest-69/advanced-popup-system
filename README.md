@@ -124,6 +124,11 @@ if (AdvancedPopupSystem.TryGetPopup<MySettingsPopup>(out var settingsPopup, acti
 // Show/hide popups by Layer
 // This will automatically open all MENU popups and hide other active layers
 AdvancedPopupSystem.LayerShow(PopupLayerEnum.MENU, autohide: true);
+
+// Or summon a single popup by type in one line — loads it from Addressables if it isn't in the scene yet
+AdvancedPopupSystem.Show<MySettingsPopup>();
+// Need the instance and it might still be loading? Await the async companion to TryGetPopup:
+MySettingsPopup popup = await AdvancedPopupSystem.GetPopupAsync<MySettingsPopup>();
 ```
 ---
 

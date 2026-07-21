@@ -18,7 +18,7 @@ They are a **separate artifact** from this vault — no wiki-links, no `code_pat
 - **`README.md`** — landing page: requirements/compatibility, install (Newtonsoft), features, quick start, showcase.
 - **`documentation.md`** — the deep guide: building blocks, step-by-step setup, API reference, animations & custom
   displays, advanced config, troubleshooting, planned features.
-- **`CHANGELOG.md`** — versioned history (current `1.19.0`). **User-gated** — don't add entries or bump on your own.
+- **`CHANGELOG.md`** — versioned history (current `1.25.0`). **User-gated** — don't add entries or bump on your own.
 - **`package.json`** — UPM manifest: `version`, `unity` min, `dependencies` (Newtonsoft). **Never bump without
   asking** ([[Invariants]]).
 - **`LICENSE.md`**, `.github/FUNDING.yml` — legal/funding.

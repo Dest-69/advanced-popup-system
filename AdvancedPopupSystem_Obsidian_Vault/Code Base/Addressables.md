@@ -46,11 +46,16 @@ shape lives in **one** place — the SO — with no kept-in-sync copies to break
 
 ## Two lanes (the core distinction)
 
-- **Lane A — unique / singletons.** `LayerShow`, `Show`, `TryGetPopup`. One instance per type, lives in
-  `AllPopups`/`PopupCacheByType`, participates in layers + escape. `LayerShow` calls `EnsureLayerLoadedAsync` before
-  showing → materializes the layer's Addressable popups not already live. **Scene wins the index:** a scene-authored
-  popup of the same type suppresses the load (dedup by type name), so testing one screen = drop its prefab in a scene
-  and press Play — no Addressables round-trip.
+- **Lane A — unique / singletons.** `LayerShow`, `Show<T>`, `GetPopupAsync<T>`, `TryGetPopup`. One instance per type,
+  lives in `AllPopups`/`PopupCacheByType`, participates in layers + escape. `LayerShow` calls `EnsureLayerLoadedAsync`
+  before showing → materializes the layer's Addressable popups not already live. `GetPopupAsync<T>` is the **by-type**
+  equivalent: same `Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer))` load, but for one type, returning
+  the **unique** instance (its `Init()` self-registers it — no `DeactivateAdvancedPopup`, unlike Lane B). Concurrent gets of
+  the same not-yet-loaded type **share one in-flight load** (`_inFlightLoads`) so no duplicate is made — details in
+  [[Core System]] "Lookups". `Show<T>` is a thin `Operation` over it; `Hide<T>` never loads ([[Core System]] "Show / hide by type"). **Scene wins the index:** a
+  scene-authored popup of the same type suppresses the load (dedup by type name — the `TryGetPopup`/`IsLive` check every
+  Lane-A entry point runs first), so testing one screen = drop its prefab in a scene and press Play — no Addressables
+  round-trip.
 - **Lane B — many copies.** `SpawnAsync<T>(parent)` / `Despawn(popup, release)`. For toasts / list rows. Reuses a
   pooled instance or loads a fresh one, then **pulls it out of the unique registries** its `Init()` joined
   (`DeactivateAdvancedPopup`) and tracks it in `SpawnedPopups` — so `LayerShow` ignores it, but it is still in
@@ -138,7 +143,9 @@ removable). **Single-object edit only** — multi-select shows a note (per-objec
 - **One Addressable prefab per popup type.** The index is type-keyed; the generator warns and skips a second prefab
   sharing a type. Give each Addressable popup a distinct `AdvancedPopup` subclass.
 - **`TryGetPopup<T>` stays synchronous** → returns only *resident* popups (scene / preloaded / already loaded); "load if
-  missing" happens only on the async paths (`LayerShow`/`Show`/`SpawnAsync`). This is why `Preload` matters for sync gets.
+  missing" happens only on the async paths (`LayerShow`/`Show<T>`/`GetPopupAsync<T>`/`SpawnAsync`). `GetPopupAsync<T>` is
+  the async **get** when you need the instance reference and it may not be loaded yet; `TryGetPopup` stays the sync,
+  zero-alloc, resident-only get — which is why `Preload` still matters for a synchronous get.
 - **Empty preload list = Everyone (no migration).** There is deliberately no "all scenes" bool: an **empty**
   `PreloadSceneGuids` means "preload everywhere" (the default), a non-empty list narrows it. Because empty is the natural
   deserialization default for both a fresh popup and one serialized before the field existed, no migration guard is

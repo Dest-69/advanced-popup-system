@@ -21,8 +21,10 @@ popup ([[Popup Lifecycle]]).
 - **`ActiveLayer`** (`PopupLayerEnum` bitmask) — combined active layers; **only** `Layer*`/`HideAll` here change it
   ([[Layers]]).
 - **Addressables surface** (optional, [[Addressables]]): `Resolver` (`IPopupResolver`, null default → scene-only),
-  `SpawnedPopups` (Lane B, kept out of `AllPopups`), the reuse pool, and `Root` (default parent for loaded/spawned
-  popups — auto persistent Canvas, overridable). All follow the leak-guard rule.
+  `SpawnedPopups` (Lane B, kept out of `AllPopups`), the reuse pool, `_inFlightLoads` (Lane-A concurrent-load dedup, keyed
+  by `Type`), and `Root` (default parent for loaded/spawned popups — auto persistent Canvas, overridable). All follow the
+  leak-guard rule — `_inFlightLoads` is cleared on play-mode exit but needs **no** scene-unload prune (self-removing, holds
+  a Task not a Unity ref).
 - **`_layerCanvases`** (`Dictionary<PopupLayerEnum, Transform>`, keyed by **single** flag) — per-layer canvas routing
   (see "Canvas routing" below). Leak-guarded like the rest.
 
@@ -60,7 +62,17 @@ allocation-light on purpose: one scratch list, depth computed once per popup, `L
 ## Lookups
 
 - `TryGetPopup<T>(out popup, activeOnly=false)` — type-cache fast path when `!activeOnly`; otherwise linear over
-  `ActivePopups`/`AllPopups`.
+  `ActivePopups`/`AllPopups`. **Synchronous, resident-only** — never loads.
+- `GetPopupAsync<T>(token)` — **async counterpart** that loads a Lane-A Addressable popup if it isn't resident. Fast-path
+  is `TryGetPopup<T>` (so a resident popup returns without a round-trip, and that same check is the scene-wins/dedup
+  guard); on a miss it resolves the type in the Addressable index and instantiates via `Resolver` under the layer canvas,
+  returning the **unique** instance (contrast `SpawnAsync`, which detaches its copy from the registries — [[Addressables]]).
+  Null when not in a scene and not Addressable / no integration. No-op-cheap on the scene-only path (the `TryGetPopup` hit).
+  **Concurrent-load dedup:** simultaneous calls for the same not-yet-loaded type **share one in-flight load**
+  (`_inFlightLoads`, keyed by `Type`, published synchronously *before* the first await so a suspended-then-resumed caller
+  finds it) — no duplicate instance. That load runs under `CancellationToken.None` (a singleton must not be released
+  because one caller cancelled); each caller honors its own `token` after the await. `RemoveInFlightWhenComplete` clears
+  the entry on completion (success/failure) so a failed load can't poison the type.
 - `GetPopupByLayer(layer, activeOnly=true)` — first popup whose `PopupLayer` has the flag.
 - `GetPopupByName(name, activeOnly=true)` — by `GameObject.name`, **case-sensitive**.
 
@@ -85,6 +97,17 @@ layer" means vs. what's visible ([[Layers]]). The batch path (`GetPopupsByLayer`
 `Show/HidePopupsAsync` → `HideAllPopupsAsync`) is deliberately LINQ-free — manual loops into pre-sized `List<Task>`, the
 `HideAll` snapshot is a plain `List` copy (still required: `Unsubscribe` mutates `ActivePopups` mid-batch). Don't
 reintroduce `Where`/`Select`/`ToList` on these navigation-triggered paths.
+
+## Show / hide by type
+
+`Show<T>()` / `Show<T,J>()` / `Hide<T>()` / `Hide<T,J>()` (region `SHOW / HIDE (BY TYPE)`) — summon or dismiss a **single
+known popup by its type** in one call, without holding a reference or driving a whole layer (the by-type counterpart to
+`Layer*`). All return an `Operation`. `Show<T>` awaits `GetPopupAsync<T>` first, so an Addressable popup **loads on
+demand**; the typed `Show<T,J>` uses a per-call display like `LayerShow<T>`. **`Hide` never loads** — nothing unloaded
+can be visible, so it's a synchronous `TryGetPopup` wrapped in an `Operation`, a no-op when the popup isn't resident.
+
+**Gotcha:** these are **manual** shows — like `popup.Show()` they touch only `ActivePopups`, **never `ActiveLayer`**, and
+don't autohide other layers; don't mix them with `Layer*` control expecting layer bookkeeping ([[Layers]]).
 
 ## Canvas routing (per layer)
 
