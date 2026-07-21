@@ -117,7 +117,7 @@ uses the default **Scale** transition (see [§4](#4-animations--custom-transitio
 | **Popup Layer** | One or more layer flags this popup belongs to (used by `LayerShow` / `LayerHide`). |
 | **Modules** | Optional per-popup features — **Draggable**, **Resizable**, and **Closable** (a close button that calls `Hide()` when clicked). See [§6.5](#65-modules-drag-resize--close). |
 | **Auto Hide On Init** | Keep `true` so the popup starts hidden. Set `false` only for UI shown immediately on scene start. |
-| **Manual Init** | Keep `false` for scene popups. Set `true` if you instantiate at runtime and want to call `Init()` yourself. |
+| **Manual Init** | Keep `false` for scene popups. Set `true` if you instantiate at runtime and want to call `Init()` yourself. Ignored for **Addressable** popups — they always auto-initialize on load. |
 | **Inactive** | `true` prevents the popup from ever showing (a hard gate on `Show`). |
 | **Escape Policy** | How the popup reacts to the escape close key: `Hide`, `Ignore`, or `Block` (see [§6.3](#63-escape-close-stack)). |
 | **Deep Popups** | Child/dependent popups that mirror this popup's show/hide (see [§6.1](#61-deep-popups)). |
@@ -497,8 +497,9 @@ popup.Init();   // registers with APS and applies auto-hide
 popup.Show();
 ```
 
-For loading popups from **Addressables** on demand (lazy / preload) and spawning many pooled copies, see
-[§9](#9-on-demand-loading-with-addressables).
+This applies only to popups you instantiate yourself. For loading popups from **Addressables** on demand (lazy /
+preload) and spawning many pooled copies, see [§9](#9-on-demand-loading-with-addressables) — those auto-initialize on
+load, so **Manual Init** does not apply to them.
 
 ### 6.5 Modules (drag, resize & close)
 
@@ -583,7 +584,7 @@ drawn on top; the topmost popup under the pointer wins.
 > If a popup misbehaves, check these first.
 
 - **Popup never appears / stays invisible**
-  - Confirm `Init()` ran — `Manual Init` must be `false`, or you must call `Init()` after instantiating.
+  - Confirm `Init()` ran — for a scene or manually-instantiated popup, `Manual Init` must be `false`, or you must call `Init()` after instantiating. (Addressable popups always auto-init.)
   - Ensure the GameObject and its parent Canvas are active.
   - Verify it's registered: it should be in `AdvancedPopupSystem.AllPopups`.
   - A missing `CanvasGroup` logs a warning — APS adds one in `Init()`, but a display run before init can warn.

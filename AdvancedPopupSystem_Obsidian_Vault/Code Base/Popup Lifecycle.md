@@ -30,6 +30,9 @@ still wires it in Subscribe/Unsubscribe (see below and [[Interaction Modules]]).
 ## Init & cache
 
 - `Awake()` calls `Init()` unless `ManualInit` (then you call `Init()` after instantiating/injecting data).
+  **Addressable popups are the exception — they always auto-init** (`!ManualInit || Addressable`): the resolver
+  instantiates them and never calls `Init()` itself, so `ManualInit` is ignored for them (the inspector greys it with a
+  note, like `AutoHideOnInit`) and stays meaningful only for scene-placed popups (see [[Addressables]]).
 - `OnDestroy()` calls `TaskUtils.CancelAndDispose(Source)` (stops any in-flight transition so its loop can't touch the
   destroyed transform) then `AdvancedPopupSystem.DeactivateAdvancedPopup(this)`.
 - `Init()` (base): `SetupCache()` → ensure `RectTransform` + `CanvasGroup` → if `AutoHideOnInit` run the cached

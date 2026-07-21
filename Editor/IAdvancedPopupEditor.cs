@@ -346,7 +346,13 @@ namespace AdvancedPS.Editor
                 GUILayout.Label("Ignored — Addressable popups always load hidden (shown via Show()).",
                     APSEditorStyles.WarpedTextStyle);
 
-            DrawInlineToggle(_manualInitProperty);
+            // Same story for ManualInit: an Addressable popup is instantiated by the resolver, which never calls Init()
+            // itself, so it must always auto-init on Awake (see IAdvancedPopup.Awake). The flag applies to scene popups only.
+            using (new EditorGUI.DisabledScope(addressable))
+                DrawInlineToggle(_manualInitProperty);
+            if (addressable)
+                GUILayout.Label("Ignored — Addressable popups always auto-initialize on load.",
+                    APSEditorStyles.WarpedTextStyle);
         }
 
         /// <summary>

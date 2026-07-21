@@ -163,7 +163,11 @@ namespace AdvancedPS.Core.System
         #region Init
         private void Awake()
         {
-            if (!ManualInit)
+            // Addressable popups are instantiated on demand by the resolver, which never calls Init() itself — Awake is
+            // their only init trigger. ManualInit must never suppress it for an Addressable popup, or the loaded instance
+            // would never register (SpawnAsync/preload/lazy all rely on Init() having run). ManualInit stays meaningful
+            // only for scene-placed popups. See AddressablesPopupResolver / AdvancedPopupSystem.SpawnAsync.
+            if (!ManualInit || Addressable)
                 Init();
         }
         private void OnDestroy()

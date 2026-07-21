@@ -128,6 +128,9 @@ removable). **Single-object edit only** — multi-select shows a note (per-objec
 
 ## Gotchas
 
+- **`ManualInit` is ignored for Addressable popups** — they always auto-init on `Awake` (`!ManualInit || Addressable`),
+  because the resolver instantiates them and never calls `Init()`; `SpawnAsync`/preload/lazy all assume `Init()` ran. The
+  flag applies to scene popups only; the inspector greys it with a note (mirrors `AutoHideOnInit`) — see [[Popup Lifecycle]].
 - **Flag `Addressable` on the PREFAB**, not a scene instance — only the prefab asset gets grouped/indexed (the
   postprocessor fires on prefab changes). The inspector **enforces** this: `IAdvancedPopupEditor.DrawAddressable`
   disables the toggle unless `IsEditingPrefabAsset()` (prefab asset selected, or Prefab Mode), with a small note —
