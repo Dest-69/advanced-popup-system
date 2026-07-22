@@ -15,7 +15,7 @@ code_paths:
 - **Runtime code:** `Runtime/` (namespace root `AdvancedPS.Core`). **Editor code:** `Editor/` (`AdvancedPS.Editor`).
   **Generated code that ships:** `Runtime/Generated/` — the layer enum (`Layers/`, its own assembly) and the built-in
   displays (`Displays/`). **Consumer-generated code:** custom displays only, in the *consumer* project at
-  `Assets/AdvancedPopupSystem/Generated/Displays/`. **Samples:** `Samples/` (`AdvancedPS.Core.Examples`).
+  `Assets/AdvancedPopupSystem/Generated/Displays/`. **Samples:** sources in `Samples~/` (hidden from Unity, opt-in — [[Samples]]); `Samples/Utils/` ships raw; assembly `AdvancedPS.Core.Examples`.
 - **Settings JSON** is written to the **consumer project's** `Assets/Resources/AP_Settings.json` (via
   `Application.dataPath/Resources`), not into the package — see [[Settings & Logging]].
 - **Layer store** is written to the consumer project's `ProjectSettings/APS_Layers.json` (outside `Assets`, editor-only,
@@ -39,7 +39,7 @@ code_paths:
 | `dest-69.advanced-popup-system.addressables.editor` | `Editor/Addressables/` | `AdvancedPS.Editor` | Editor + `APS_ADDRESSABLES` | Optional index codegen + group sync |
 | `AdvancedPS.Generated.Layers` | `Runtime/Generated/Layers/` (**ships in package**) | `AdvancedPS.Core` | — | Holds generated `PopupLayerEnum`; **no references** (so core references it without a cycle); `autoReferenced`; editing needs a writable package |
 | `AdvancedPS.Generated.Displays` | `Assets/AdvancedPopupSystem/Generated/Displays/` (**consumer**) | `AdvancedPS.Core` | — | User-authored custom displays; references core + `AdvancedPS.Generated.Layers` |
-| `…examples.dotween` / `.easing` / `.performance` | `Samples/*/` | `AdvancedPS.Core.Examples` | (DOTWEEN for dotween) | Showcase scenes |
+| `…examples.addressables` / `.dotween` / `.easing` / `.performance` | `Samples~/*/` (**hidden, opt-in**) | `AdvancedPS.Core.Examples` | `APS_ADDRESSABLES` (+`DOTWEEN` for dotween) | Showcase scenes; sources hidden in `Samples~/` ([[Samples]]) |
 
 **Define constraints are load-bearing** ([[Invariants]]): `HAS_NEWINPUT` selects the New vs Old input assembly
 (mutually exclusive — set by a `versionDefine` on `com.unity.inputsystem`); `DOTWEEN` gates the DoTween display + its

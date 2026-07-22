@@ -15,5 +15,27 @@
   },
   "hideInEditor": false,
   "changelogUrl": "https://github.com/Dest-69/advanced-popup-system/releases",
-  "licensesUrl": "https://github.com/Dest-69/advanced-popup-system/blob/main/LICENSE"
+  "licensesUrl": "https://github.com/Dest-69/advanced-popup-system/blob/main/LICENSE",
+  "samples": [
+    {
+      "displayName": "Addressables Showcase",
+      "description": "On-demand popup loading — lazy load, preload-at-boot, and pooled spawns, all draggable. Requires the Addressables package.",
+      "path": "Samples~/AddressablesShowcase"
+    },
+    {
+      "displayName": "Easing Showcase",
+      "description": "One popup per easing curve, each caching its own SlideSettings. Requires the Addressables package.",
+      "path": "Samples~/EasingShowcase"
+    },
+    {
+      "displayName": "DOTween Showcase",
+      "description": "Popups animated with per-instance DOTween settings. Requires DOTween and the Addressables package.",
+      "path": "Samples~/DoTweenShowcase"
+    },
+    {
+      "displayName": "Performance Showcase",
+      "description": "Stress test of many simultaneous show/hide operations on pooled popups. Requires the Addressables package.",
+      "path": "Samples~/PerformanceShowcase"
+    }
+  ]
 }

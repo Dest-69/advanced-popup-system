@@ -56,9 +56,14 @@ gone: accessors are lazy and return `null` on failure. `FolderRenamePrevention` 
 Dev-only `EditorWindow` at `APS ▸ Build ▸ Export Package…`, in `Editor/Build/` — **excludes itself** from the package.
 Pipeline:
 
-1. **Rebuild sample sub-packages** — each `Samples/<Showcase>/` → `Samples/<Showcase>.unitypackage` via
-   `ExportPackage(..., Recurse)` **without** dependencies. The package ships those `.unitypackage` files, **not** the raw
-   sample sources (kept out by the deny-list); `Samples/Utils/` ships raw ([[Samples]]).
+1. **Rebuild sample sub-packages** — sources live in the hidden `Samples~/` folder ([[Samples]]), invisible to the
+   AssetDatabase, so each `Samples~/<Showcase>/` is briefly **staged** (copied, `.meta`s included, for stable GUIDs) into
+   the visible `Samples/<Showcase>/`, exported via `ExportPackage(..., Recurse)` **without** dependencies →
+   `Samples/<Showcase>.unitypackage`, then removed. **Assembly reload is locked** for the whole run
+   (`EditorApplication.Lock/UnlockReloadAssemblies`) so the freshly-imported sample scripts can't trigger a domain reload
+   mid-build (which would abort the export and strand a staged copy). The `.unitypackage` ships those nested files
+   (opt-in, double-click to import); UPM ships the `Samples~/` sources directly via `package.json` `"samples"`.
+   `Samples/Utils/` ships raw.
 2. **Optional `package.json` bump** — behind a checkbox (version bumps are user-gated, [[Invariants]]); otherwise the
    entered version only names the output file.
 3. **Reset the shipped enum to the default set** — `PopupLayerEnum` ships in the package, so the exporter should stage
@@ -66,9 +71,10 @@ Pipeline:
    in a `finally`, so a dev's custom layers never ship. (The dev repo currently just keeps the default set; re-add the
    staging if that changes.)
 4. **Collect allow-list** — every asset under `advanced-popup-system/` **minus** the deny-list: the Obsidian vault,
-   `CLAUDE.md`, `Editor/Build/` (the exporter), and raw sample sources. `.git`/`.github`/`.agents`/`.claude` are
-   dot-folders Unity already ignores. The consumer-side `Assets/AdvancedPopupSystem/Generated/` is outside the package
-   root, so it is excluded automatically.
+   `CLAUDE.md`, and `Editor/Build/` (the exporter). Raw sample sources need no deny entry — they live in `Samples~/`,
+   invisible to the AssetDatabase. `.git`/`.github`/`.agents`/`.claude` and `Samples~/` are dot/tilde paths Unity already
+   ignores. The consumer-side `Assets/AdvancedPopupSystem/Generated/` is outside the package root, so it is excluded
+   automatically.
 5. **Export** with `ExportPackageOptions.Default` (**no `IncludeDependencies`**) → only files under the package, zero
    third-party deps → `Assets/Development/AdvancedPS_v<version>.unitypackage`.
 

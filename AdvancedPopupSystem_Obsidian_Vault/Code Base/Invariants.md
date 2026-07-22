@@ -107,8 +107,10 @@ Do not break these. Deviation only after explicit agreement in the current task.
   exception — it must ship in the package as a compile-time type; it's a rebuildable projection of the store, and edits
   need a writable package — see above and [[Build & Packaging]].)
 - **The shipped package is built only by `APSPackageExporter`** (`Editor/Build/`) — never a raw "Export Package" on the
-  folder (that leaks internal tooling). It excludes the vault, `CLAUDE.md`, and itself; ships samples as nested
-  `.unitypackage`s (not raw sources); pulls **no** third-party dependencies. The `PopupLayerEnum` **ships** (as a
+  folder (that leaks internal tooling). It excludes the vault, `CLAUDE.md`, and itself; keeps sample sources hidden in
+  `Samples~/` (UPM imports them on demand via `package.json` `"samples"`; the `.unitypackage` ships them as nested opt-in
+  `.unitypackage`s, staged from `Samples~/` at build — [[Samples]]); pulls **no** third-party dependencies. The
+  `PopupLayerEnum` **ships** (as a
   compile-time type), so keep the dev repo's shipped enum at the clean default set — the exporter can reset it. Keep
   `Editor/Build/` on its deny-list.
 - **A shipped `PopupLayerEnum` file must always be _compilable_, never empty** — an empty `.cs` drops the

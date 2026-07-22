@@ -3,13 +3,15 @@ type: code
 status: active
 description: Sample showcases (DoTween / Easing / Performance / Addressables) and the InputSwitcher util — what each demonstrates and its asmdef/define. Read when editing samples or reproducing usage patterns.
 code_paths:
-  - Assets/advanced-popup-system/Samples/
+  - Assets/advanced-popup-system/Samples~/
+  - Assets/advanced-popup-system/Samples/Utils/
 ---
 
 # Samples
 
-Showcase scenes + scripts under `Samples/`, each with its own `AdvancedPS.Core.Examples` assembly ([[Project Map]]).
-They are also the most faithful **usage references** for the public API.
+Showcase scenes + scripts under `Samples~/` (hidden from Unity — see **Delivery** below), each with its own
+`AdvancedPS.Core.Examples` assembly ([[Project Map]]). They are also the most faithful **usage references** for the
+public API.
 
 **All showcases run on the Addressables pipeline** ([[Addressables]]). Each has its **own distinct `AdvancedPopup`
 subclass** (the index is type-keyed — no sharing between samples), flagged Addressable on its prefab, and materializes
@@ -40,8 +42,19 @@ Addressables group ([[Addressables]] "Editor tooling"). After a fresh checkout o
 open the project once so the postprocessor fires — until then `SpawnAsync` finds no index entry and the samples spawn
 nothing (they log and degrade gracefully). The consumer-side index asset/group are not shipped (regenerated on import).
 
-Samples are shipped in the package (`package.json` is a library; scenes/prefabs live here) but are **not** part of the
-public API — patterns here can change with the demo without a version concern.
+## Delivery (opt-in, both channels)
+
+Sources live in the hidden **`Samples~/`** folder (Unity ignores `~` folders everywhere — including under `Assets/`, so
+they're invisible in the dev project too) so they **never auto-compile in a consumer**. UPM installs get them as
+on-demand **Package Manager samples** (`package.json` `"samples"` → `Samples~/<Showcase>`); the `.unitypackage` ships them
+as nested `Samples/<Showcase>.unitypackage` (opt-in, imported by double-click), **rebuilt from `Samples~/`** by the
+exporter's staging step ([[Build & Packaging]]). `Samples/Utils/` (InputSwitcher) stays visible and ships raw. Samples are
+**not** part of the public API — patterns here can change with the demo without a version concern.
+
+**Why hidden (the bug this fixed):** sample code hard-references specific layers (e.g. `PopupLayerEnum.MENU` in
+`AddressablesShowcase`). `PopupLayerEnum` is a **projection of the consumer's** layer set ([[Layers]]), so left visible in
+a UPM package the sample auto-compiled in *every* consumer and hard-failed the build (`CS0117`) wherever their layer set
+lacked the sample's layers. `Samples~` makes compilation opt-in, so a differing layer set can no longer break an install.
 
 ## Depends on
 

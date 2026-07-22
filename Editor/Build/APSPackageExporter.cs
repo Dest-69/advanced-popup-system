@@ -16,13 +16,15 @@ namespace AdvancedPS.Editor
     /// <list type="bullet">
     /// <item>ships only files under <c>Assets/advanced-popup-system</c>, with no third-party dependencies pulled in
     /// (no <see cref="ExportPackageOptions.IncludeDependencies"/>);</item>
-    /// <item>rebuilds each <c>Samples/&lt;Showcase&gt;/</c> into a nested <c>Samples/&lt;Showcase&gt;.unitypackage</c>
-    /// and ships those instead of the raw sample sources;</item>
+    /// <item>keeps sample <b>sources</b> in the hidden <c>Samples~/</c> folder (Unity ignores '~' folders): UPM consumers
+    /// get them as on-demand Package Manager samples (<c>package.json</c> "samples"), never auto-compiled; for this
+    /// <c>.unitypackage</c> it rebuilds each into a nested <c>Samples/&lt;Showcase&gt;.unitypackage</c> (opt-in, imported by
+    /// double-click) and ships those;</item>
     /// <item>excludes the internal tooling (the Obsidian vault, <c>CLAUDE.md</c>, and this exporter);</item>
-    /// <item>ships <b>no</b> generated <c>PopupLayerEnum</c> — it now lives in the consumer project
-    /// (<c>Assets/AdvancedPopupSystem/Generated/</c>) and is seeded on import by the bundled
-    /// <c>AdvancedPS.Bootstrap</c> assembly, so a consumer's own layer set is never shipped over (the Addressable index
-    /// is likewise a consumer-side data asset, excluded automatically, like <c>AP_Settings.json</c>);</item>
+    /// <item>ships <c>PopupLayerEnum</c> <b>inside</b> the package (assembly <c>AdvancedPS.Generated.Layers</c>) — a
+    /// compile-time type a fresh install needs before any code runs; the dev repo keeps it at the default layer set so a
+    /// consumer's custom layers are never shipped over. Consumer-side state (custom displays, the Addressable index,
+    /// <c>AP_Settings.json</c>, <c>APS_Layers.json</c>) lives outside the package and is excluded automatically;</item>
     /// <item>writes the result to <c>Assets/Development/AdvancedPS_v&lt;version&gt;.unitypackage</c>.</item>
     /// </list>
     /// </summary>
@@ -31,11 +33,13 @@ namespace AdvancedPS.Editor
         private const string PackageRoot   = "Assets/advanced-popup-system";
         private const string OutputFolder  = "Assets/Development";
         private const string SamplesFolder = PackageRoot + "/Samples";
+        // Sample sources live here, hidden from Unity ('~' folder). UPM ships them as on-demand samples; the exporter
+        // stages them into the visible Samples/ folder to rebuild the nested *.unitypackage.
+        private const string SamplesTildeFolder = PackageRoot + "/Samples~";
         private const string ExporterFolder = PackageRoot + "/Editor/Build";
         private const string VaultFolder   = PackageRoot + "/AdvancedPopupSystem_Obsidian_Vault";
         private const string ClaudeFile    = PackageRoot + "/CLAUDE.md";
         private const string PackageJson   = PackageRoot + "/package.json";
-        private const string SamplesUtils  = "Utils";
 
         private string _version = "";
         private bool _updatePackageJson;
@@ -90,9 +94,9 @@ namespace AdvancedPS.Editor
                     RefreshPreview();
             }
             if (!string.IsNullOrEmpty(_breakdown))
-                EditorGUILayout.HelpBox(_breakdown + "\n(＋ folder structure. PopupLayerEnum and custom displays are " +
-                                        "generated into the consumer project — not shipped; the bundled AdvancedPS.Bootstrap " +
-                                        "assembly seeds them on import.)", MessageType.None);
+                EditorGUILayout.HelpBox(_breakdown + "\n(＋ folder structure. PopupLayerEnum ships inside the package as a " +
+                                        "compile-time type; custom displays generate into the consumer project. Sample sources " +
+                                        "live in Samples~/ and ship as nested Samples/*.unitypackage.)", MessageType.None);
 
             if (_included != null)
             {
@@ -111,7 +115,8 @@ namespace AdvancedPS.Editor
             EditorGUILayout.HelpBox(
                 "• Obsidian vault + CLAUDE.md (internal tooling)\n" +
                 "• This exporter (Editor/Build/)\n" +
-                "• Raw sample sources (only the built Samples/*.unitypackage ship)\n" +
+                "• Raw sample sources in Samples~/ (invisible to Unity → ship to UPM as on-demand samples;\n" +
+                "  this .unitypackage carries the built Samples/*.unitypackage instead)\n" +
                 "• Anything outside advanced-popup-system — no third-party dependencies",
                 MessageType.None);
 
@@ -159,8 +164,10 @@ namespace AdvancedPS.Editor
                 if (bumpVersion)
                     WritePackageVersion(version);
 
-                // PopupLayerEnum is no longer part of the package — it is generated into the consumer project and seeded
-                // by the bundled AdvancedPS.Bootstrap assembly on import — so there is nothing to stage or restore here.
+                // PopupLayerEnum ships inside the package (assembly AdvancedPS.Generated.Layers) — a compile-time type a
+                // fresh install needs before any code runs. The dev repo keeps it at LayerCatalog.DefaultLayerNames, so
+                // there is nothing to reset here; if the dev's working layer set ever diverges, stage the default set
+                // before export (see the vault's "Build & Packaging" note) so custom layers never ship.
                 AssetDatabase.Refresh();
                 string[] assets = CollectPackageAssets();
                 fileCount = assets.Length;
@@ -194,32 +201,30 @@ namespace AdvancedPS.Editor
 
         #region Collect
 
-        /// <summary>Every asset under the package folder, minus the deny-list (internal tooling, exporter, raw samples).</summary>
+        /// <summary>Every asset under the package folder, minus the deny-list (internal tooling + this exporter).</summary>
         private static string[] CollectPackageAssets()
         {
-            string[] showcaseFolders = AssetDatabase.GetSubFolders(SamplesFolder)
-                .Select(f => f.Replace('\\', '/'))
-                .Where(f => Path.GetFileName(f) != SamplesUtils)
-                .ToArray();
-
             var result = new List<string>();
             foreach (string raw in AssetDatabase.GetAllAssetPaths())
             {
                 string p = raw.Replace('\\', '/');
                 if (p != PackageRoot && !p.StartsWith(PackageRoot + "/", StringComparison.Ordinal)) continue;
-                if (IsDenied(p, showcaseFolders)) continue;
+                if (IsDenied(p)) continue;
                 result.Add(p);
             }
             return result.ToArray();
         }
 
-        private static bool IsDenied(string p, string[] showcaseFolders)
+        /// <summary>
+        /// Internal tooling never shipped: the Obsidian vault, <c>CLAUDE.md</c>, and this exporter. Sample <b>sources</b>
+        /// need no entry — they live in the hidden <c>Samples~/</c> folder, invisible to the AssetDatabase; the visible
+        /// <c>Samples/</c> folder holds only <c>Utils/</c> and the built nested <c>*.unitypackage</c>, both of which ship.
+        /// </summary>
+        private static bool IsDenied(string p)
         {
             if (p == VaultFolder || p.StartsWith(VaultFolder + "/", StringComparison.Ordinal)) return true;
             if (p == ClaudeFile) return true;
             if (p == ExporterFolder || p.StartsWith(ExporterFolder + "/", StringComparison.Ordinal)) return true;
-            foreach (string f in showcaseFolders)
-                if (p == f || p.StartsWith(f + "/", StringComparison.Ordinal)) return true;
             return false;
         }
 
@@ -253,22 +258,70 @@ namespace AdvancedPS.Editor
 
         #region Samples
 
+        /// <summary>
+        /// Rebuilds each nested <c>Samples/&lt;Showcase&gt;.unitypackage</c> from its source in the hidden
+        /// <c>Samples~/</c> folder. Because Unity ignores '~' folders, <c>Samples~</c> is invisible to the AssetDatabase,
+        /// so each showcase is briefly <b>staged</b> (copied — <c>.meta</c> files included, for stable GUIDs) into the
+        /// visible <c>Samples/&lt;Showcase&gt;/</c> location to get GUIDs, exported, then removed again. Assembly reload is
+        /// <b>locked</b> across the whole run so the freshly-imported sample scripts can't trigger a domain reload
+        /// mid-build (which would abort this method and strand a staged copy).
+        /// </summary>
         private static List<string> RebuildSampleSubPackages()
         {
             var built = new List<string>();
-            foreach (string folderRaw in AssetDatabase.GetSubFolders(SamplesFolder))
+            string tildeFs = ToFs(SamplesTildeFolder);
+            if (!Directory.Exists(tildeFs))
             {
-                string folder = folderRaw.Replace('\\', '/');
-                string name = Path.GetFileName(folder);
-                if (name == SamplesUtils) continue;
+                Debug.LogWarning($"[APS Export] No '{SamplesTildeFolder}' folder found — no sample sources to rebuild.");
+                return built;
+            }
 
-                string outAsset = $"{SamplesFolder}/{name}.unitypackage";
-                // Recurse the sample folder but pull NO dependencies — the consumer already has core APS + DoTween.
-                AssetDatabase.ExportPackage(new[] { folder }, ToFs(outAsset), ExportPackageOptions.Recurse);
-                AssetDatabase.ImportAsset(outAsset, ImportAssetOptions.ForceUpdate);
-                built.Add(name);
+            EditorApplication.LockReloadAssemblies();
+            try
+            {
+                foreach (string srcDir in Directory.GetDirectories(tildeFs))
+                {
+                    string name = Path.GetFileName(srcDir);
+                    string stagedAsset = $"{SamplesFolder}/{name}";
+                    string stagedFs = ToFs(stagedAsset);
+                    try
+                    {
+                        CopyDirectory(srcDir.Replace('\\', '/'), stagedFs);
+                        AssetDatabase.Refresh();
+
+                        string outAsset = $"{SamplesFolder}/{name}.unitypackage";
+                        // Recurse the staged folder but pull NO dependencies — the consumer already has core APS + DoTween.
+                        AssetDatabase.ExportPackage(new[] { stagedAsset }, ToFs(outAsset), ExportPackageOptions.Recurse);
+                        AssetDatabase.ImportAsset(outAsset, ImportAssetOptions.ForceUpdate);
+                        built.Add(name);
+                    }
+                    finally
+                    {
+                        // Drop the staged copy: sources stay only in Samples~/, the built *.unitypackage stays in Samples/.
+                        if (!AssetDatabase.DeleteAsset(stagedAsset) && Directory.Exists(stagedFs))
+                        {
+                            Directory.Delete(stagedFs, true);
+                            if (File.Exists(stagedFs + ".meta")) File.Delete(stagedFs + ".meta");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                EditorApplication.UnlockReloadAssemblies();
+                AssetDatabase.Refresh();
             }
             return built;
+        }
+
+        /// <summary>Recursively copies a directory — files (including <c>.meta</c>) and sub-directories.</summary>
+        private static void CopyDirectory(string sourceDir, string destDir)
+        {
+            Directory.CreateDirectory(destDir);
+            foreach (string file in Directory.GetFiles(sourceDir))
+                File.Copy(file, destDir + "/" + Path.GetFileName(file), true);
+            foreach (string sub in Directory.GetDirectories(sourceDir))
+                CopyDirectory(sub.Replace('\\', '/'), destDir + "/" + Path.GetFileName(sub));
         }
 
         #endregion
