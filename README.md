@@ -49,7 +49,7 @@ com.unity.nuget.newtonsoft-json
 ```
 2. Download the latest `.unitypackage` from the [**Releases**](https://github.com/Dest-69/advanced-popup-system/releases) page and import it via **Assets -> Import Package -> Custom Package...**, or simply copy the package folder into your project's `Assets/`.
 
-> Note: APS creates an `Assets/AdvancedPopupSystem/` folder in your project for its generated layers and any custom displays you author — commit it to version control like the rest of your code. See the [documentation](documentation.md#5-the-aps-editor-window) for details.
+> Note: When you author custom displays, APS generates them into an `Assets/AdvancedPopupSystem/` folder in your project — commit it to version control like the rest of your code. Editing layers is behind a **Customization** toggle in the APS **Layers** tab (details in the [documentation](documentation.md#5-the-aps-editor-window)).
 
 ---
 

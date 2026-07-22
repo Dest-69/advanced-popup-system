@@ -1,16 +1,14 @@
 {
-    "name": "AdvancedPS.Bootstrap",
-    "rootNamespace": "AdvancedPS.Bootstrap",
+    "name": "AdvancedPS.Generated.Layers",
+    "rootNamespace": "AdvancedPS.Core",
     "references": [],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
-    "autoReferenced": false,
+    "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
-    "noEngineReferences": false
+    "noEngineReferences": true
 }

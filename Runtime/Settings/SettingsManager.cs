@@ -70,7 +70,7 @@ namespace AdvancedPS.Core.System
                 InspectorView = InspectorEnum.APSInspector,
                 KeyEventSystemEnabled = true,
                 LogType = "Warning",
-                EscapeCloseEnabled = false,
+                EscapeCloseEnabled = true,
                 EscapeCloseKey = KeyCode.Escape
             };
 

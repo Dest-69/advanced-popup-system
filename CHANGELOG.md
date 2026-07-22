@@ -1,13 +1,15 @@
 # Changelog
 ## [2.0.0] - 2026-07-22
 ### Changed
-- **Works as a Package Manager package** — install APS straight from a Git URL or registry, not just by copying it into your project. Its icons and editor tools now find everything wherever the package lives, and your layers and custom displays are generated into your own project folder (`Assets/AdvancedPopupSystem/`) so updating APS never disturbs them.
+- **Works as a Package Manager package** — install APS straight from a Git URL or registry, not just by copying it into your project. Its icons and editor tools now find everything wherever the package lives, and it compiles the moment it's imported.
+- **Editing layers is now an explicit choice** — the **Layers** tab has a **Customization** toggle (locked by default). Turn it on to add, rename, or delete layers. On a read-only Package Manager install, turning it on offers to embed the package into your project so your changes can be saved.
 ### Fixed
 - **Your layers can't get corrupted on import** — layer data is saved safely and is never reset by an interrupted or unreadable read, so deleting, re-importing, or updating APS always keeps your layers.
 ### Upgrading from 1.x
-- Your custom layers carry over automatically — they're restored from `ProjectSettings/APS_Layers.json`. On the first launch after updating, APS runs one quick compile pass while it recreates the layer/display code in `Assets/AdvancedPopupSystem/`; this is expected.
+- Your custom layers carry over automatically — they're restored from `ProjectSettings/APS_Layers.json` (on a read-only Package Manager install, turn on **Customization** in the Layers tab to edit them again).
+- Custom displays now live in your project under `Assets/AdvancedPopupSystem/`, not inside the package — commit that folder to version control.
 - If your popup code lives in its **own** assembly definition, add a reference to **`AdvancedPS.Generated.Layers`** so it can see `PopupLayerEnum` (code in the default `Assembly-CSharp` needs nothing).
-- If you previously copied APS into your `Assets` folder, delete the leftover `Assets/advanced-popup-system/Runtime/Generated/PopupLayerEnum.generated.cs` after updating — the layer enum now lives in `Assets/AdvancedPopupSystem/`.
+- If you previously copied APS into your `Assets` folder, after updating delete the leftover `Assets/advanced-popup-system/Runtime/Generated/PopupLayerEnum.generated.cs` (the enum now lives beside it in `Runtime/Generated/Layers/`, and the stray copy would double-define it).
 
 ## [1.25.0] - 2026-07-22
 ### Added

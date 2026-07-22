@@ -13,17 +13,18 @@ code_paths:
   (see [[Shipped Docs]]). This vault + `.agents`/`.claude`/`CLAUDE.md` also live here (next to `.git`), versioned with
   the asset — internal tooling; exclude them from the published package if you don't want them imported by consumers. The package is built by the dev-only exporter `Editor/Build/APSPackageExporter` (self-excluded) — see [[Build & Packaging]].
 - **Runtime code:** `Runtime/` (namespace root `AdvancedPS.Core`). **Editor code:** `Editor/` (`AdvancedPS.Editor`).
-  **Built-in generated displays:** `Runtime/Generated/Displays/` (ship read-only). **Consumer-generated code:**
-  `Assets/AdvancedPopupSystem/Generated/` in the *consumer* project (the enum + custom displays — see below), **not** in
-  the package. **Samples:** `Samples/` (`AdvancedPS.Core.Examples`).
+  **Generated code that ships:** `Runtime/Generated/` — the layer enum (`Layers/`, its own assembly) and the built-in
+  displays (`Displays/`). **Consumer-generated code:** custom displays only, in the *consumer* project at
+  `Assets/AdvancedPopupSystem/Generated/Displays/`. **Samples:** `Samples/` (`AdvancedPS.Core.Examples`).
 - **Settings JSON** is written to the **consumer project's** `Assets/Resources/AP_Settings.json` (via
   `Application.dataPath/Resources`), not into the package — see [[Settings & Logging]].
 - **Layer store** is written to the consumer project's `ProjectSettings/APS_Layers.json` (outside `Assets`, editor-only,
   never shipped) — the update-safe source of truth for `PopupLayerEnum` ([[Layers]], [[Build & Packaging]]).
 - **Package lookup:** `FileSearcher` resolves the package via `PackageInfo.FindForAssembly` (folder-name search as
-  fallback), so image/built-in-display paths work whether APS is under `Packages/` (UPM) or `Assets/`. Generated code
-  (enum + custom displays) it writes to the **consumer** project at `Assets/AdvancedPopupSystem/Generated/` — never into
-  the package, so read-only UPM installs work and updates never clobber it ([[Editor & Codegen]], [[Build & Packaging]]).
+  fallback), so image / enum / built-in-display paths work whether APS is under `Packages/` (UPM) or `Assets/`. It also
+  exposes `IsPackageWritable`/`EmbedPackage`: the enum ships in the package, so editing layers needs a writable copy
+  (embed a read-only UPM install). Custom displays it writes to the consumer project (no writable package needed)
+  ([[Editor & Codegen]], [[Build & Packaging]]).
 
 ## Assemblies (`.asmdef`) & define constraints
 
@@ -36,9 +37,8 @@ code_paths:
 | `dest-69.advanced-popup-system.editor` | `Editor/` | `AdvancedPS.Editor` | Editor platform | APS window, inspectors, menus |
 | `dest-69.advanced-popup-system.addressables` | `Runtime/Addressables/` | `AdvancedPS.Core.System` | `APS_ADDRESSABLES` | Optional Addressables resolver ([[Addressables]]) |
 | `dest-69.advanced-popup-system.addressables.editor` | `Editor/Addressables/` | `AdvancedPS.Editor` | Editor + `APS_ADDRESSABLES` | Optional index codegen + group sync |
-| `AdvancedPS.Generated.Layers` | `Assets/AdvancedPopupSystem/Generated/Layers/` (**consumer**) | `AdvancedPS.Core` | — | Holds generated `PopupLayerEnum`; **no references** (so core can reference it without a cycle); `autoReferenced` |
+| `AdvancedPS.Generated.Layers` | `Runtime/Generated/Layers/` (**ships in package**) | `AdvancedPS.Core` | — | Holds generated `PopupLayerEnum`; **no references** (so core references it without a cycle); `autoReferenced`; editing needs a writable package |
 | `AdvancedPS.Generated.Displays` | `Assets/AdvancedPopupSystem/Generated/Displays/` (**consumer**) | `AdvancedPS.Core` | — | User-authored custom displays; references core + `AdvancedPS.Generated.Layers` |
-| `AdvancedPS.Bootstrap` | `Editor/Bootstrap/` | `AdvancedPS.Bootstrap` | Editor platform | Seeds `Generated.Layers` on fresh install; **zero core references** (compiles/runs while core is red) |
 | `…examples.dotween` / `.easing` / `.performance` | `Samples/*/` | `AdvancedPS.Core.Examples` | (DOTWEEN for dotween) | Showcase scenes |
 
 **Define constraints are load-bearing** ([[Invariants]]): `HAS_NEWINPUT` selects the New vs Old input assembly

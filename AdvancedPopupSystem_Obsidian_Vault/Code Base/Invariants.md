@@ -26,26 +26,27 @@ Do not break these. Deviation only after explicit agreement in the current task.
 
 ## Generated code & codegen
 
-- **Generated code lives in the CONSUMER project, never in the package** (so a read-only UPM install — Git URL /
-  registry, landing in `Library/PackageCache` — can still regenerate it, and a package update never clobbers it). Both
-  the layer enum and custom displays are written under `Assets/AdvancedPopupSystem/Generated/`, each in its **own
-  consumer-side assembly**: `AdvancedPS.Generated.Layers` (holds `PopupLayerEnum`, **no references** so core can
-  reference it without a cycle) and `AdvancedPS.Generated.Displays` (references core). The core runtime asmdef
-  **references `AdvancedPS.Generated.Layers` by name** — that is what makes `LayerShow(PopupLayerEnum)` compile.
-- **`PopupLayerEnum.generated.cs` is a projection, not the source** — regenerated from the external layer store
-  (`ProjectSettings/APS_Layers.json`) by `LayerCatalog`. **Never hand-edit it** (edits are lost). Add/remove/rename
-  layers only through the Layers panel. On a **fresh install** the consumer-side layers assembly doesn't exist yet, so
-  core can't compile and the APS tooling (which needs core) can't run to create it — the dependency-free
-  **`AdvancedPS.Bootstrap`** editor assembly (`Editor/Bootstrap/`, **zero core references**) breaks that deadlock: it
-  runs while core is red and seeds the assembly from the store (else defaults). Thereafter `LayerCatalog` +
-  `LayerEnumSyncPostprocessor` own it. Max 31 flags (`int` bitmask). See [[Layers]], [[Editor & Codegen]],
+- **`PopupLayerEnum` SHIPS inside the package**, in its own assembly `AdvancedPS.Generated.Layers`
+  (`Runtime/Generated/Layers/`, **no references** so core can reference it without a cycle; core's asmdef references it
+  by name — that is what makes `LayerShow(PopupLayerEnum)` compile). Shipping it means a fresh install (incl. read-only
+  UPM) compiles with **no code needing to run**. Two clever alternatives were tried and **proven impossible — do not
+  re-attempt:** (a) *generate the enum into the consumer + a bootstrap to seed it* deadlocks — core can't compile, so the
+  seeding code can't run, because Unity won't domain-reload while there's a compile error; (b) a *same-name define-swap*
+  (ship default + a same-named consumer override gated by a define) — Unity rejects two asmdefs with the same `name` even
+  when define constraints make only one compile (`Assembly with name … already exists`).
+- **`PopupLayerEnum.generated.cs` is a projection, not the source** — regenerated from the external store
+  (`ProjectSettings/APS_Layers.json`) by `LayerCatalog`. **Never hand-edit it** (edits are lost); add/rename/delete only
+  through the Layers panel, which is **locked behind a Customization toggle**. Because the enum ships in the package,
+  editing it needs a **writable** copy — a read-only UPM install must be **embedded** first (the toggle offers it;
+  `FileSearcher.IsPackageWritable`/`EmbedPackage`). Max 31 flags (`int` bitmask). See [[Layers]], [[Editor & Codegen]],
   [[Build & Packaging]].
-- **Display stubs are generated once, then owned by you.** The **Displays** panel creates
-  `Assets/AdvancedPopupSystem/Generated/Displays/<Name>Display/…generated.cs` **only if the folder is missing** (it
-  never overwrites existing bodies); built-in displays stay in the package (read-only, listed but not editable). After
-  generation, the animation body is yours to fill. Any assembly (a package sub-assembly, or a consumer's own asmdef)
-  that names `PopupLayerEnum` must reference `AdvancedPS.Generated.Layers` — the package's own assemblies already do;
-  consumer game code in the predefined `Assembly-CSharp` gets it via `autoReferenced`.
+- **Display stubs are generated once, then owned by you — and they live in the CONSUMER project**
+  (`Assets/AdvancedPopupSystem/Generated/Displays/`, assembly `AdvancedPS.Generated.Displays` which references core).
+  They have **no** compile-time dependency from core (found by reflection), so they need no writable package. The panel
+  creates `<Name>Display/…generated.cs` **only if the folder is missing** (never overwrites bodies); built-in displays
+  stay in the package (read-only, listed but not editable). Any package sub-assembly or consumer asmdef that names
+  `PopupLayerEnum` must reference `AdvancedPS.Generated.Layers` (package assemblies already do; `Assembly-CSharp` gets it
+  via `autoReferenced`).
 - **Naming is load-bearing:** a display type ends with `Display`, its settings with `Settings`, and both live in a
   folder named `<Name>Display`. `FileSearcher` + `TypeHelper.RemoveDisplaySuffix` and the Displays panel rely on this;
   breaking it hides the display from the tooling (see [[Editor & Codegen]]).
@@ -100,20 +101,20 @@ Do not break these. Deviation only after explicit agreement in the current task.
 ## Packaging & non-destructive updates
 
 - **Consumer state lives outside the package** so an update (UPM or `.unitypackage`) never clobbers it: settings in
-  `Assets/Resources/AP_Settings.json`, layers in `ProjectSettings/APS_Layers.json`, canvas config + Addressable index in
-  `Assets/Resources/`, and **generated code** (enum + custom displays) under `Assets/AdvancedPopupSystem/Generated/`. Do
-  not move any of these back inside the package; new consumer-editable state must follow the same rule
-  ([[Build & Packaging]]).
+  `Assets/Resources/AP_Settings.json`, layer store in `ProjectSettings/APS_Layers.json`, canvas config + Addressable
+  index in `Assets/Resources/`, and **custom displays** under `Assets/AdvancedPopupSystem/Generated/Displays/`. Do not
+  move any of these into the package; new consumer-editable state must follow the same rule. (The layer **enum** is the
+  exception — it must ship in the package as a compile-time type; it's a rebuildable projection of the store, and edits
+  need a writable package — see above and [[Build & Packaging]].)
 - **The shipped package is built only by `APSPackageExporter`** (`Editor/Build/`) — never a raw "Export Package" on the
   folder (that leaks internal tooling). It excludes the vault, `CLAUDE.md`, and itself; ships samples as nested
-  `.unitypackage`s (not raw sources); pulls **no** third-party dependencies. It ships **no** `PopupLayerEnum` (generated
-  consumer-side now) but **must ship `Editor/Bootstrap/`** so consumers self-heal on import. Keep `Editor/Build/` on its
-  deny-list.
-- **A missing generated `PopupLayerEnum` file must seed a _compilable_ default, never empty** — an empty `.cs` drops the
-  `PopupLayerEnum` type and hard-fails the compile. Both `FileSearcher` (when core is alive) and `AdvancedPS.Bootstrap`
-  (on a fresh install, before core compiles) enforce this, seeding from the store when present else defaults. Keep their
-  default enum + asmdef content in sync. (The Addressable index is a data asset, so a missing index is just an empty
-  catalog — no default, no compile error.)
+  `.unitypackage`s (not raw sources); pulls **no** third-party dependencies. The `PopupLayerEnum` **ships** (as a
+  compile-time type), so keep the dev repo's shipped enum at the clean default set — the exporter can reset it. Keep
+  `Editor/Build/` on its deny-list.
+- **A shipped `PopupLayerEnum` file must always be _compilable_, never empty** — an empty `.cs` drops the
+  `PopupLayerEnum` type and hard-fails the compile. `LayerCatalog` regenerates it (from the store when present, else
+  `DefaultLayerNames`) only into a **writable** package. (The Addressable index is a data asset, so a missing index is
+  just an empty catalog — no default, no compile error.)
 
 ## Depends on
 

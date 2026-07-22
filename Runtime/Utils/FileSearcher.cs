@@ -35,52 +35,22 @@ namespace AdvancedPS.Core.Utils
         // Package-relative (read-only) sub-paths.
         private const string ImagesSubPath = "Runtime/Images/";
         private const string BuiltinDisplaysSubPath = "Runtime/Generated/Displays";
-
-        // Consumer-project (writable) generated-code root, relative to Assets/ — deliberately OUTSIDE the package.
-        private const string GeneratedRootUnderAssets = "AdvancedPopupSystem/Generated";
-        private const string LayersSubfolder = "Layers";
-        private const string DisplaysSubfolder = "Displays";
+        // The layer enum ships INSIDE the package (its own assembly, AdvancedPS.Generated.Layers) so a fresh install
+        // compiles with no code needing to run first — the previous "generate it into the consumer on first import"
+        // approach deadlocked (core can't compile → the tooling that would generate it can't run). The heal regenerates
+        // it in place when the package is writable (embedded / imported into Assets); on a read-only UPM install it
+        // stays at the shipped default.
+        private const string LayersSubPath = "Runtime/Generated/Layers";
         private const string LayersEnumFileName = "PopupLayerEnum.generated.cs";
 
-        /// <summary>Name of the consumer-side assembly that holds the generated <c>PopupLayerEnum</c> (core references it).</summary>
-        internal const string LayersAsmdefName = "AdvancedPS.Generated.Layers";
+        // Consumer-project (writable) CUSTOM-display code lives OUTSIDE the package. Displays carry no compile-time
+        // dependency from core (they are found by reflection), so there is no fresh-install chicken-and-egg here — a
+        // read-only install can still author them.
+        private const string GeneratedRootUnderAssets = "AdvancedPopupSystem/Generated";
+        private const string DisplaysSubfolder = "Displays";
+
         /// <summary>Name of the consumer-side assembly that holds user-authored custom displays (references core).</summary>
         internal const string DisplaysAsmdefName = "AdvancedPS.Generated.Displays";
-
-        // Minimal, COMPILABLE default used only as a last-resort safety net when the generated PopupLayerEnum file is
-        // missing. An empty file would remove the PopupLayerEnum type and hard-fail the consumer compile. The Layers
-        // tooling (and, on a fresh read-only install, the AdvancedPS.Bootstrap assembly) regenerate the real enum from
-        // the external store right after. Keep this byte-for-byte in sync with the bootstrap's copy.
-        internal const string DefaultLayersEnumContent =
-            "using System;\n" +
-            "namespace AdvancedPS.Core\n" +
-            "{\n" +
-            "    [Flags]\n" +
-            "    public enum PopupLayerEnum\n" +
-            "    {\n" +
-            "        None = 0,\n" +
-            "    }\n" +
-            "}\n";
-
-        // asmdef bodies for the two consumer-side generated assemblies. Layers holds only the enum (no references, so
-        // core can reference it without a cycle); Displays references core + Layers (custom displays extend DisplayBase).
-        // The bootstrap keeps its own copy of the Layers asmdef — both only write when the file is absent, so they never
-        // fight; first writer wins.
-        internal const string LayersAsmdefContent =
-            "{\n" +
-            "    \"name\": \"AdvancedPS.Generated.Layers\",\n" +
-            "    \"rootNamespace\": \"AdvancedPS.Core\",\n" +
-            "    \"references\": [],\n" +
-            "    \"includePlatforms\": [],\n" +
-            "    \"excludePlatforms\": [],\n" +
-            "    \"allowUnsafeCode\": false,\n" +
-            "    \"overrideReferences\": false,\n" +
-            "    \"precompiledReferences\": [],\n" +
-            "    \"autoReferenced\": true,\n" +
-            "    \"defineConstraints\": [],\n" +
-            "    \"versionDefines\": [],\n" +
-            "    \"noEngineReferences\": true\n" +
-            "}\n";
 
         internal const string DisplaysAsmdefContent =
             "{\n" +
@@ -161,29 +131,22 @@ namespace AdvancedPS.Core.Utils
             (Application.dataPath + "/" + GeneratedRootUnderAssets).Replace('\\', '/');
 
         /// <summary>
-        /// Absolute FS path of the consumer-side <c>PopupLayerEnum.generated.cs</c>. Ensures the folder, the
-        /// <see cref="LayersAsmdefName"/> asmdef, and a compilable default file all exist so callers can always
-        /// read/write it. Null on IO failure.
+        /// Real FS path of the shipped <c>PopupLayerEnum.generated.cs</c> (inside the package). The heal regenerates it
+        /// in place when the package is writable; under a read-only UPM install a write fails and the shipped default
+        /// stands. Null if the package could not be located.
         /// </summary>
         public static string LayersEnumFilePath
         {
             get
             {
 #if UNITY_EDITOR
-                try
+                string root = PackageRootFsPath();
+                if (string.IsNullOrEmpty(root))
                 {
-                    string dir = GeneratedRootFs + "/" + LayersSubfolder;
-                    Directory.CreateDirectory(dir);
-                    EnsureFile(dir + "/" + LayersAsmdefName + ".asmdef", LayersAsmdefContent);
-                    string enumFile = dir + "/" + LayersEnumFileName;
-                    EnsureFile(enumFile, DefaultLayersEnumContent);
-                    return enumFile;
-                }
-                catch (Exception ex)
-                {
-                    LogFailOnce($"Failed to prepare the generated Layers folder: {ex.Message}");
+                    LogFailOnce($"Could not locate the '{PackageFolderName}' package to resolve the layer enum path.");
                     return null;
                 }
+                return root.TrimEnd('/') + "/" + LayersSubPath + "/" + LayersEnumFileName;
 #else
                 return null;
 #endif
@@ -288,6 +251,36 @@ namespace AdvancedPS.Core.Utils
                 }
                 return _pkg;
             }
+        }
+
+        /// <summary>
+        /// True when the package can be written to (so layers can be regenerated in place): a loose folder under
+        /// <c>Assets/</c>, or an Embedded/Local UPM package. A Git/registry install lives read-only in
+        /// <c>Library/PackageCache</c> — <see cref="EmbedPackage"/> makes it writable.
+        /// </summary>
+        public static bool IsPackageWritable
+        {
+            get
+            {
+                PackageInfo pkg = Pkg;
+                if (pkg == null) return true; // loose in Assets
+                return pkg.source == UnityEditor.PackageManager.PackageSource.Embedded
+                    || pkg.source == UnityEditor.PackageManager.PackageSource.Local;
+            }
+        }
+
+        /// <summary>The package's UPM name, or null when APS is a loose folder under Assets.</summary>
+        public static string PackageName => Pkg?.name;
+
+        /// <summary>
+        /// Embeds the package (copies it from the read-only cache into <c>Packages/</c>, writable) so layers can be
+        /// edited. No-op when APS is loose in Assets. Unity recompiles afterwards; editing is available once it settles.
+        /// </summary>
+        public static void EmbedPackage()
+        {
+            PackageInfo pkg = Pkg;
+            if (pkg != null && !string.IsNullOrEmpty(pkg.name))
+                UnityEditor.PackageManager.Client.Embed(pkg.name);
         }
 
         /// <summary>Asset-database path of the package root (<c>Packages/…</c> or <c>Assets/…</c>), no trailing '/'. Null if unresolved.</summary>

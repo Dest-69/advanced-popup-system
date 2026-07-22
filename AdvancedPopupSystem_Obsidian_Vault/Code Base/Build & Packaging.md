@@ -23,28 +23,25 @@ update. The fix is to keep consumer state **out of the shipped package**, and to
 | Settings | `Assets/Resources/AP_Settings.json` (consumer project) | outside the package ([[Settings & Logging]]) |
 | Layer set | `ProjectSettings/APS_Layers.json` (consumer project) | outside the package; enum is healed from it ([[Layers]]) |
 | Custom displays | `Assets/AdvancedPopupSystem/Generated/Displays/` (consumer, own asmdef) | outside the package → import never touches them |
-| `PopupLayerEnum.generated.cs` | `Assets/AdvancedPopupSystem/Generated/Layers/` (consumer, own asmdef) | outside the package; seeded by `AdvancedPS.Bootstrap` on fresh install, then healed from the store |
+| `PopupLayerEnum.generated.cs` | **ships in the package** (`Runtime/Generated/Layers/`, own assembly) | a compile-time type must ship; it's a rebuildable projection of the store — reset to the default set on export, healed in place when the package is writable |
 | Addressable index | `Assets/Resources/APS_AddressablePopupIndex.asset` (consumer project) | outside the package; rescanned from the consumer's prefabs |
 
-**Why the enum moves to the consumer (and needs a bootstrap):** `PopupLayerEnum` is a compile-time dependency of the
-public API (`LayerShow(PopupLayerEnum)`), so it must exist in an assembly core references. A read-only UPM package
-(`Library/PackageCache`) can't be regenerated, so the enum can't live *in* the package if consumers are to add layers —
-it lives in the consumer project (`Assets/AdvancedPopupSystem/Generated/Layers/`, assembly `AdvancedPS.Generated.Layers`,
-which core references by name). That creates a fresh-install chicken-and-egg (core references an assembly that doesn't
-exist yet → core won't compile → the APS tooling that would create it can't run). The **`AdvancedPS.Bootstrap`** editor
-assembly (`Editor/Bootstrap/`, **no core references**) resolves it: it compiles and runs even while core is red, seeds
-the assembly (asmdef + enum, from the store when present, else defaults), and triggers the recompile that unblocks core.
-Cost: one brief self-healing compile pass on first install. The Addressable index has no such constraint — it is
-**data** (`AddressablePopupIndexAsset`, read at runtime), rescanned from the consumer's prefabs.
+**Why the enum must ship (and can't be consumer-side):** `PopupLayerEnum` is a compile-time dependency of the public API
+(`LayerShow(PopupLayerEnum)`), so it must exist in an assembly core references, and it must exist **the instant the
+package is imported** — no code can create it first, because Unity won't complete a domain reload while core has a
+compile error. So it ships inside the package (assembly `AdvancedPS.Generated.Layers`). Two ways to instead put it in the
+consumer were tried and **proven impossible** (see [[Invariants]]): a fresh-install *bootstrap* (can't run — core is red)
+and a *same-name define-swap* (Unity rejects duplicate assembly names even when define-constrained apart). The cost of
+shipping it: editing layers needs a **writable** package, so a read-only UPM install must be **embedded** first (the
+Layers panel's Customization toggle offers it — [[Layers]]). The Addressable index has no such constraint — it is **data**
+(`AddressablePopupIndexAsset`, read at runtime), rescanned from the consumer's prefabs.
 
-## `FileSearcher` / bootstrap default-content safety net
+## `FileSearcher` default-content safety net
 
-When the generated `PopupLayerEnum` file is missing, a **compilable** default is seeded (never an empty `.cs` — that
-removes the `PopupLayerEnum` type and hard-fails compilation): `DefaultLayersEnumContent` = `None`-only enum. Two writers
-enforce this and must stay in sync: `FileSearcher.LayersEnumFilePath` (when core is alive) and `AdvancedPS.Bootstrap`
-(on a fresh install, before core compiles — it prefers the store's names over the bare default). Both only write when
-the file is absent, so they never fight — first writer wins. The Addressable index needs no such seed (data asset →
-missing asset is an empty catalog).
+The shipped `PopupLayerEnum` file must always be **compilable** (never an empty `.cs` — that removes the type and
+hard-fails compilation). `LayerCatalog` regenerates it from the store (else `DefaultLayerNames`) only into a **writable**
+package; a read-only install keeps the shipped default. The Addressable index needs no such seed (data asset → missing
+asset is an empty catalog).
 
 ## Package location (`FileSearcher`)
 
@@ -64,9 +61,10 @@ Pipeline:
    sample sources (kept out by the deny-list); `Samples/Utils/` ships raw ([[Samples]]).
 2. **Optional `package.json` bump** — behind a checkbox (version bumps are user-gated, [[Invariants]]); otherwise the
    entered version only names the output file.
-3. **No enum staging** — `PopupLayerEnum` is generated consumer-side now, not under the package, so there is nothing to
-   reset/restore (the old `SuppressReconcile` + default-write + `finally`-restore dance is gone). `Editor/Bootstrap/`
-   ships so consumers self-heal on import.
+3. **Reset the shipped enum to the default set** — `PopupLayerEnum` ships in the package, so the exporter should stage
+   the clean `DefaultLayerNames` (`SuppressReconcile` on so the heal doesn't fight it) and restore the dev's working enum
+   in a `finally`, so a dev's custom layers never ship. (The dev repo currently just keeps the default set; re-add the
+   staging if that changes.)
 4. **Collect allow-list** — every asset under `advanced-popup-system/` **minus** the deny-list: the Obsidian vault,
    `CLAUDE.md`, `Editor/Build/` (the exporter), and raw sample sources. `.git`/`.github`/`.agents`/`.claude` are
    dot-folders Unity already ignores. The consumer-side `Assets/AdvancedPopupSystem/Generated/` is outside the package
@@ -74,13 +72,12 @@ Pipeline:
 5. **Export** with `ExportPackageOptions.Default` (**no `IncludeDependencies`**) → only files under the package, zero
    third-party deps → `Assets/Development/AdvancedPS_v<version>.unitypackage`.
 
-**Gotcha (migration to the consumer-side enum):** on update, the package stops shipping the in-package
-`PopupLayerEnum`; the bootstrap recreates it under `Assets/AdvancedPopupSystem/Generated/Layers/` **from
-`ProjectSettings/APS_Layers.json`**, so custom layers survive as long as that store exists (it has since the store was
-introduced). A consumer coming from a *pre-store* version (no `APS_Layers.json`) gets defaults once — they re-add layers
-via the panel, which writes the store, and every update after is safe. The old in-package
-`Runtime/Generated/PopupLayerEnum.generated.cs` is simply left orphaned by the update (it is no longer part of the
-package); a consumer can delete it. Note the new install location in `CHANGELOG`.
+**Gotcha (1.x → 2.0 migration):** 1.x shipped the enum at `Runtime/Generated/PopupLayerEnum.generated.cs` (compiled into
+core); 2.0 ships it at `Runtime/Generated/Layers/PopupLayerEnum.generated.cs` (its own assembly). A **UPM** update
+replaces the package wholesale — fine. A **`.unitypackage`/Assets** update leaves the old file orphaned, and it would
+**double-define** `PopupLayerEnum` (old-in-core + new-in-Layers-assembly) → the consumer must delete the old
+`Runtime/Generated/PopupLayerEnum.generated.cs`. Custom layers themselves survive via `ProjectSettings/APS_Layers.json`
+(healed on a writable install). Noted in `CHANGELOG`.
 
 ## Depends on
 

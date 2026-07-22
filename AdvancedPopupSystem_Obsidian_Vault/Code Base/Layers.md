@@ -3,9 +3,10 @@ type: code
 status: active
 description: PopupLayerEnum (generated flags), ActiveLayer bitmask semantics, autohide, and how a popup's multi-flag PopupLayer participates in layer show/hide. Read when working with layer grouping.
 code_paths:
+  - Assets/advanced-popup-system/Runtime/Generated/Layers/PopupLayerEnum.generated.cs
   - Assets/advanced-popup-system/Editor/MenuEditor/LayerCatalog.cs
+  - Assets/advanced-popup-system/Editor/MenuEditor/PopupLayerEditorPanel.cs
   - Assets/advanced-popup-system/Editor/LayerEnumSyncPostprocessor.cs
-  - Assets/advanced-popup-system/Editor/Bootstrap/LayerBootstrap.cs
 ---
 
 # Layers
@@ -18,16 +19,17 @@ instead of per-popup.
   31 flags.
 - **The enum is a projection; the store is the source of truth.** The durable layer list lives **outside** the package
   in `ProjectSettings/APS_Layers.json` (the same "state in the consumer project" idea as `AP_Settings.json` —
-  [[Settings & Logging]]), written by the panel via `LayerCatalog`. The enum `.cs` is a rebuildable view of that list and
-  is **generated into the consumer project** (`Assets/AdvancedPopupSystem/Generated/Layers/`, assembly
-  `AdvancedPS.Generated.Layers`, which the core runtime references) — **not shipped in the package** (so a read-only UPM
-  install can regenerate it and an update never clobbers it). Non-destructive flow: a fresh install is seeded by the
-  dependency-free `AdvancedPS.Bootstrap` from the store (breaking the compile chicken-and-egg — see
-  [[Build & Packaging]]), then `LayerEnumSyncPostprocessor` (an `AssetPostprocessor` running **before** the consumer's
-  scripts recompile) + `LayerCatalog.Reconcile` keep it in sync so consumer code referencing `PopupLayerEnum.SHOP`
-  compiles. **Store safety:** `LayerCatalog` writes it atomically (`.tmp` + `File.Replace` → `.bak`) and distinguishes
-  *missing* (seed defaults) from *unreadable* (abort — **never** overwrite real layers with defaults on a read hiccup),
-  recovering from `.bak` when it can. Mechanism details in [[Editor & Codegen]].
+  [[Settings & Logging]]), written by the panel via `LayerCatalog`. The enum `.cs` is a rebuildable view of that list. It
+  **ships inside the package** (`Runtime/Generated/Layers/`, assembly `AdvancedPS.Generated.Layers`, referenced by the
+  core runtime) — it must, because it is a compile-time type and a fresh install can't run code to create it first (the
+  two consumer-side approaches — bootstrap, define-swap — were proven impossible; see [[Build & Packaging]]). **Editing
+  needs a writable package:** the panel gates add/rename/delete behind a **Customization** toggle, and on a read-only UPM
+  install unlocking offers to **embed** the package first (`FileSearcher.IsPackageWritable`/`EmbedPackage`); canvas
+  order/prefab stay editable regardless (consumer-side asset). On a writable install `LayerCatalog.Reconcile` +
+  `LayerEnumSyncPostprocessor` regenerate the enum from the store and heal it after an update. **Store safety:**
+  `LayerCatalog` writes the store atomically (`.tmp` + `File.Replace` → `.bak`) and distinguishes *missing* (seed
+  defaults) from *unreadable* (abort — **never** overwrite real layers on a read hiccup), recovering from `.bak`. Details
+  in [[Editor & Codegen]].
 - A popup's inspector **`PopupLayer` may hold several flags** — it shows for **any** of them (`HasFlag` matching in
   `GetPopupsByLayer`). So one popup can belong to multiple screens.
 - **`AdvancedPopupSystem.ActiveLayer`** is the OR of currently active layers. It is mutated **only** by

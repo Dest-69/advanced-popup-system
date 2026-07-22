@@ -29,6 +29,7 @@ namespace AdvancedPS.Editor
         private static Vector2 scrollPosition;
 
         private const string AutoSaveKey = "APS_AutoSaveEnabled";
+        private const string UnlockKey = "APS_LayersUnlocked";
         private const float OrderWidth = 44f;
         private const float DeleteWidth = 24f;
 
@@ -46,6 +47,8 @@ namespace AdvancedPS.Editor
         {
             if (_enumNames == null || _config == null)
                 LoadState();
+
+            DrawCustomizationHeader();
 
             GUILayout.BeginVertical();
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, APSEditorStyles.ScrollViewStyle);
@@ -69,16 +72,79 @@ namespace AdvancedPS.Editor
             }
 
             // Only offer a new layer once every existing one is named (an empty row is a layer still being named).
-            if (!HasEmptyLayer())
+            using (new EditorGUI.DisabledScope(!Unlocked))
             {
-                if (GUILayout.Button("+", APSEditorStyles.BoldButtonStyle, GUILayout.Height(18)))
-                    AddLayer();
+                if (!HasEmptyLayer())
+                {
+                    if (GUILayout.Button("+", APSEditorStyles.BoldButtonStyle, GUILayout.Height(18)))
+                        AddLayer();
+                }
             }
 
             GUILayout.FlexibleSpace();
             EditorGUILayoutExtensions.DrawHorizontalLine();
             DrawFooter();
         }
+
+        #region Customization lock
+
+        /// <summary>
+        /// Layer add/rename/delete regenerate the compiled <see cref="PopupLayerEnum"/>, so they are locked behind an
+        /// explicit opt-in (canvas order/prefab, a consumer-side asset, stay editable). On a read-only Package Manager
+        /// install the enum can't be written in place, so unlocking offers to <see cref="FileSearcher.EmbedPackage"/>
+        /// (make the package writable) first.
+        /// </summary>
+        private static bool Unlocked
+        {
+            get => PlayerPrefs.GetInt(UnlockKey, 0) == 1;
+            set { PlayerPrefs.SetInt(UnlockKey, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        private static void DrawCustomizationHeader()
+        {
+            bool writable = FileSearcher.IsPackageWritable;
+
+            // Same idiom as the Settings tab: a label + a [x]/[ ] toggle (the plain toggle glyph doesn't render in the
+            // pro skin, so the state is shown as text).
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Customization:", GUILayout.ExpandWidth(false));
+            string toggleLabel = EditorGUIUtility.isProSkin ? (Unlocked ? "[x]" : "[ ]") : "";
+            bool want = GUILayout.Toggle(Unlocked, toggleLabel, APSEditorStyles.ToggleStyle);
+            if (want != Unlocked)
+                SetUnlocked(want, writable);
+            GUILayout.EndHorizontal();
+            GUILayout.Space(5);
+
+            if (!Unlocked)
+                EditorGUILayout.HelpBox(
+                    writable
+                        ? "Layer editing is locked. Enable Customization to add, rename or delete layers."
+                        : "Installed read-only via Package Manager. Enable Customization to embed the package and edit layers.",
+                    MessageType.Info);
+            else if (!writable)
+                EditorGUILayout.HelpBox(
+                    "Embedding… once Unity finishes recompiling, layer edits will save into the embedded package.",
+                    MessageType.Warning);
+            GUILayout.Space(5);
+        }
+
+        private static void SetUnlocked(bool want, bool writable)
+        {
+            if (want && !writable)
+            {
+                bool embed = EditorUtility.DisplayDialog(
+                    "Unlock layer editing",
+                    "Editing layers needs a writable copy of Advanced Popup System.\n\n" +
+                    "Embed the package into your project now? It moves into Packages/ and will no longer auto-update " +
+                    "via Package Manager (remove the embedded copy later to return to the registry version).",
+                    "Embed & unlock", "Cancel");
+                if (!embed) return;
+                FileSearcher.EmbedPackage();
+            }
+            Unlocked = want;
+        }
+
+        #endregion
 
         #region Rows
 
@@ -121,12 +187,17 @@ namespace AdvancedPS.Editor
                 }
             }
 
-            string newName = EditorGUILayout.DelayedTextField(name);
-            if (newName != name)
-                RenameLayer(i, newName);
+            // Name + delete regenerate the enum, so they are gated by the Customization lock; the sorting order and
+            // canvas prefab (consumer-side asset) stay editable regardless.
+            using (new EditorGUI.DisabledScope(!Unlocked))
+            {
+                string newName = EditorGUILayout.DelayedTextField(name);
+                if (newName != name)
+                    RenameLayer(i, newName);
 
-            if (GUILayout.Button(DeleteIcon, GUILayout.Width(DeleteWidth), GUILayout.Height(18)))
-                deleteRequested = true;
+                if (GUILayout.Button(DeleteIcon, GUILayout.Width(DeleteWidth), GUILayout.Height(18)))
+                    deleteRequested = true;
+            }
             GUILayout.EndHorizontal();
 
             // Row 2: canvas prefab (leave empty → APS auto-creates a plain overlay canvas at the sorting order)
