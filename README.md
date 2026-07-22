@@ -33,17 +33,23 @@
 
 ## 📦 Installation
 
-### 1. Install Newtonsoft.Json (Required)
-Advanced Popup System requires the `Newtonsoft.Json` package.
-Go to **Window** -> **Package Manager**, click the **"+"** button, select **Install package by name...**, and enter:
+Pick either method — both are fully supported.
+
+### Option A — Package Manager (Git URL) *(recommended — stays updatable from the Package Manager)*
+Go to **Window** -> **Package Manager**, click the **"+"** button, select **Install package from git URL...**, paste the link below, and click **Add**:
+```
+https://github.com/Dest-69/advanced-popup-system.git
+```
+The required **Newtonsoft.Json** dependency is pulled in automatically — no separate step needed. *(Requires [Git](https://git-scm.com/) installed. Installing read-only this way is fully supported — see the note below.)*
+
+### Option B — Import into your project *(as before)*
+1. **Install Newtonsoft.Json first** — manual imports don't auto-resolve dependencies, so add it yourself: **Window** -> **Package Manager** -> **"+"** -> **Install package by name...**, and enter:
 ```
 com.unity.nuget.newtonsoft-json
 ```
+2. Download the latest `.unitypackage` from the [**Releases**](https://github.com/Dest-69/advanced-popup-system/releases) page and import it via **Assets -> Import Package -> Custom Package...**, or simply copy the package folder into your project's `Assets/`.
 
-### 2. Import Advanced Popup System
-Add it via the **Package Manager** — click **"+"** → **Install package from git URL…** and paste the repository URL — or drop the package into your project's `Assets` folder. Both work; the package is fully UPM-compatible even when installed read-only from a git URL or registry.
-
-> On first import, APS generates a small folder in **your** project — `Assets/AdvancedPopupSystem/Generated/` — that holds your layer enum (`PopupLayerEnum`) and any custom displays. This lives in your project (not the package) so package updates never overwrite your layers, and it works even when APS itself is installed read-only. Keep it in version control. If your popup code lives in its **own** assembly definition, add a reference to **`AdvancedPS.Generated.Layers`** so it can see `PopupLayerEnum` (code in the default `Assembly-CSharp` needs nothing).
+> Note: APS creates an `Assets/AdvancedPopupSystem/` folder in your project for its generated layers and any custom displays you author — commit it to version control like the rest of your code. See the [documentation](documentation.md#5-the-aps-editor-window) for details.
 
 ---
 

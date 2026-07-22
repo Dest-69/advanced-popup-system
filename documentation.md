@@ -37,7 +37,7 @@ This is the complete technical guide: how to set popups up and how to drive the 
   `.OnComplete(...)` or abort the running transition with `.Cancel()`.
 - **`PopupLayerEnum`** — a generated `[Flags]` enum that groups popups into logical screens (e.g. `GUI`, `GAME`,
   `MENU`). Several flags can be active at once. Edit it from the APS **Layers** panel; it is generated into **your**
-  project at `Assets/AdvancedPopupSystem/Generated/Layers/` (see [§6](#6-editor-tooling)).
+  project at `Assets/AdvancedPopupSystem/Generated/Layers/` (see [§5](#5-the-aps-editor-window)).
 - **Displays & Settings** — a *display* runs an animation, a *settings* object holds its tunables. Built in:
   `FadeDisplay`/`FadeSettings`, `ScaleDisplay`/`ScaleSettings`, `SlideDisplay`/`SlideSettings`, and (optional)
   `DoTweenDisplay`/`DoTweenSettings`. `EasingType` provides 30 easing curves.
