@@ -41,7 +41,9 @@ com.unity.nuget.newtonsoft-json
 ```
 
 ### 2. Import Advanced Popup System
-Clone or copy this package into your Unity project's `Assets` folder, or add it via the Unity Package Manager (UPM) if configured as a package.
+Add it via the **Package Manager** — click **"+"** → **Install package from git URL…** and paste the repository URL — or drop the package into your project's `Assets` folder. Both work; the package is fully UPM-compatible even when installed read-only from a git URL or registry.
+
+> On first import, APS generates a small folder in **your** project — `Assets/AdvancedPopupSystem/Generated/` — that holds your layer enum (`PopupLayerEnum`) and any custom displays. This lives in your project (not the package) so package updates never overwrite your layers, and it works even when APS itself is installed read-only. Keep it in version control. If your popup code lives in its **own** assembly definition, add a reference to **`AdvancedPS.Generated.Layers`** so it can see `PopupLayerEnum` (code in the default `Assembly-CSharp` needs nothing).
 
 ---
 

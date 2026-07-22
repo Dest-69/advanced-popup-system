@@ -3,7 +3,8 @@
     "rootNamespace": "AdvancedPS.Core.Input",
     "references": [
         "GUID:75469ad4d38634e559750d17036d5f7c",
-        "GUID:bcd6335d616709349968d9fbde39ead7"
+        "GUID:bcd6335d616709349968d9fbde39ead7",
+        "AdvancedPS.Generated.Layers"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

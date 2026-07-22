@@ -48,7 +48,8 @@ namespace AdvancedPS.Editor
             minSize = new Vector2(300, 450);
             
             imagesPath = FileSearcher.ImagesFolderPath;
-            bannerTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(System.IO.Path.Combine(imagesPath, "AP_bundleBlack.png"));
+            if (!string.IsNullOrEmpty(imagesPath))
+                bannerTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(System.IO.Path.Combine(imagesPath, "AP_bundleBlack.png"));
             
             Version = PackageVersionHelper.GetVersion();
             

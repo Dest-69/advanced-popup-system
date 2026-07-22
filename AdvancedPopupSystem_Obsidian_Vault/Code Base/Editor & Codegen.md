@@ -23,14 +23,19 @@ sync**, else a name the panel accepts is stripped on save); **Auto-Save** persis
 (`APS_AutoSaveEnabled`). All persistence/codegen is centralized in **`LayerCatalog`** (the single codegen path):
 
 - **Source of truth is external** — `LayerCatalog.SaveNames` writes the ordered list to `ProjectSettings/APS_Layers.json`
-  (outside the package, never shipped, never clobbered by import). `PopupLayerEnum.generated.cs` is a *projection*.
+  **atomically** (`.tmp` + `File.Replace` → `.bak`), outside the package, never shipped, never clobbered by import.
+  `PopupLayerEnum.generated.cs` is a *projection*, generated **into the consumer project**
+  (`Assets/AdvancedPopupSystem/Generated/Layers/`, resolved by `FileSearcher.LayersEnumFilePath`) — not the package.
+- **Read safety** — `LayerCatalog.TryLoadNames` returns `Missing`/`Ok`/`Unreadable`; `Reconcile` seeds defaults only on
+  `Missing` and **aborts on `Unreadable`** so a locked/mid-write/corrupt store is never overwritten with defaults (the
+  corruption bug). It recovers from `.bak` when the live store is missing/corrupt.
 - **`GenerateEnumSource`** builds the enum (`None = 0`, then `1 << bit`, max 31); **`Reconcile`** rewrites the file
-  from the store only when content differs (idempotent — no needless recompile).
+  from the store only when content differs (EOL-insensitive; idempotent — no needless recompile).
 - **`LayerEnumSyncPostprocessor`** heals the enum after an import: `OnPostprocessAllAssets` runs on the *already-loaded*
-  editor assembly **before** the imported scripts recompile, so restoring the store's layers happens in time for
-  consumer code that references them to compile. `[InitializeOnLoadMethod]` is a secondary post-reload safety net; a
-  `SuppressReconcile` flag lets the exporter stage clean defaults without the heal fighting it. This is the
-  **non-destructive-update** mechanism ([[Layers]], [[Build & Packaging]]).
+  editor assembly **before** the imported scripts recompile; `[InitializeOnLoadMethod]` is a secondary post-reload
+  safety net. On a **fresh install** neither runs (they need core, which can't compile until the enum assembly exists) —
+  the dependency-free `AdvancedPS.Bootstrap` (`Editor/Bootstrap/LayerBootstrap.cs`) seeds the assembly first. Together
+  these are the **non-destructive-update** mechanism ([[Layers]], [[Build & Packaging]]).
 - **Gotcha — "+" adds an empty "being named" row that must NOT dirty the set.** `AddLayer` appends a blank entry to
   `_enumNames` but leaves `_namesChanged` false. `SaveChanges` strips empty names, so if adding dirtied the set, with
   Auto-Save on `DrawFooter` would run `SaveChanges` + `LoadState` in the *same* OnGUI pass and wipe the row before it
@@ -52,17 +57,24 @@ add/rename/delete go through the codegen path above and re-sync the SO. Runtime 
 
 ## Display generation (`PopupDisplaysEditorPanel`)
 
-Lists subfolders of `FileSearcher.DisplaysFolderPath` ending in `Display`. **Add** writes
-`<Name>Display/<Name>Display.generated.cs` + `<Name>Settings.generated.cs` from string templates — **only if the folder
-doesn't exist** (never overwrites your bodies). **Delete** removes the folder (confirm dialog). Names validated to
-letters-only, then `RemoveDisplaySuffix` + `"Display"`/`"Settings"` ([[Displays & Animations]], [[Display — Custom]]).
+Lists display subfolders (ending in `Display`) from **both** `FileSearcher.BuiltinDisplaysFolderPath` (the package's
+built-ins — read-only, shown but not renamable/deletable) and `FileSearcher.CustomDisplaysFolderPath` (the consumer's
+`Assets/AdvancedPopupSystem/Generated/Displays/`, assembly `AdvancedPS.Generated.Displays`). **Add**/**Delete** operate
+only on the custom folder; **Add** writes `<Name>Display/…generated.cs` from string templates **only if the folder
+doesn't exist** (never overwrites your bodies). Names validated to letters-only, then `RemoveDisplaySuffix` +
+`"Display"`/`"Settings"` ([[Displays & Animations]], [[Display — Custom]]).
 
 ## FileSearcher (paths)
 
-Locates the package by folder name `advanced-popup-system` (AssetDatabase in editor; `dataPath` at runtime) and exposes
-`DisplaysFolderPath`, `LayersEnumFilePath`, `ImagesFolderPath`; `ToAssetPath`/`ToFsPath`
-convert between filesystem and `Assets/...` paths. **`FolderRenamePrevention`** (an `AssetPostprocessor`) reverts any rename of that folder — the
-lookup keys off the name, so renaming would break codegen/images.
+Resolves the package via `UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(FileSearcher).Assembly)` (works
+under `Packages/` **or** `Assets/`), with a folder-name (`advanced-popup-system`) AssetDatabase search as fallback.
+**Read-only package assets** — `ImagesFolderPath` (asset path, for `LoadAssetAtPath`), `BuiltinDisplaysFolderPath` (real
+FS, for listing). **Writable consumer generated code** — `LayersEnumFilePath`, `CustomDisplaysFolderPath` under
+`Assets/AdvancedPopupSystem/Generated/`, each ensuring its folder + asmdef + compilable default. `ToAssetPath`/`ToFsPath`
+convert between filesystem and asset paths for both `Assets/` and `Packages/`. **All accessors are lazy and
+non-throwing** — a failure logs once and returns `null` (callers guard); the old eager static ctor threw
+`TypeInitializationException` under UPM and poisoned every downstream site. **`FolderRenamePrevention`** still reverts a
+rename of the loose `advanced-popup-system` folder (the fallback keys off the name).
 
 ## Addressable index generation (`AddressablePopupIndexGenerator`, optional)
 

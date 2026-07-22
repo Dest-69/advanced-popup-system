@@ -1,4 +1,14 @@
 # Changelog
+## [2.0.0] - 2026-07-22
+### Changed
+- **Works as a Package Manager package** — install APS straight from a Git URL or registry, not just by copying it into your project. Its icons and editor tools now find everything wherever the package lives, and your layers and custom displays are generated into your own project folder (`Assets/AdvancedPopupSystem/`) so updating APS never disturbs them.
+### Fixed
+- **Your layers can't get corrupted on import** — layer data is saved safely and is never reset by an interrupted or unreadable read, so deleting, re-importing, or updating APS always keeps your layers.
+### Upgrading from 1.x
+- Your custom layers carry over automatically — they're restored from `ProjectSettings/APS_Layers.json`. On the first launch after updating, APS runs one quick compile pass while it recreates the layer/display code in `Assets/AdvancedPopupSystem/`; this is expected.
+- If your popup code lives in its **own** assembly definition, add a reference to **`AdvancedPS.Generated.Layers`** so it can see `PopupLayerEnum` (code in the default `Assembly-CSharp` needs nothing).
+- If you previously copied APS into your `Assets` folder, delete the leftover `Assets/advanced-popup-system/Runtime/Generated/PopupLayerEnum.generated.cs` after updating — the layer enum now lives in `Assets/AdvancedPopupSystem/`.
+
 ## [1.25.0] - 2026-07-22
 ### Added
 - **Open a popup in one line** — call any popup straight by its type: it loads from Addressables on the spot if it isn't in the scene yet, then shows (and a matching one-liner hides it). Need the popup object itself? A new await-able getter returns it, loading it first when necessary. No more grabbing a reference or opening a whole layer just to show one screen.

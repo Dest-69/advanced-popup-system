@@ -6,19 +6,18 @@ using UnityEngine;
 namespace AdvancedPS.Editor
 {
     /// <summary>
-    /// Keeps the shipped <c>PopupLayerEnum.generated.cs</c> in sync with the external layer store
-    /// (<c>ProjectSettings/APS_Layers.json</c>) so updating the package never wipes a consumer's custom layers
-    /// (see <see cref="LayerCatalog"/>).
+    /// Keeps the consumer-side <c>PopupLayerEnum.generated.cs</c> (now under
+    /// <c>Assets/AdvancedPopupSystem/Generated/Layers/</c>) in sync with the external layer store
+    /// (<c>ProjectSettings/APS_Layers.json</c>) — see <see cref="LayerCatalog"/>.
     ///
-    /// The load-bearing hook is <see cref="OnPostprocessAllAssets"/>: it runs on the <i>currently loaded</i> editor
-    /// assemblies <b>before</b> the freshly imported scripts recompile. When a package update overwrites the enum
-    /// with the shipped default, this restores the consumer's layers from the store first — so their own code
-    /// (which references <c>PopupLayerEnum.SHOP</c> etc.) still compiles instead of breaking. The
-    /// <see cref="InitializeOnLoadMethod"/> pass is a secondary safety net after each domain reload.
+    /// The enum lives in the consumer project (not the package), so a package update no longer touches it; on a fresh
+    /// read-only install it is seeded by the dependency-free <c>AdvancedPS.Bootstrap</c> assembly (which runs even while
+    /// core is still red). This postprocessor then reconciles the file with the store whenever it is (re)imported, and
+    /// the <see cref="InitializeOnLoadMethod"/> pass is a secondary safety net after each domain reload.
     /// </summary>
     internal class LayerEnumSyncPostprocessor : AssetPostprocessor
     {
-        private const string EnumRelativePath = "Runtime/Generated/PopupLayerEnum.generated.cs";
+        private const string EnumRelativePath = "AdvancedPopupSystem/Generated/Layers/PopupLayerEnum.generated.cs";
 
         private static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets,
             string[] movedAssets, string[] movedFromAssetPaths)

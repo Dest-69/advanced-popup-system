@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -13,6 +14,9 @@ namespace AdvancedPS.Editor
     {
         private static bool autoSave;
         private static string[] _displayNames;
+        // Parallel to _displayNames: true for the package's built-in displays (Fade/Scale/Slide/DoTween), which are
+        // read-only — only custom displays (in the consumer project) can be added, renamed or deleted.
+        private static bool[] _isBuiltin;
         private static bool[] _displayNameChanged;
         
         private static Vector2 scrollPosition;
@@ -33,7 +37,17 @@ namespace AdvancedPS.Editor
             for (int i = 0; i < _displayNames.Length; i++)
             {
                 GUILayout.BeginHorizontal();
-                
+
+                if (_isBuiltin != null && i < _isBuiltin.Length && _isBuiltin[i])
+                {
+                    // Built-in display: ships read-only inside the package — show it, but no rename / delete.
+                    using (new EditorGUI.DisabledScope(true))
+                        EditorGUILayout.TextField(_displayNames[i]);
+                    GUILayout.Label("built-in", EditorStyles.miniLabel, GUILayout.Width(56));
+                    GUILayout.EndHorizontal();
+                    continue;
+                }
+
                 string newEnumName = EditorGUILayout.DelayedTextField(_displayNames[i]);
                 if (newEnumName != _displayNames[i])
                 {
@@ -121,17 +135,29 @@ namespace AdvancedPS.Editor
 
         private static void LoadEnumNames()
         {
-            var root = FileSearcher.DisplaysFolderPath;
-            if (!Directory.Exists(root)) {
-                _displayNames = Array.Empty<string>();
-                _displayNameChanged = Array.Empty<bool>();
-                return;
-            }
-            _displayNames = Directory.GetDirectories(root)
-                .Select(Path.GetFileName)
-                .Where(n => n.EndsWith("Display"))
-                .ToArray();
+            var names = new List<string>();
+            var builtin = new List<bool>();
+
+            // Built-in displays ship inside the package (read-only); custom displays live in the consumer project so a
+            // read-only UPM install can still author them and a package update never clobbers them.
+            CollectDisplayFolders(FileSearcher.BuiltinDisplaysFolderPath, names, builtin, true);
+            CollectDisplayFolders(FileSearcher.CustomDisplaysFolderPath, names, builtin, false);
+
+            _displayNames = names.ToArray();
+            _isBuiltin = builtin.ToArray();
             _displayNameChanged = new bool[_displayNames.Length];
+        }
+
+        private static void CollectDisplayFolders(string root, List<string> names, List<bool> builtin, bool isBuiltin)
+        {
+            if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return;
+            foreach (string dir in Directory.GetDirectories(root))
+            {
+                string n = Path.GetFileName(dir);
+                if (!n.EndsWith("Display") || names.Contains(n)) continue;
+                names.Add(n);
+                builtin.Add(isBuiltin);
+            }
         }
 
         private static void AddDisplay(string enumName)
@@ -140,6 +166,8 @@ namespace AdvancedPS.Editor
             {
                 Array.Resize(ref _displayNames, _displayNames.Length + 1);
                 _displayNames[^1] = enumName;
+                Array.Resize(ref _isBuiltin, _displayNames.Length);
+                _isBuiltin[^1] = false; // a freshly added row is always a custom display
                 Array.Resize(ref _displayNameChanged, _displayNames.Length);
             }
         }
@@ -147,6 +175,7 @@ namespace AdvancedPS.Editor
         private static void DeleteDisplay(int index)
         {
             _displayNames = _displayNames.Where((_, i) => i != index).ToArray();
+            _isBuiltin = _isBuiltin.Where((_, i) => i != index).ToArray();
             _displayNameChanged = _displayNameChanged.Where((_, i) => i != index).ToArray();
         }
 
@@ -163,40 +192,61 @@ namespace AdvancedPS.Editor
         
         private static void SaveDisplayChanges()
         {
-            var desired = _displayNames
-                .Where(n => !string.IsNullOrEmpty(n))
-                .Select(TypeHelper.RemoveDisplaySuffix)
-                .Distinct()
-                .ToList();
+            // Only custom rows are generated — built-ins already ship in the package and must never be re-created in the
+            // consumer folder (that would shadow them with an empty duplicate).
+            var desired = new List<string>();
+            for (int i = 0; i < _displayNames.Length; i++)
+            {
+                if (_isBuiltin != null && i < _isBuiltin.Length && _isBuiltin[i]) continue;
+                if (string.IsNullOrEmpty(_displayNames[i])) continue;
+                string b = TypeHelper.RemoveDisplaySuffix(_displayNames[i]);
+                if (!desired.Contains(b)) desired.Add(b);
+            }
             if (desired.Count == 0) return;
 
-            foreach (var baseName in desired) 
+            string root = FileSearcher.CustomDisplaysFolderPath;
+            if (string.IsNullOrEmpty(root))
+            {
+                APLogger.LogWarning("Cannot create a display: the generated displays folder is unavailable.");
+                return;
+            }
+
+            foreach (var baseName in desired)
             {
                 var className = baseName + "Display";
-                var folder    = Path.Combine(FileSearcher.DisplaysFolderPath, className);
+                var folder    = Path.Combine(root, className);
                 if (!Directory.Exists(folder)) CreateDisplayAndSettingsFiles(baseName);
             }
             AssetDatabase.Refresh();
-            
+
             LoadEnumNames();
         }
-        
+
         private static void DeleteDisplayAndSettingsFiles(string displayName)
         {
+            string root = FileSearcher.CustomDisplaysFolderPath;
+            if (string.IsNullOrEmpty(root)) return;
+
             var baseName  = TypeHelper.RemoveDisplaySuffix(displayName);
-            var folderFs  = Path.Combine(FileSearcher.DisplaysFolderPath, baseName + "Display");
+            var folderFs  = Path.Combine(root, baseName + "Display");
             var assetPath = FileSearcher.ToAssetPath(folderFs);
 
             if (AssetDatabase.IsValidFolder(assetPath))
                 AssetDatabase.DeleteAsset(assetPath);
-            
+
             SaveDisplayChanges();
         }
-        
+
         private static void CreateDisplayAndSettingsFiles(string displayName)
         {
             var baseName = TypeHelper.RemoveDisplaySuffix(displayName);
-            var displayFolderPath = Path.Combine(FileSearcher.DisplaysFolderPath, baseName + "Display");
+            string root = FileSearcher.CustomDisplaysFolderPath;
+            if (string.IsNullOrEmpty(root))
+            {
+                APLogger.LogWarning("Cannot create a display: the generated displays folder is unavailable.");
+                return;
+            }
+            var displayFolderPath = Path.Combine(root, baseName + "Display");
 
             string fullDisplayName = $"{baseName}Display";;
             string fullSettingsName = $"{baseName}Settings";

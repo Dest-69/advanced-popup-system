@@ -35,8 +35,9 @@ This is the complete technical guide: how to set popups up and how to drive the 
 - **`AdvancedPopupSystem`** — the static manager. It registers/looks up popups and orchestrates layer-level show / hide.
 - **`Operation`** — the lightweight object returned by every non-`async` show/hide call. Chain a callback with
   `.OnComplete(...)` or abort the running transition with `.Cancel()`.
-- **`PopupLayerEnum`** — a generated `[Flags]` enum (see `PopupLayerEnum.generated.cs`) that groups popups into logical
-  screens (e.g. `GUI`, `GAME`, `MENU`). Several flags can be active at once. Edit it from the APS **Layers** panel.
+- **`PopupLayerEnum`** — a generated `[Flags]` enum that groups popups into logical screens (e.g. `GUI`, `GAME`,
+  `MENU`). Several flags can be active at once. Edit it from the APS **Layers** panel; it is generated into **your**
+  project at `Assets/AdvancedPopupSystem/Generated/Layers/` (see [§6](#6-editor-tooling)).
 - **Displays & Settings** — a *display* runs an animation, a *settings* object holds its tunables. Built in:
   `FadeDisplay`/`FadeSettings`, `ScaleDisplay`/`ScaleSettings`, `SlideDisplay`/`SlideSettings`, and (optional)
   `DoTweenDisplay`/`DoTweenSettings`. `EasingType` provides 30 easing curves.
@@ -416,13 +417,16 @@ public override void Init()
 Open from the top **`APS`** menu — one window, three tabs:
 
 - **`APS ▸ Layers`** — add / rename / delete `PopupLayerEnum` flags. Names are normalized to `UPPER_CASE` and may use
-  Latin letters, digits and underscore (a name can't start with a digit); the enum file is **regenerated** on save
-  (up to 31 flags). Do not hand-edit `PopupLayerEnum.generated.cs` — your edits are
-  overwritten here. Your layer set is also saved **outside** the package, in `ProjectSettings/APS_Layers.json`, so
-  **updating APS never wipes your custom layers** — the enum is automatically restored from that file when the new
-  version is imported.
+  Latin letters, digits and underscore (a name can't start with a digit); the enum is **regenerated** on save (up to 31
+  flags). The enum is generated into **your** project at `Assets/AdvancedPopupSystem/Generated/Layers/` (its own
+  assembly, `AdvancedPS.Generated.Layers`), and the durable list is stored in `ProjectSettings/APS_Layers.json`. Because
+  both live in your project — not the package — **updating APS never wipes your custom layers**, and it works even when
+  APS is installed read-only from a git URL or registry. On a brand-new install you may see one brief compile pass while
+  APS seeds this assembly, then it settles. Do not hand-edit the generated file — your edits are overwritten. (If your
+  own code is in a separate assembly definition, reference `AdvancedPS.Generated.Layers` so it can see `PopupLayerEnum`.)
 - **`APS ▸ Displays`** — add a new display: APS generates `<Name>Display/<Name>Display.generated.cs` +
-  `<Name>Settings.generated.cs` with ready-to-fill method stubs. Generation never overwrites an existing display, and
+  `<Name>Settings.generated.cs` with ready-to-fill method stubs, into `Assets/AdvancedPopupSystem/Generated/Displays/`
+  in your project (the built-in displays are listed read-only). Generation never overwrites an existing display, and
   delete removes the pair. The `Display` / `Settings` suffixes and folder name are required by the tooling — keep them.
 - **`APS ▸ Settings`** — see [§7](#7-settings--logging).
 

@@ -17,8 +17,9 @@ namespace AdvancedPS.Editor
         {
             Settings = SettingsManager.Settings;
             imagesPath = FileSearcher.ImagesFolderPath;
-            popupIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(imagesPath + "AP_LogoBlack32.png");
-            
+            if (!string.IsNullOrEmpty(imagesPath))
+                popupIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(imagesPath + "AP_LogoBlack32.png");
+
             EditorApplication.hierarchyWindowItemOnGUI += OnHierarchyWindowItemOnGUI;
         }
 
@@ -27,7 +28,7 @@ namespace AdvancedPS.Editor
             if (Settings.InspectorView != InspectorEnum.APSInspector) return;
             
             Object obj = EditorUtility.InstanceIDToObject(instanceID);
-            if (obj is GameObject go && go.GetComponent<IAdvancedPopup>() != null)
+            if (popupIcon != null && obj is GameObject go && go.GetComponent<IAdvancedPopup>() != null)
             {
                 Rect rect = new Rect(selectionRect.x + selectionRect.width - 16, selectionRect.y, 16, 16);
                 GUI.Label(rect, new GUIContent(popupIcon));

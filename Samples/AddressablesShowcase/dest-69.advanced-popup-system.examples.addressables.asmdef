@@ -2,7 +2,8 @@
     "name": "dest-69.advanced-popup-system.examples.addressables",
     "rootNamespace": "AdvancedPS.Core.Examples",
     "references": [
-        "GUID:bcd6335d616709349968d9fbde39ead7"
+        "GUID:bcd6335d616709349968d9fbde39ead7",
+        "AdvancedPS.Generated.Layers"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

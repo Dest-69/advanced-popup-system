@@ -66,8 +66,11 @@ namespace AdvancedPS.Editor
             _settings ??= SettingsManager.Settings;
             
             _imagesPath = FileSearcher.ImagesFolderPath;
-            _popupIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_LogoBlack32.png");
-            _popupBanner = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_Banner.png");
+            if (!string.IsNullOrEmpty(_imagesPath))
+            {
+                _popupIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_LogoBlack32.png");
+                _popupBanner = AssetDatabase.LoadAssetAtPath<Texture2D>(_imagesPath + "AP_Banner.png");
+            }
             
             _popupLayerProperty = serializedObject.FindProperty("PopupLayer");
             _inactiveProperty = serializedObject.FindProperty("Inactive");

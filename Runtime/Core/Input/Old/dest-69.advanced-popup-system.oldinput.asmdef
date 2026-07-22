@@ -2,7 +2,8 @@
     "name": "dest-69.advanced-popup-system.oldinput",
     "rootNamespace": "AdvancedPS.Core.Input",
     "references": [
-        "GUID:bcd6335d616709349968d9fbde39ead7"
+        "GUID:bcd6335d616709349968d9fbde39ead7",
+        "AdvancedPS.Generated.Layers"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -51,32 +51,99 @@ namespace AdvancedPS.Editor
 
         #region Store I/O
 
-        /// <summary>Reads the ordered layer names from the store, or null when it does not exist / is unreadable.</summary>
+        /// <summary>
+        /// Outcome of a store read. The distinction between <see cref="Missing"/> and <see cref="Unreadable"/> is
+        /// load-bearing: a read hiccup (locked / mid-write / corrupt) must NOT be mistaken for "no store", or the heal
+        /// would overwrite a real layer set with defaults. See <see cref="Reconcile(string,bool)"/>.
+        /// </summary>
+        private enum StoreState { Missing, Ok, Unreadable }
+
+        /// <summary>Reads the ordered layer names from the store, or null when it is missing or unreadable.</summary>
         internal static string[] LoadNames()
         {
+            return TryLoadNames(out string[] names) == StoreState.Ok ? names : null;
+        }
+
+        /// <summary>
+        /// Reads the layer names, transparently recovering from the <c>.bak</c> sidecar when the live store is
+        /// missing/corrupt but a good backup exists (and re-materializing the live store from it).
+        /// </summary>
+        private static StoreState TryLoadNames(out string[] names)
+        {
+            string path = StorePath;
+            bool mainExists = File.Exists(path);
+
+            if (mainExists && TryParse(path, out names))
+                return StoreState.Ok;
+
+            // Live store is missing or unreadable — fall back to the last-good backup.
+            string bak = path + ".bak";
+            if (File.Exists(bak) && TryParse(bak, out names))
+            {
+                Debug.LogWarning($"[APS] {StoreFileName} was {(mainExists ? "unreadable" : "missing")}; " +
+                                 "recovered the layer set from its .bak backup.");
+                WriteAtomic(names); // heal the live store so later reads are clean
+                return StoreState.Ok;
+            }
+
+            names = null;
+            return mainExists ? StoreState.Unreadable : StoreState.Missing;
+        }
+
+        private static bool TryParse(string file, out string[] names)
+        {
+            names = null;
             try
             {
-                if (File.Exists(StorePath))
-                {
-                    LayerData data = JsonUtility.FromJson<LayerData>(File.ReadAllText(StorePath));
-                    if (data?.names != null)
-                        return Normalize(data.names);
-                }
+                string text = File.ReadAllText(file);
+                if (string.IsNullOrWhiteSpace(text)) return false;
+                LayerData data = JsonUtility.FromJson<LayerData>(text);
+                if (data?.names == null) return false;
+                names = Normalize(data.names);
+                return true;
             }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[APS] Failed to read {StoreFileName}: {ex.Message}");
-            }
-            return null;
+            catch { return false; }
         }
 
         /// <summary>Writes the ordered, sanitized layer names to the store (source of truth, outside the package).</summary>
         internal static void SaveNames(IEnumerable<string> names)
         {
+            WriteAtomic(Normalize(names));
+        }
+
+        /// <summary>
+        /// Crash-safe store write: serialize to a temp file, then atomically promote it, keeping the previous good copy
+        /// as <c>.bak</c>. A killed editor mid-write can no longer truncate the store (the old file stays intact until
+        /// the atomic swap), and the <c>.bak</c> gives <see cref="TryLoadNames"/> something to recover from.
+        /// </summary>
+        private static void WriteAtomic(string[] names)
+        {
+            string path = StorePath;
             try
             {
-                var data = new LayerData { names = Normalize(names) };
-                File.WriteAllText(StorePath, JsonUtility.ToJson(data, true));
+                string json = JsonUtility.ToJson(new LayerData { names = names }, true);
+                string tmp = path + ".tmp";
+                File.WriteAllText(tmp, json);
+
+                if (File.Exists(path))
+                {
+                    string bak = path + ".bak";
+                    try
+                    {
+                        File.Replace(tmp, path, bak); // atomic where supported: path→bak, tmp→path
+                    }
+                    catch
+                    {
+                        // Some filesystems / AV shields reject File.Replace — fall back to a move sequence.
+                        if (File.Exists(bak)) File.Delete(bak);
+                        File.Move(path, bak);
+                        File.Move(tmp, path);
+                    }
+                }
+                else
+                {
+                    File.Move(tmp, path);
+                }
             }
             catch (Exception ex)
             {
@@ -175,10 +242,19 @@ namespace AdvancedPS.Editor
         {
             if (SuppressReconcile || string.IsNullOrEmpty(enumFsPath)) return;
 
-            string[] names = LoadNames();
-            if (names == null)
+            StoreState state = TryLoadNames(out string[] names);
+            if (state == StoreState.Unreadable)
             {
-                // No store yet: seed it from the file's current names (fresh install / transition update).
+                // The store exists but could not be read (locked / mid-write / corrupt) and no usable .bak. Seeding
+                // defaults here would destroy the real layer set — the exact corruption we must never cause. Leave the
+                // enum untouched and heal on a later reload once the file is readable again.
+                Debug.LogError($"[APS] {StoreFileName} is unreadable — skipping the layer heal so it is not overwritten. " +
+                               "Restore or delete the file (a .bak may sit next to it) and reopen the editor.");
+                return;
+            }
+            if (state == StoreState.Missing)
+            {
+                // No store yet (fresh install / transition update): seed it from the file's current names, else defaults.
                 string[] seed = ParseNamesFromSource(SafeRead(enumFsPath));
                 if (seed.Length == 0) seed = DefaultLayerNames;
                 SaveNames(seed);

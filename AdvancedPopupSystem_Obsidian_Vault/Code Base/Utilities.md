@@ -12,8 +12,10 @@ code_paths:
 they get reused, not re-written ([[Code Style]]).
 
 - **`APLogger`** — level-filtered logging (`Log`/`LogWarning`/`LogError`/`LogException`). Detail: [[Settings & Logging]].
-- **`FileSearcher`** — package-folder + codegen/image path resolution, `ToAssetPath`/`ToFsPath`. Detail:
-  [[Editor & Codegen]].
+- **`FileSearcher`** — UPM-aware package resolution (`PackageInfo.FindForAssembly`, folder-name fallback) for read-only
+  image/built-in-display paths, and the **consumer-side** generated-code paths (`LayersEnumFilePath`,
+  `CustomDisplaysFolderPath` under `Assets/AdvancedPopupSystem/Generated/`), plus `ToAssetPath`/`ToFsPath`. Lazy,
+  non-throwing. Detail: [[Editor & Codegen]].
 - **`TaskUtils`** — `OperationCancelled(token)` and `UpdateCancellationTokenSource(...)`. Detail:
   [[Operations & Cancellation]].
 - **`TypeHelper`** — display/settings type resolution by name: `GetDisplay`/`GetDisplaySettings` (base name + suffix,

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using AdvancedPS.Core.Utils;
 using UnityEditor;
 using UnityEngine;
 
@@ -20,9 +19,10 @@ namespace AdvancedPS.Editor
     /// <item>rebuilds each <c>Samples/&lt;Showcase&gt;/</c> into a nested <c>Samples/&lt;Showcase&gt;.unitypackage</c>
     /// and ships those instead of the raw sample sources;</item>
     /// <item>excludes the internal tooling (the Obsidian vault, <c>CLAUDE.md</c>, and this exporter);</item>
-    /// <item>resets the generated <c>PopupLayerEnum</c> to a clean, update-safe default so a consumer's own layer set is
-    /// never shipped over (the Addressable popup index is a data asset in the consumer's Resources — outside the
-    /// package — so it is excluded automatically, like <c>AP_Settings.json</c>);</item>
+    /// <item>ships <b>no</b> generated <c>PopupLayerEnum</c> — it now lives in the consumer project
+    /// (<c>Assets/AdvancedPopupSystem/Generated/</c>) and is seeded on import by the bundled
+    /// <c>AdvancedPS.Bootstrap</c> assembly, so a consumer's own layer set is never shipped over (the Addressable index
+    /// is likewise a consumer-side data asset, excluded automatically, like <c>AP_Settings.json</c>);</item>
     /// <item>writes the result to <c>Assets/Development/AdvancedPS_v&lt;version&gt;.unitypackage</c>.</item>
     /// </list>
     /// </summary>
@@ -90,8 +90,9 @@ namespace AdvancedPS.Editor
                     RefreshPreview();
             }
             if (!string.IsNullOrEmpty(_breakdown))
-                EditorGUILayout.HelpBox(_breakdown + "\n(＋ folder structure. The layer enum ships as a clean default; " +
-                                        "the Addressable index asset lives in the consumer's Resources and is never shipped.)", MessageType.None);
+                EditorGUILayout.HelpBox(_breakdown + "\n(＋ folder structure. PopupLayerEnum and custom displays are " +
+                                        "generated into the consumer project — not shipped; the bundled AdvancedPS.Bootstrap " +
+                                        "assembly seeds them on import.)", MessageType.None);
 
             if (_included != null)
             {
@@ -145,9 +146,6 @@ namespace AdvancedPS.Editor
                     "Update package.json", "Keep current"))
                 bumpVersion = false;
 
-            string enumFs = FileSearcher.LayersEnumFilePath;
-            string enumBackup = SafeRead(enumFs);
-
             bool ok = false;
             int fileCount = 0;
             List<string> rebuilt = new List<string>();
@@ -161,12 +159,8 @@ namespace AdvancedPS.Editor
                 if (bumpVersion)
                     WritePackageVersion(version);
 
-                // Reset the generated layer enum to a clean, update-safe default for the shipped package. The heal
-                // postprocessor is suppressed so it does not immediately rewrite it from the dev's local store.
-                EditorUtility.DisplayProgressBar("APS Export", "Staging generated default…", 0.4f);
-                LayerCatalog.SuppressReconcile = true;
-                WriteAndImport(enumFs, LayerCatalog.GenerateEnumSource(LayerCatalog.DefaultLayerNames));
-
+                // PopupLayerEnum is no longer part of the package — it is generated into the consumer project and seeded
+                // by the bundled AdvancedPS.Bootstrap assembly on import — so there is nothing to stage or restore here.
                 AssetDatabase.Refresh();
                 string[] assets = CollectPackageAssets();
                 fileCount = assets.Length;
@@ -183,9 +177,6 @@ namespace AdvancedPS.Editor
             }
             finally
             {
-                // Always restore the developer's working generated enum — never leave the project on the default.
-                if (enumBackup != null) WriteAndImport(enumFs, enumBackup);
-                LayerCatalog.SuppressReconcile = false;
                 EditorUtility.ClearProgressBar();
                 AssetDatabase.Refresh();
             }
@@ -307,12 +298,6 @@ namespace AdvancedPS.Editor
 
         #region Helpers
 
-        private static void WriteAndImport(string fsPath, string content)
-        {
-            File.WriteAllText(fsPath, content);
-            AssetDatabase.ImportAsset(FileSearcher.ToAssetPath(fsPath), ImportAssetOptions.ForceUpdate);
-        }
-
         private static void EnsureFolder(string assetFolder)
         {
             if (AssetDatabase.IsValidFolder(assetFolder)) return;
@@ -326,12 +311,6 @@ namespace AdvancedPS.Editor
         {
             string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
             return Path.Combine(projectRoot, assetPath).Replace('\\', '/');
-        }
-
-        private static string SafeRead(string fsPath)
-        {
-            try { return File.Exists(fsPath) ? File.ReadAllText(fsPath) : null; }
-            catch { return null; }
         }
 
         #endregion
