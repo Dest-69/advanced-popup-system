@@ -115,11 +115,17 @@ Both gated by `APS_ADDRESSABLES` (a `versionDefine` on `com.unity.addressables`,
 
 ## Editor tooling ([[Editor & Codegen]])
 
-`AddressablePopupIndexGenerator.Regenerate()` (menu `Tools/Advanced Popup System/…`, and auto via
-`AddressablePopupPostprocessor` on any `.prefab` change, deferred + idempotent): scans `t:Prefab` for
-`IAdvancedPopup.Addressable`, `CreateOrMoveEntry` into the **"Advanced Popup System"** group with address = type
-FullName, prunes un-flagged entries, and writes the `AddressablePopupIndexAsset` (only when the catalog changed → no
-recompile, no domain reload). The
+Two entry points, one catalog (**"Advanced Popup System"** group, address = type FullName; `AddressablePopupIndexAsset`
+written idempotently, entries **sorted by TypeName** so the paths never fight over order → no recompile, no domain
+reload). **Menu** `Tools/Advanced Popup System/…` → `AddressablePopupIndexGenerator.Regenerate()`: the full `t:Prefab`
+rescan — the only path that loads every prefab. **Auto** — `AddressablePopupPostprocessor` collects changed paths
+(string checks only) → deferred `SyncChanged(paths, prefabsDeleted, scenesMoved)`: **incremental** — one `GetComponent`
+per imported/moved prefab; `EnsureEntry` dirties the Addressables settings only on a real add/move/re-address (no-op
+pass = no dirty, no save); a prefab delete prunes dead-GUID entries; the index re-bakes **from the group's membership**
+(loads only the few Addressable popups) and only when the catalog could differ (membership changed / an Addressable
+popup saved / a scene path moved). Cold path never creates anything — `GetSettings(false)`, and settings/group/index
+come into existence only when a popup flagged Addressable actually appears. Net effect: unrelated prefab churn and
+project open cost ~one component lookup, invisible; only the menu item pays the full-scan price. The
 inspector (`IAdvancedPopupEditor`) shows an "Addressable" box (toggle + `LoadMode`, plus a **Preload Scenes** control
 shown only when `LoadMode == Preload` and always an **Unload Scenes** checklist) and a **separate "Pool" box** — an info
 box explaining the values plus a custom `Pool Capacity` control (`PoolCapacity`): a slider (−1…64) fed a clamped value +
@@ -153,8 +159,9 @@ removable). **Single-object edit only** — multi-select shows a note (per-objec
   (rare; "preload nowhere" is what Lazy already expresses).
 - **Determinism: identity, not position.** The popup stores scene **GUIDs**, so reordering / adding / removing scenes in
   Build Settings never re-points a selection (the whole reason for GUIDs over a build-index bitmask). The generator bakes
-  GUID→**path** for runtime; a scene **rename/move** changes the path, so `AddressablePopupPostprocessor` also regenerates
-  on moved/deleted `.unity` (a plain scene *save* re-imports without a path change and is ignored — no churn). A stored
+  GUID→**path** for runtime; a scene **rename/move** changes the path, so `AddressablePopupPostprocessor` also re-bakes
+  the index on moved/deleted `.unity` (only when the group is non-empty; a plain scene *save* re-imports without a path
+  change and is ignored — no churn). A stored
   GUID that no longer resolves (scene deleted) is skipped by `GuidsToScenePaths` and simply drops from the baked paths.
 - `AdvancedPopupInstantiate` (the old NoOp stub) was **removed** — its planned role is now `SpawnAsync`/`Despawn` + the
   pool ([[Popup Lifecycle]]). Breaking API change — see [[Shipped Docs]] CHANGELOG.

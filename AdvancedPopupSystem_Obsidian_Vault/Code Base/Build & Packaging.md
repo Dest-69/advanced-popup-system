@@ -5,6 +5,7 @@ tags: [tree/build]
 description: How a distributable .unitypackage is built (APSPackageExporter) and the non-destructive-update architecture — what state ships vs. lives in the consumer project vs. self-generates. Read before changing the exporter, what ships, or the update-safety mechanism.
 code_paths:
   - Assets/advanced-popup-system/Editor/Build/APSPackageExporter.cs
+  - Assets/advanced-popup-system/Editor/Build/APSSampleDevMode.cs
   - Assets/advanced-popup-system/Editor/MenuEditor/LayerCatalog.cs
   - Assets/advanced-popup-system/Editor/LayerEnumSyncPostprocessor.cs
   - Assets/advanced-popup-system/Runtime/Utils/FileSearcher.cs
@@ -54,10 +55,14 @@ gone: accessors are lazy and return `null` on failure. `FolderRenamePrevention` 
 ## The exporter (`APSPackageExporter`)
 
 Dev-only `EditorWindow` at `APS ▸ Build ▸ Export Package…`, in `Editor/Build/` — **excludes itself** from the package.
+Its "Sample sources" section hosts the `APSSampleDevMode` check-out/in buttons ([[Samples]] "Editing sources");
+while sources are checked out into `Samples/`, the Export button is disabled and `Export()` refuses to run — raw
+sources must never ship.
 Pipeline:
 
 1. **Rebuild sample sub-packages** — sources live in the hidden `Samples~/` folder ([[Samples]]), invisible to the
-   AssetDatabase, so each `Samples~/<Showcase>/` is briefly **staged** (copied, `.meta`s included, for stable GUIDs) into
+   AssetDatabase, so each `Samples~/<Showcase>/` is briefly **staged** (copied, `.meta`s included — plus the showcase's
+   own folder `.meta` parked in `Samples~/` by `APSSampleDevMode`, so even folder GUIDs stay stable) into
    the visible `Samples/<Showcase>/`, exported via `ExportPackage(..., Recurse)` **without** dependencies →
    `Samples/<Showcase>.unitypackage`, then removed. **Assembly reload is locked** for the whole run
    (`EditorApplication.Lock/UnlockReloadAssemblies`) so the freshly-imported sample scripts can't trigger a domain reload

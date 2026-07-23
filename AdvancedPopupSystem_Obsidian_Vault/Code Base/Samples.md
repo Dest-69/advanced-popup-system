@@ -51,6 +51,16 @@ as nested `Samples/<Showcase>.unitypackage` (opt-in, imported by double-click), 
 exporter's staging step ([[Build & Packaging]]). `Samples/Utils/` (InputSwitcher) stays visible and ships raw. Samples are
 **not** part of the public API — patterns here can change with the demo without a version concern.
 
+**Editing sources in the dev project** — the "Sample sources" buttons in the exporter window
+(`APS ▸ Build ▸ Export Package…`), backed by `APSSampleDevMode` (dev-only, lives in the exporter's deny-listed
+`Editor/Build/`; no menu items of its own). "Edit Sample Sources" **moves** each showcase
+`Samples~/ → Samples/` so Unity imports it (edit/playtest as usual); "Finish Editing" moves it back and **parks the showcase's
+folder `.meta` next to the source in `Samples~/`**, so folder GUIDs stay stable across round-trips and exporter stagings
+(the four original folder GUIDs were restored from the pre-refactor commit). While anything is checked out the exporter
+**refuses to export** and a reminder logs on every domain reload — finish before committing or exporting. Detection is
+by folder presence: any dir under `Samples/` except the raw-shipped set (`RawShippedFolders` = `Utils`) counts as
+checked out — add new raw-shipped folders to that set.
+
 **Why hidden (the bug this fixed):** sample code hard-references specific layers (e.g. `PopupLayerEnum.MENU` in
 `AddressablesShowcase`). `PopupLayerEnum` is a **projection of the consumer's** layer set ([[Layers]]), so left visible in
 a UPM package the sample auto-compiled in *every* consumer and hard-failed the build (`CS0117`) wherever their layer set

@@ -81,15 +81,18 @@ rename of the loose `advanced-popup-system` folder (the fallback keys off the na
 
 ## Addressable index generation (`AddressablePopupIndexGenerator`, optional)
 
-Under `APS_ADDRESSABLES` (`Editor/Addressables/`). Scans `t:Prefab` for `IAdvancedPopup.Addressable`, keeps them in the
-**"Advanced Popup System"** Addressables group (address = type `FullName`, one prefab per type — warns on duplicates),
-prunes un-flagged entries, and writes the **`AddressablePopupIndexAsset`** ScriptableObject
+Under `APS_ADDRESSABLES` (`Editor/Addressables/`). Keeps Addressable-flagged popups in the **"Advanced Popup System"**
+Addressables group (address = type `FullName`, one prefab per type — warns on duplicates), prunes un-flagged/dead
+entries, and writes the **`AddressablePopupIndexAsset`** ScriptableObject
 (`Assets/Resources/APS_AddressablePopupIndex.asset`, created on first run like `LayerCanvasConfigStore`) —
-**idempotently** (no write/reimport unless the catalog changed). Writing a **data asset** instead of C# is the point:
-flagging a popup Addressable no longer recompiles scripts or reloads the domain (the old cost of the generated `.cs`
-index). Runs from `Tools/Advanced Popup System/Regenerate Addressable Index` and **auto** via
-`AddressablePopupPostprocessor` on `.prefab` changes (deferred out of the import callback). The inspector's Addressable
-box lives in `IAdvancedPopupEditor`. See [[Addressables]].
+**idempotently** (no write/reimport unless the catalog changed; entries sorted by TypeName so both paths below agree on
+order). Writing a **data asset** instead of C# is the point: flagging a popup Addressable no longer recompiles scripts
+or reloads the domain (the old cost of the generated `.cs` index). Two entry points: the **menu**
+`Tools/Advanced Popup System/Regenerate Addressable Index` → `Regenerate()` — the only full `t:Prefab` project scan —
+and **auto** via `AddressablePopupPostprocessor` → `SyncChanged()` (deferred out of the import callback), which is
+**incremental**: it inspects just the changed prefabs and touches settings/group/index only when an Addressable popup
+is actually involved, so unrelated prefab saves and project open trigger no Addressables work (details in
+[[Addressables]] "Editor tooling"). The inspector's Addressable box lives in `IAdvancedPopupEditor`.
 
 ## Other editor pieces
 

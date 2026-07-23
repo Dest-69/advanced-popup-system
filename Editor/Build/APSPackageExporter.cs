@@ -20,7 +20,9 @@ namespace AdvancedPS.Editor
     /// get them as on-demand Package Manager samples (<c>package.json</c> "samples"), never auto-compiled; for this
     /// <c>.unitypackage</c> it rebuilds each into a nested <c>Samples/&lt;Showcase&gt;.unitypackage</c> (opt-in, imported by
     /// double-click) and ships those;</item>
-    /// <item>excludes the internal tooling (the Obsidian vault, <c>CLAUDE.md</c>, and this exporter);</item>
+    /// <item>excludes the internal tooling (the Obsidian vault, <c>CLAUDE.md</c>, and this exporter). To edit sample
+    /// sources in the dev project, check them out via this window's "Sample sources" buttons
+    /// (<see cref="APSSampleDevMode"/>) — export refuses to run while they are checked out;</item>
     /// <item>ships <c>PopupLayerEnum</c> <b>inside</b> the package (assembly <c>AdvancedPS.Generated.Layers</c>) — a
     /// compile-time type a fresh install needs before any code runs; the dev repo keeps it at the default layer set so a
     /// consumer's custom layers are never shipped over. Consumer-side state (custom displays, the Addressable index,
@@ -121,7 +123,35 @@ namespace AdvancedPS.Editor
                 MessageType.None);
 
             EditorGUILayout.Space(8);
-            using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(_version)))
+            EditorGUILayout.LabelField("Sample sources", EditorStyles.miniBoldLabel);
+            bool samplesCheckedOut = APSSampleDevMode.AnyCheckedOut;
+            if (samplesCheckedOut)
+            {
+                EditorGUILayout.HelpBox(
+                    "Sample sources are checked out into Samples/ for editing — export is disabled so raw sources " +
+                    "can't ship.", MessageType.Warning);
+                if (GUILayout.Button("Finish Editing — hide sources back into Samples~"))
+                {
+                    APSSampleDevMode.FinishEditing();
+                    RefreshPreview();
+                    GUIUtility.ExitGUI();
+                }
+            }
+            else
+            {
+                using (new EditorGUI.DisabledScope(!APSSampleDevMode.HasHiddenSources))
+                {
+                    if (GUILayout.Button("Edit Sample Sources — show in Samples/ for editing"))
+                    {
+                        APSSampleDevMode.StartEditing();
+                        RefreshPreview();
+                        GUIUtility.ExitGUI();
+                    }
+                }
+            }
+
+            EditorGUILayout.Space(8);
+            using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(_version) || samplesCheckedOut))
             {
                 if (GUILayout.Button("Export", GUILayout.Height(32)))
                     Export();
@@ -132,6 +162,15 @@ namespace AdvancedPS.Editor
 
         private void Export()
         {
+            // Raw sample sources must never ship — refuse while APSSampleDevMode has them checked out into Samples/.
+            if (APSSampleDevMode.AnyCheckedOut)
+            {
+                EditorUtility.DisplayDialog("APS Export",
+                    "Sample sources are checked out for editing.\n" +
+                    "Finish editing (the 'Sample sources' button in this window) so raw sources don't ship.", "OK");
+                return;
+            }
+
             string version = _version.Trim();
             if (string.IsNullOrEmpty(version))
             {
@@ -287,6 +326,9 @@ namespace AdvancedPS.Editor
                     try
                     {
                         CopyDirectory(srcDir.Replace('\\', '/'), stagedFs);
+                        // Reuse the parked folder .meta (kept next to the source by APSSampleDevMode) so the staged
+                        // showcase folder keeps a stable GUID across exports.
+                        if (File.Exists(srcDir + ".meta")) File.Copy(srcDir + ".meta", stagedFs + ".meta", true);
                         AssetDatabase.Refresh();
 
                         string outAsset = $"{SamplesFolder}/{name}.unitypackage";
