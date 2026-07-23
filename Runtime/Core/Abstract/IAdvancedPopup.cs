@@ -37,14 +37,14 @@ namespace AdvancedPS.Core.System
         public bool Inactive;
         /// <summary>
         /// How this popup reacts to the escape close key (see AdvancedPopupSystem.EscapeStep):
-        /// Hide — closes and consumes the press; Ignore — the press falls through to the popup below;
+        /// Hide — closes and consumes the press; Ignore (default) — the press falls through to the popup below;
         /// Block — consumes the press without closing (modal).
         /// </summary>
         [Tooltip("How this popup reacts to the escape close key:\n" +
                  "Hide — closes and consumes the press.\n" +
-                 "Ignore — the press falls through to the popup below.\n" +
+                 "Ignore (default) — the press falls through to the popup below.\n" +
                  "Block — consumes the press without closing (modal).")]
-        public EscapePolicyEnum EscapePolicy = EscapePolicyEnum.Hide;
+        public EscapePolicyEnum EscapePolicy = EscapePolicyEnum.Ignore;
         /// <summary>
         /// Root transform.
         /// </summary>
@@ -107,15 +107,15 @@ namespace AdvancedPS.Core.System
         /// on-hide control for Addressable popups. Applies both to a hidden unique popup (Lane A) and to the spawn pool
         /// (Lane B — <see cref="AdvancedPopupSystem.SpawnAsync{T}"/> / <see cref="AdvancedPopupSystem.Despawn"/>):
         /// <list type="bullet">
-        /// <item><c>-1</c> — keep unlimited (never released; the default, like a resident scene popup).</item>
+        /// <item><c>-1</c> — keep unlimited (never released, like a resident scene popup).</item>
         /// <item><c>0</c> — despawn on hide: release the Addressables handle so memory can unload (reloads next show).</item>
-        /// <item><c>1</c> — a single on/off instance: keep one idle copy for reuse, without allocating a pool.</item>
+        /// <item><c>1</c> — a single on/off instance (the default): keep one idle copy for reuse, without allocating a pool.</item>
         /// <item><c>N</c> (≥2) — pool up to N idle copies; releasing beyond that frees the extras.</item>
         /// </list>
         /// </summary>
         [Tooltip("Idle copies kept for reuse:\n-1 = unlimited (never released)\n0 = despawn on hide (free memory)\n1 = single on/off instance (no pool)\n2+ = pool up to N.")]
         [Min(-1)]
-        public int PoolCapacity = -1;
+        public int PoolCapacity = 1;
         /// <summary>
         /// Scenes in which a <see cref="LoadMode.Preload"/> popup is <b>preloaded up-front</b>, stored as their
         /// <b>asset GUIDs</b> (stable identity — reordering Build Settings never remaps them). <b>Empty (the default) =

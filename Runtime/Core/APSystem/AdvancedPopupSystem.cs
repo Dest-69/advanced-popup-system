@@ -313,19 +313,21 @@ namespace AdvancedPS.Core
         /// <summary>
         /// Builds the canvas for one configured layer: the assigned <see cref="LayerCanvasConfig.Entry.CanvasPrefab"/>
         /// (instantiated), or a plain overlay canvas when none is assigned. Either way its <c>sortingOrder</c> is forced
-        /// to the entry's value — the tool always wins over a value baked into the prefab. Kept persistent so it
-        /// survives scene loads like <see cref="Root"/>.
+        /// to the entry's value — the tool always wins over a value baked into the prefab — and the instance is renamed
+        /// "<c>&lt;Layer&gt; - APS Canvas</c>" so each layer's canvas is identifiable in the hierarchy (and the default
+        /// prefab's "(Clone)" suffix never shows). Kept persistent so it survives scene loads like <see cref="Root"/>.
         /// </summary>
         private static Transform CreateLayerCanvas(LayerCanvasConfig.Entry entry)
         {
             if (entry.CanvasPrefab != null)
             {
                 Canvas canvas = UnityEngine.Object.Instantiate(entry.CanvasPrefab);
+                canvas.gameObject.name = $"{entry.Layer} - APS Canvas";
                 canvas.sortingOrder = entry.SortingOrder;
                 UnityEngine.Object.DontDestroyOnLoad(canvas.gameObject);
                 return canvas.transform;
             }
-            return CreateCanvas($"APS_Canvas_{entry.Layer}", entry.SortingOrder);
+            return CreateCanvas($"{entry.Layer} - APS Canvas", entry.SortingOrder);
         }
         #endregion
 
@@ -671,6 +673,96 @@ namespace AdvancedPS.Core
                     await popup.HideAsync<TDisplay>(token, settings);
             });
         }
+
+        /// <summary>
+        /// Toggle the unique popup of type <typeparamref name="T"/> in one call: a resident instance runs its normal
+        /// <see cref="IAdvancedPopup.SwitchShowHideAsync"/> (show when hidden, hide when shown), while a popup that is
+        /// not loaded yet is loaded from Addressables and shown — not loaded means not shown, so its toggle is a show
+        /// (see <see cref="GetPopupAsync{T}"/>). The static counterpart to the instance
+        /// <see cref="IAdvancedPopup.SwitchShowHide"/>: no reference needed. Like <see cref="Show{T}"/>/<see cref="Hide{T}"/>
+        /// this is a manual call — it never touches <see cref="ActiveLayer"/>.
+        /// </summary>
+        /// <param name="settings">Optional animation settings; the popup's cached display is used when null.</param>
+        public static Operation SwitchShowHide<T>(IDisplaySettings settings = null) where T : IAdvancedPopup
+        {
+            return new Operation(async token =>
+            {
+                if (TryGetPopup<T>(out T resident))
+                {
+                    await resident.SwitchShowHideAsync(token, settings);
+                    return;
+                }
+
+                T popup = await GetPopupAsync<T>(token);
+                if (popup != null)
+                    await popup.ShowAsync(token, settings);
+            });
+        }
+
+        /// <summary>
+        /// Toggle the unique popup of type <typeparamref name="TPopup"/> with a per-call display type
+        /// <typeparamref name="TDisplay"/> instead of its cached display — loading it from Addressables first when
+        /// needed. See <see cref="SwitchShowHide{T}"/> for the semantics.
+        /// </summary>
+        /// <param name="settings">Optional settings for the <typeparamref name="TDisplay"/> animation; defaults when null.</param>
+        public static Operation SwitchShowHide<TPopup, TDisplay>(IDisplaySettings<TDisplay> settings = null)
+            where TPopup : IAdvancedPopup where TDisplay : IDisplay, new()
+        {
+            return new Operation(async token =>
+            {
+                if (TryGetPopup<TPopup>(out TPopup resident))
+                {
+                    await resident.SwitchShowHideAsync<TDisplay>(token, settings);
+                    return;
+                }
+
+                TPopup popup = await GetPopupAsync<TPopup>(token);
+                if (popup != null)
+                    await popup.ShowAsync<TDisplay>(token, settings);
+            });
+        }
+
+        /// <summary>
+        /// Show the unique popup of type <typeparamref name="T"/> after running <paramref name="configure"/> on it —
+        /// load → configure → show, so per-open setup lands <b>before</b> the popup is visible (no flash of
+        /// unconfigured content). The low-ceremony alternative to hand-writing that flow in an <see cref="Operation"/>;
+        /// a popup with a declared data type is better served by <see cref="Show{TPopup, TData}(TData, IDisplaySettings)"/>.
+        /// An exception thrown by <paramref name="configure"/> faults the operation (logged) and the popup is not shown.
+        /// </summary>
+        /// <param name="configure">Runs on the loaded popup right before the show.</param>
+        /// <param name="settings">Optional open-animation settings; the popup's cached display is used when null.</param>
+        public static Operation Show<T>(Action<T> configure, IDisplaySettings settings = null) where T : IAdvancedPopup
+        {
+            return new Operation(async token =>
+            {
+                T popup = await GetPopupAsync<T>(token);
+                if (popup == null || token.IsCancellationRequested) return;
+
+                configure?.Invoke(popup);
+                await popup.ShowAsync(token, settings);
+            });
+        }
+
+        /// <summary>
+        /// Show the data popup of type <typeparamref name="TPopup"/> with <paramref name="data"/> — load →
+        /// <see cref="AdvancedPopup{TData}.SetData"/> → show, so the data is bound before the popup is visible.
+        /// On an already-visible popup this updates the content live. See <see cref="AdvancedPopup{TData}"/> for the
+        /// data model (retention, <c>Bind</c>, <c>IsSameData</c>).
+        /// </summary>
+        /// <param name="data">The data to bind before showing.</param>
+        /// <param name="settings">Optional open-animation settings; the popup's cached display is used when null.</param>
+        public static Operation Show<TPopup, TData>(TData data, IDisplaySettings settings = null)
+            where TPopup : AdvancedPopup<TData>
+        {
+            return new Operation(async token =>
+            {
+                TPopup popup = await GetPopupAsync<TPopup>(token);
+                if (popup == null || token.IsCancellationRequested) return;
+
+                popup.SetData(data);
+                await popup.ShowAsync(token, settings);
+            });
+        }
         #endregion
 
         #region HIDE ALL
@@ -812,6 +904,24 @@ namespace AdvancedPS.Core
         }
 
         /// <summary>
+        /// Spawn a copy of the data popup <typeparamref name="TPopup"/> and bind <paramref name="data"/> before
+        /// handing it back — pair with the <see cref="Despawn"/>-side data clearing so a pooled instance never
+        /// carries the previous use's content into this one. See <see cref="SpawnAsync{T}"/> for the spawn
+        /// semantics and <see cref="AdvancedPopup{TData}"/> for the data model.
+        /// </summary>
+        /// <param name="data">The data to bind on the spawned instance.</param>
+        /// <param name="parent">Parent for the instance; when null, the popup's layer canvas or <see cref="Root"/>.</param>
+        /// <param name="token">Cancels the load in flight.</param>
+        public static async Task<TPopup> SpawnAsync<TPopup, TData>(TData data, Transform parent = null, CancellationToken token = default)
+            where TPopup : AdvancedPopup<TData>
+        {
+            TPopup popup = await SpawnAsync<TPopup>(parent, token);
+            if (popup != null)
+                popup.SetData(data);
+            return popup;
+        }
+
+        /// <summary>
         /// Return a spawned popup (see <see cref="SpawnAsync{T}"/>) to the pool for reuse, or release it entirely.
         /// Hide (await) the popup first if you want its close animation — Despawn itself is instant.
         /// </summary>
@@ -825,6 +935,11 @@ namespace AdvancedPS.Core
         {
             if (popup == null) return;
             SpawnedPopups.Remove(popup);
+
+            // A data popup's content belongs to the use that just ended — forget it so a pooled (or released)
+            // instance can't leak it into its next spawn. Retention across shows is a unique-popup (Lane A) rule only.
+            if (popup is IDataPopup dataPopup)
+                dataPopup.ClearData();
 
             string typeName = popup.GetType().FullName;
             int cap = popup.PoolCapacity;
@@ -878,17 +993,10 @@ namespace AdvancedPS.Core
             return new Operation(async token =>
             {
                 if (Resolver == null || !AddressablePopupIndex.HasEntries) return;
-                try
+                foreach (var entry in AddressablePopupIndex.Preloads)
                 {
-                    foreach (var entry in AddressablePopupIndex.Preloads)
-                    {
-                        if (TaskUtils.OperationCancelled(token)) return;
-                        await EnsureEntryLoadedAsync(entry, token);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    APLogger.LogError($"Exception occurred: {ex.Message}");
+                    if (TaskUtils.OperationCancelled(token)) return;
+                    await EnsureEntryLoadedAsync(entry, token);
                 }
             });
         }
@@ -938,7 +1046,10 @@ namespace AdvancedPS.Core
                     PreloadEntryAsync(entry);
         }
 
-        /// <summary> Fire-and-forget one eager preload with the same error logging as the boot/preload paths. </summary>
+        /// <summary>
+        /// Fire-and-forget one eager preload. Load failures are already logged and swallowed per entry inside
+        /// <see cref="EnsureEntryLoadedAsync"/>; the catch here only remains as the async-void safety net.
+        /// </summary>
         private static async void PreloadEntryAsync(AddressablePopupIndexAsset.Entry entry)
         {
             try { await EnsureEntryLoadedAsync(entry, CancellationToken.None); }
@@ -998,12 +1109,24 @@ namespace AdvancedPS.Core
         /// <summary>
         /// Materialize one index entry via the <see cref="Resolver"/> unless it is already live (scene-wins/dedup).
         /// The new instance's Init() registers it, so the caller's next GetPopupsByLayer picks it up. Callers guard
-        /// that Resolver is non-null.
+        /// that Resolver is non-null. A failed load is logged (naming the popup type) and <b>swallowed</b> so the
+        /// sequential batch loops above it (<see cref="PreloadAll"/>, <see cref="EnsureLayerLoadedAsync"/>, the
+        /// per-scene pass) continue with their remaining entries — one popup whose load or Awake throws must not
+        /// silently block every popup after it. Cancellation is not treated as a failure: the loops' own
+        /// cancellation checks exit instead.
         /// </summary>
         private static async Task EnsureEntryLoadedAsync(AddressablePopupIndexAsset.Entry entry, CancellationToken token)
         {
             if (IsLive(entry.TypeName)) return;
-            await Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), token);
+            try
+            {
+                await Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), token);
+            }
+            catch (Exception ex)
+            {
+                if (TaskUtils.OperationCancelled(token)) return;
+                APLogger.LogError($"<color=red>[AdvancedPopupSystem]</color> Failed to load Addressable popup '{entry.TypeName}' — skipping it, the remaining popups keep loading: {ex}");
+            }
         }
 
         /// <summary>

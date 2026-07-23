@@ -1,4 +1,21 @@
 # Changelog
+## [2.0.2] - 2026-07-23
+### Added
+- **Customizable default canvas per layer** — edit one prefab to restyle every layer's popup canvas; saved in your project, so updates keep your changes.
+### Changed
+- **A layer's canvas is now always set** — filled with the default (override per layer anytime), named `<Layer> - APS Canvas` in the hierarchy.
+
+## [2.0.1] - 2026-07-23
+### Added
+- **Popups that open with data** — declare the data a popup needs and fill it in one place; APS applies it *before* the popup appears, so it never flashes empty and then fills in. The content is remembered when you reopen the popup, and cleared automatically for pooled copies. There's also a one-liner to tweak a popup right before it opens.
+- **One-line toggle by type** — flip a popup open or closed straight by its type, without holding a reference; if it isn't loaded yet it loads and opens.
+### Changed
+- **One failed popup no longer blocks the rest** — if a popup errors while loading (bad asset, a failed dependency…), APS logs it, names it, and keeps loading the others instead of silently stopping — so a single bad popup can't leave half your UI missing.
+- **Clearer show/hide results** — the object returned by show/hide now tells you how it ended (finished, cancelled, or failed) and lets you react to *any* outcome, not only success. *Upgrading: the success callback (`.OnComplete`) now runs on success only — it used to also run after a failed transition. If you relied on that, use the new any-outcome callback instead.*
+### Fixed
+- **Callbacks never silently vanish** — a completion callback added to a show/hide that already finished now runs right away instead of being dropped, and stacking several callbacks keeps all of them.
+- **Safer cancel** — cancelling a show/hide that has already finished is now a harmless no-op.
+
 ## [2.0.0] - 2026-07-22
 ### Changed
 - **Works as a Package Manager package** — install APS straight from a Git URL or registry, not just by copying it into your project. Its icons and editor tools now find everything wherever the package lives, and it compiles the moment it's imported.

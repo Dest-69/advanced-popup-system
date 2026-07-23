@@ -62,7 +62,9 @@ allocation-light on purpose: one scratch list, depth computed once per popup, `L
 ## Lookups
 
 - `TryGetPopup<T>(out popup, activeOnly=false)` — type-cache fast path when `!activeOnly`; otherwise linear over
-  `ActivePopups`/`AllPopups`. **Synchronous, resident-only** — never loads.
+  `ActivePopups`/`AllPopups`. **Synchronous, resident-only** — never loads. That is shipped contract, not detail: the
+  docs (§0) sell it as **secondary-only** for consumers (primary open = `Show<T>`/`GetPopupAsync`) — don't make it
+  load, don't make it allocate.
 - `GetPopupAsync<T>(token)` — **async counterpart** that loads a Lane-A Addressable popup if it isn't resident. Fast-path
   is `TryGetPopup<T>` (so a resident popup returns without a round-trip, and that same check is the scene-wins/dedup
   guard); on a miss it resolves the type in the Addressable index and instantiates via `Resolver` under the layer canvas,
@@ -100,11 +102,21 @@ reintroduce `Where`/`Select`/`ToList` on these navigation-triggered paths.
 
 ## Show / hide by type
 
-`Show<T>()` / `Show<T,J>()` / `Hide<T>()` / `Hide<T,J>()` (region `SHOW / HIDE (BY TYPE)`) — summon or dismiss a **single
-known popup by its type** in one call, without holding a reference or driving a whole layer (the by-type counterpart to
-`Layer*`). All return an `Operation`. `Show<T>` awaits `GetPopupAsync<T>` first, so an Addressable popup **loads on
-demand**; the typed `Show<T,J>` uses a per-call display like `LayerShow<T>`. **`Hide` never loads** — nothing unloaded
-can be visible, so it's a synchronous `TryGetPopup` wrapped in an `Operation`, a no-op when the popup isn't resident.
+`Show<T>()` / `Show<T,J>()` / `Hide<T>()` / `Hide<T,J>()` / `SwitchShowHide<T>()` / `SwitchShowHide<T,J>()` (region
+`SHOW / HIDE (BY TYPE)`) — summon, dismiss or toggle a **single known popup by its type** in one call, without holding
+a reference or driving a whole layer (the by-type counterpart to `Layer*`). All return an `Operation`. `Show<T>` awaits
+`GetPopupAsync<T>` first, so an Addressable popup **loads on demand**; the typed `Show<T,J>` uses a per-call display
+like `LayerShow<T>`. **`Hide` never loads** — nothing unloaded can be visible, so it's a synchronous `TryGetPopup`
+wrapped in an `Operation`, a no-op when the popup isn't resident. **`SwitchShowHide<T>`** delegates to the instance
+`SwitchShowHideAsync` when resident (keeps its `IsVisible`/`IsBeVisible`/`Inactive` semantics — one source of truth),
+else `GetPopupAsync` → `ShowAsync` (contract: not loaded = not shown → toggle is a show). Toggle racing an in-flight
+load joins it and resolves to show (the second `ShowAsync` no-ops on `IsBeVisible`).
+
+**Configure/data variants:** `Show<T>(Action<T> configure)` and `Show<TPopup,TData>(data)` (constraint
+`TPopup : AdvancedPopup<TData>`) run load → configure/`SetData` → show, so per-open setup lands before visibility. The
+data overload shares generic arity 2 with `Show<TPopup,TDisplay>` — **constraints disambiguate** (C# 7.3+
+constraint-aware overload resolution; both call shapes smoke-compile-verified). A throw from `configure`/`Bind` faults
+the `Operation` and skips the show. Data model — [[Popup Lifecycle]] "Data popups".
 
 **Gotcha:** these are **manual** shows — like `popup.Show()` they touch only `ActivePopups`, **never `ActiveLayer`**, and
 don't autohide other layers; don't mix them with `Layer*` control expecting layer bookkeeping ([[Layers]]).
@@ -116,12 +128,12 @@ Only popups **the system instantiates** need routing — Addressable lazy/preloa
 resolve the parent through **`GetCanvasForLayer(popupLayer)`** instead of always using `Root`. Mappings live in
 `_layerCanvases` (`Dictionary<single-flag, Transform>`) and come from **two sources**, checked together:
 
-- **Tool config (primary)** — the Layers panel writes a per-layer sorting order + optional canvas prefab to the runtime
+- **Tool config (primary)** — the Layers panel writes a per-layer sorting order + canvas prefab (panel-mandatory, seeded with the consumer-owned `APS_DefaultCanvas`) to the runtime
   `LayerCanvasConfig` SO (`Runtime/Settings/LayerCanvasConfig.cs`; cached `Resources.Load`, consumer asset in
   `Assets/Resources/`; [[Editor & Codegen]], [[Layers]]). `GetCanvasForLayer` → `EnsureLayerCanvases` **lazily
   materializes** each matching layer's canvas on first use: `CreateLayerCanvas` instantiates the entry's prefab (its
   `sortingOrder` **forced** to the entry's value — tool beats prefab) or a plain overlay via the shared
-  `CreateCanvas(name, order)` (also backs `Root`), `DontDestroyOnLoad`, cached into `_layerCanvases[flag]`. Name↔flag via
+  `CreateCanvas(name, order)` (also backs `Root`), `DontDestroyOnLoad`, **renames the instance `<Layer> - APS Canvas`**, and caches it into `_layerCanvases[flag]`. Name↔flag via
   `LayerCanvasConfig.TryParseLayer` (`Enum.TryParse`); stale/renamed entries just don't parse and are skipped.
 - **Runtime override** — `RegisterLayerCanvas(layer, canvas)` / `UnregisterLayerCanvas(layer)` split the mask into single
   bits and store one entry per flag (null clears). A pre-populated `_layerCanvases[flag]` makes `EnsureLayerCanvases` skip

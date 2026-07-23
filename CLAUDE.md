@@ -9,3 +9,11 @@ The vault + this router are internal tooling **inside** the asset's git repo (`A
 `.git`), versioned with the code. When public API or behavior changes, sync the shipped docs
 (`README.md`/`documentation.md`) — see `Code Base/Shipped Docs.md` — and **never bump `package.json` version without
 asking the user**.
+
+**Consumer model (normative — for any agent writing code that USES APS):** consumers never assume residency — popups
+may be lazy-loaded and released again. Primary open = `Show<T>()` / `GetPopupAsync<T>()`; wrap custom async around
+popups in an `Operation`, never in `async void` / UniTask `.Forget()`. `TryGetPopup` is **secondary-only** (it never
+loads — it must not be a popup's primary open path). Never bulk-preload layers to make sync access work. Per-open data
+goes through `AdvancedPopup<TData>` + `Bind` (open with `Show<TPopup, TData>(data)`) or the configure overload
+`Show<T>(p => …)` — data binds **before** the show; never configure content in `.OnComplete` after `Show`. Full
+contract: `documentation.md` §0 "The Consumer Contract".

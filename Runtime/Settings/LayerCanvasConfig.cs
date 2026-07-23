@@ -6,7 +6,8 @@ namespace AdvancedPS.Core
 {
     /// <summary>
     /// Per-layer canvas routing configured from the APS <b>Layers</b> tool. For every layer it holds a
-    /// <see cref="Entry.SortingOrder"/> and an optional <see cref="Entry.CanvasPrefab"/>; at runtime
+    /// <see cref="Entry.SortingOrder"/> and a <see cref="Entry.CanvasPrefab"/> (kept set by the Layers panel, which
+    /// seeds it with the consumer's default canvas — a cleared prefab still falls back to an auto-created overlay); at runtime
     /// <see cref="AdvancedPopupSystem.GetCanvasForLayer"/> uses this to give each layer its own canvas (the assigned
     /// prefab, or an auto-created default) at that sort order, so system-instantiated popups (Addressable loads /
     /// <see cref="AdvancedPopupSystem.SpawnAsync{T}"/>) of different layers land on independent canvases instead of the
@@ -34,8 +35,9 @@ namespace AdvancedPS.Core
                      "Also drives the display order of the Layers panel.")]
             public int SortingOrder;
 
-            [Tooltip("Optional canvas prefab instantiated for this layer's popups. Leave empty to auto-create a plain " +
-                     "overlay canvas at SortingOrder.")]
+            [Tooltip("Canvas prefab instantiated for this layer's popups. Managed by the Layers panel, which keeps it " +
+                     "set (seeded with APS_DefaultCanvas). If it is ever cleared, the system auto-creates a plain " +
+                     "overlay canvas at SortingOrder as a fallback.")]
             public Canvas CanvasPrefab;
         }
 

@@ -23,121 +23,137 @@
 | Feature | Supported / Requirement |
 | :--- | :--- |
 | **Unity Version** | `2021.3 LTS` or higher |
-| **Input System** | Both **Legacy Input Manager** & **New Input System** (with automatic switching) |
-| **Render Pipelines** | Built-in, Universal RP (URP), High Definition RP (HDRP) |
+| **Input System** | **Legacy Input Manager** & **New Input System** (auto-switching) |
+| **Render Pipelines** | Built-in, URP, HDRP |
 | **UI Frameworks** | Unity UI (uGUI) |
-| **Platforms** | All platforms supported by Unity (iOS, Android, Standalone, WebGL, Consoles) |
+| **Platforms** | All Unity platforms (iOS, Android, Standalone, WebGL, Consoles) |
 | **Dependencies** | Newtonsoft.Json (`com.unity.nuget.newtonsoft-json`) |
 
 ---
 
 ## 📦 Installation
 
-Pick either method — both are fully supported.
-
-### Option A — Package Manager (Git URL) *(recommended — stays updatable from the Package Manager)*
-Go to **Window** -> **Package Manager**, click the **"+"** button, select **Install package from git URL...**, paste the link below, and click **Add**:
+### Option A — Package Manager (Git URL) *(recommended, stays updatable)*
+**Window ▸ Package Manager ▸ "+" ▸ Install package from git URL…**, paste the link and click **Add**:
 ```
 https://github.com/Dest-69/advanced-popup-system.git
 ```
-The required **Newtonsoft.Json** dependency is pulled in automatically — no separate step needed. *(Requires [Git](https://git-scm.com/) installed. Installing read-only this way is fully supported — see the note below.)*
+Newtonsoft.Json is pulled in automatically. Requires [Git](https://git-scm.com/); read-only installs are fully supported.
 
-### Option B — Import into your project *(as before)*
-1. **Install Newtonsoft.Json first** — manual imports don't auto-resolve dependencies, so add it yourself: **Window** -> **Package Manager** -> **"+"** -> **Install package by name...**, and enter:
-```
-com.unity.nuget.newtonsoft-json
-```
-2. Download the latest `.unitypackage` from the [**Releases**](https://github.com/Dest-69/advanced-popup-system/releases) page and import it via **Assets -> Import Package -> Custom Package...**, or simply copy the package folder into your project's `Assets/`.
+### Option B — Import a `.unitypackage`
+1. Install **Newtonsoft.Json** first (manual imports don't auto-resolve dependencies): **Package Manager ▸ "+" ▸ Install package by name…** →
+   ```
+   com.unity.nuget.newtonsoft-json
+   ```
+2. Import the latest release from [**Releases**](https://github.com/Dest-69/advanced-popup-system/releases) via **Assets ▸ Import Package ▸ Custom Package…** (or copy the package folder into `Assets/`).
 
-> Note: When you author custom displays, APS generates them into an `Assets/AdvancedPopupSystem/` folder in your project — commit it to version control like the rest of your code. Editing layers is behind a **Customization** toggle in the APS **Layers** tab (details in the [documentation](documentation.md#5-the-aps-editor-window)).
+> Custom displays are generated into an `Assets/AdvancedPopupSystem/` folder in your project — commit it like the rest of your code. Editing layers is behind a **Customization** toggle in **APS ▸ Layers** (see the [documentation](documentation.md#5-the-aps-editor-window)).
 
 ---
 
 ## ✨ Features
 
-*   🗂️ **Layer-based Management** — Group and control popups by custom layer bitmasks (e.g., `GUI`, `GAME`, `MENU`). Show or hide entire layers with a single call, and give each layer its own **canvas** and sort order right in **`APS ▸ Layers`** (HUD, dialogs, tooltips…) so on-demand popups stack independently.
-*   🎭 **Extensible Animation Pipeline** — Out-of-the-box support for **Fade**, **Scale**, and **Slide** transitions using custom easing curves, or scaffold your own custom display straight from the editor.
-*   🎬 **DOTween Integration** *(optional)* — Drive a popup's show/hide with hand-built [DOTween](https://github.com/Demigiant/dotween) `Sequence`s via `DoTweenSettings.Create(...)` for full easing, timing, and chaining control — an alternative to the built-in transitions. Enabled by a `DOTWEEN` scripting define and shipped in its own assembly; the core runtime stays dependency-light and compiles fine without DOTween installed.
-*   ⚡ **Async-First Execution** — Fully Task-based async/await transitions with automatic cancellation support via `CancellationToken`s.
-*   🎹 **Input System Binding** — Easily bind popups to keyboard hotkeys or controllers. Works seamlessly with both Legacy Input Manager and the New Input System.
-*   ⬅️ **Escape Close Stack** — One key (default `Escape`) steps back through open popups like the Android back button, closing the most recent one first. Per-popup policy (`Hide` / `Ignore` / `Block`) covers modals and pass-through popups.
-*   🖱️ **Drag & Resize Modules** — Tick `Draggable` / `Resizable` on a popup to move or resize it at runtime, clamped to the screen (or a custom / safe-area rect) and correct for **any anchors**. Resize grips show a directional cursor (re-skinnable via a `ResizeCursorSet` asset). Data-driven flags — no extra components — with a stateless, registry-based handler pipeline you can extend.
-*   📦 **Addressables Loading** *(optional)* — Flag a popup **Addressable** to load its prefab on demand — lazily on first show, preloaded on the scenes you choose (and freed again on the scenes you pick), or spawned as many pooled copies (with a single **Pool Capacity** knob — keep unlimited, despawn on hide, or cap idle copies) — instead of placing it in every scene. The editor auto-manages the Addressables group and a generated index; scene instances still win for effortless testing. Requires the Addressables package; the core runtime stays dependency-light.
-*   🌲 **Nested Popup Hierarchies** — Support for deep child popups that automatically animate and manage their states in alignment with their parent popups.
-*   ⏱️ **Cancellation-Aware** — Every transition returns an `Operation` you can `.Cancel()` or chain with `.OnComplete()`; starting a new show/hide auto-cancels the previous one.
-*   🛠️ **Editor Tooling** — A dedicated **APS** window with **Layers**, **Displays**, and **Settings** tabs: generate layer flags and custom display scripts, tune settings, and inspect active popups/operations in real-time.
+*   🗂️ **Layer-based Management** — Group popups into layer bitmasks (`GUI`, `GAME`, `MENU`…) and show or hide whole layers in one call. Each layer gets its own **canvas** and sort order in **`APS ▸ Layers`**, so HUD, dialogs and tooltips stack independently.
+*   🎭 **Extensible Animations** — Built-in **Fade**, **Scale** and **Slide** with 30 easing curves, or scaffold your own display straight from the editor.
+*   🎬 **DOTween Integration** *(optional)* — Drive show/hide with hand-built [DOTween](https://github.com/Demigiant/dotween) `Sequence`s. Lives behind a `DOTWEEN` define in its own assembly; the core compiles fine without it.
+*   ⚡ **Async-First** — Fully `Task`-based transitions with `CancellationToken` cancellation throughout.
+*   🎹 **Hotkey Bindings** — Bind popups to keys or controllers; works with both the Legacy Input Manager and the new Input System.
+*   ⬅️ **Escape Close Stack** — One key steps back through open popups like the Android back button, with a per-popup policy (`Hide` / `Ignore` / `Block`) for modals and pass-through popups.
+*   🖱️ **Drag & Resize Modules** — Tick `Draggable` / `Resizable` to move or resize a popup at runtime, clamped to the screen (or a safe-area / custom rect) for any anchors. Data-driven flags, no extra components; resize grips show a re-skinnable directional cursor.
+*   📦 **Addressables Loading** *(optional)* — Flag a popup **Addressable** to load its prefab on demand — lazily, preloaded on the scenes you choose, or as pooled copies — instead of placing it in every scene. Scene instances still win for effortless testing. Requires the Addressables package.
+*   🧩 **Typed Data Popups** — Declare a popup's data (`class RewardPopup : AdvancedPopup<RewardData>`), implement one `Bind(data)`, and open it with `Show<RewardPopup, RewardData>(data)` — the data binds **before** the popup is visible, with no empty-popup flash.
+*   🌲 **Nested Popups** — Deep child popups animate and manage their state together with their parent.
+*   ⏱️ **Cancellation-Aware Operations** — Every transition returns a self-starting `Operation` you can `.Cancel()`, chain with `.OnComplete()`, and inspect via `Status` / `Error`. Starting a new show/hide auto-cancels the previous one.
+*   🛠️ **Editor Tooling** — An **APS** window with **Layers**, **Displays** and **Settings** tabs, plus a live view of registered popups and running operations.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Define Your Popup & Configure Transitions
-> 💡 Tip: `GameObject ▸ UI ▸ Advanced Popup` creates a ready-to-use popup (and a Canvas if needed) in one click.
+### 1. Build a popup — the right architecture
 
-Create a script that inherits from `AdvancedPopup` and attach it to your popup's `GameObject`. 
+Create the object with **`GameObject ▸ UI ▸ Advanced Popup`** (it makes a stretched popup under a `Canvas`, adding the Canvas if needed, with an `AdvancedPopup` already attached). Add your visuals as children, then set the **Popup Layer** and tick any **Modules** (Draggable / Resizable / Closable) in the inspector.
 
-To configure how the popup enters and exits the screen, override the `Init()` method and call `SetCachedDisplay()`. The system supports built-in transitions (Fade, Scale, Slide) or native [DOTween](https://github.com/Demigiant/dotween) sequences:
+The script that goes on it is the whole architecture — transition, data, and UI wiring in one place:
 
 ```csharp
 using AdvancedPS.Core;
-using DG.Tweening; // Import DOTween namespace
 using UnityEngine;
+using UnityEngine.UI;
 
-public class MySettingsPopup : AdvancedPopup
+// The data this popup opens with. Omit it (and Bind) for a popup that needs no per-open data.
+[System.Serializable]
+public class RewardData
 {
+    public string Title;
+    public int Amount;
+}
+
+// Inherit AdvancedPopup<T> for a data popup, or plain AdvancedPopup if it takes no data.
+public class RewardPopup : AdvancedPopup<RewardData>
+{
+    [SerializeField] private Text _title;
+    [SerializeField] private Text _amount;
+    [SerializeField] private Button _claimButton;
+
+    // 1) Transition — how the popup enters/exits. Set the display, then call base.Init() LAST.
     public override void Init()
     {
-        // --- Option A: Cache built-in transitions ---
-        // SetCachedDisplay<ScaleDisplay>(); // Uses default Scale transition rules
-        
-        // --- Option B: Cache custom DOTween sequences ---
-        SetCachedDisplay(
-            // Show Sequence
-            DoTweenSettings.Create((rectTransform, sequence) =>
-            {
-                sequence.Append(rectTransform.DOScale(Vector3.one, 0.4f)
-                            .From(Vector3.zero)
-                            .SetEase(Ease.OutBack));
-            }),
-            // Hide Sequence
-            DoTweenSettings.Create((rectTransform, sequence) =>
-            {
-                sequence.Append(rectTransform.DOScale(Vector3.zero, 0.3f)
-                            .SetEase(Ease.InBack));
-            })
-        );
-
-        // ALWAYS call base.Init() at the end to auto-register the popup with APS
+        SetCachedDisplay<FadeDisplay>(new FadeSettings { Duration = 0.25f, Easing = EasingType.EaseOutQuad });
         base.Init();
     }
+
+    // 2) Data → UI. The single place data is applied, always BEFORE the popup becomes visible.
+    protected override void Bind(RewardData data)
+    {
+        _title.text  = data.Title;
+        _amount.text = $"+{data.Amount}";
+    }
+
+    // 3) Local UI wiring — keep Subscribe/Unsubscribe symmetric and always call base.
+    protected override void Subscribe()
+    {
+        base.Subscribe();
+        _claimButton.onClick.AddListener(OnClaim);
+    }
+
+    protected override void Unsubscribe()
+    {
+        base.Unsubscribe();
+        _claimButton.onClick.RemoveListener(OnClaim);
+    }
+
+    private void OnClaim() => Hide();
 }
 ```
 
-### 2. Open / Close the Popup from Code
-You can find and animate your popups easily using the `AdvancedPopupSystem` API:
+### 2. Show, hide, toggle — from anywhere
 
 ```csharp
 using AdvancedPS.Core;
+using UnityEngine;
 
-// Find the popup and display it using its cached transition
-if (AdvancedPopupSystem.TryGetPopup<MySettingsPopup>(out var settingsPopup, activeOnly: false))
-{
-    // Show popup and run code when the animation is fully complete
-    settingsPopup.Show().OnComplete(() => 
-    {
-        Debug.Log("Settings popup finished opening!");
-    });
-}
+// By type — one line each. Loads from Addressables on demand if the popup isn't in the scene yet.
+AdvancedPopupSystem.Show<RewardPopup, RewardData>(reward);   // open WITH data (bound before it's visible)
+AdvancedPopupSystem.Show<SettingsPopup>();                   // open a popup that needs no data
+AdvancedPopupSystem.Hide<SettingsPopup>();                   // close (safe no-op if it never loaded)
+AdvancedPopupSystem.SwitchShowHide<SettingsPopup>();         // toggle: shown → hide, hidden → show
 
-// Show/hide popups by Layer
-// This will automatically open all MENU popups and hide other active layers
-AdvancedPopupSystem.LayerShow(PopupLayerEnum.MENU, autohide: true);
+// Run code once the animation finishes (fires on success only):
+AdvancedPopupSystem.Show<SettingsPopup>().OnComplete(() => Debug.Log("Opened!"));
 
-// Or summon a single popup by type in one line — loads it from Addressables if it isn't in the scene yet
-AdvancedPopupSystem.Show<MySettingsPopup>();
-// Need the instance and it might still be loading? Await the async companion to TryGetPopup:
-MySettingsPopup popup = await AdvancedPopupSystem.GetPopupAsync<MySettingsPopup>();
+// By layer — switch whole screens at once:
+AdvancedPopupSystem.LayerShow(PopupLayerEnum.MENU, autohide: true);      // show MENU, hide other active layers
+AdvancedPopupSystem.LayerShow(PopupLayerEnum.OVERLAY, autohide: false);  // overlay on top of the current screen
+AdvancedPopupSystem.LayerHide(PopupLayerEnum.OVERLAY);                   // one layer
+AdvancedPopupSystem.HideAll();                                          // everything
+
+// Need the instance itself first? Await the loader (null if neither in-scene nor Addressable):
+SettingsPopup popup = await AdvancedPopupSystem.GetPopupAsync<SettingsPopup>();
 ```
+
+> **Rule of thumb:** open with `Show<T>()` / `GetPopupAsync<T>()` — they load on demand. `TryGetPopup<T>` is for secondary actions on a popup that's already open; it never loads. The full contract is at the top of the [documentation](documentation.md).
+
 ---
 
 ## ⚙️ Editor Workflow
@@ -146,8 +162,8 @@ Open the **APS** window from the top menu bar:
 
 | Menu | Purpose |
 | :--- | :--- |
-| **`APS ▸ Layers`** | Add / rename / delete `PopupLayerEnum` flags (the enum is code-generated for you). |
-| **`APS ▸ Displays`** | Scaffold a new custom display — APS generates the display + settings scripts with ready-to-fill stubs. |
+| **`APS ▸ Layers`** | Add / rename / delete `PopupLayerEnum` flags (the enum is code-generated for you) and set each layer's canvas + sort order. |
+| **`APS ▸ Displays`** | Scaffold a custom display — APS generates the display + settings scripts with ready-to-fill stubs. |
 | **`APS ▸ Settings`** | Toggle key-event tracking, the escape close stack, auto input-module switching, inspector view, and log verbosity. |
 
 See the [full documentation](documentation.md) for the complete API, custom-display authoring, and troubleshooting.
@@ -158,7 +174,7 @@ See the [full documentation](documentation.md) for the complete API, custom-disp
 
 ### Editor Tools
 
-The **APS Editor Window** allows you to see all registered popups and trace active operations or tasks at runtime.
+The **APS Editor Window** lists every registered popup and traces active operations and tasks at runtime.
 
 <p align="center">
   <img width="32%" alt="Editor View 1" src="https://github.com/user-attachments/assets/f484cfa7-addc-4af8-bbd2-5b9b18427674" />
@@ -166,9 +182,9 @@ The **APS Editor Window** allows you to see all registered popups and trace acti
   <img width="32%" alt="Editor View 3" src="https://github.com/user-attachments/assets/8b8f56a8-543e-48ca-a61e-ed56e7cb5128" />
 </p>
 
-### Popup Inspector Configuration
+### Popup Inspector
 
-Configure custom animations, keys, child popups, and layer masks directly in the inspector:
+Configure animations, keys, child popups, and layer masks directly in the inspector:
 
 <p align="center">
   <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/54e29df7-a352-4394-8304-b058e8342b22" />
@@ -176,8 +192,6 @@ Configure custom animations, keys, child popups, and layer masks directly in the
 </p>
 
 ### Animation Showcases
-
-Here are some real-time examples of popup animations in action:
 
 <p align="center">
   <img width="32%" alt="Showcase 1" src="https://github.com/user-attachments/assets/2ff31071-2874-480b-bc69-3c5d1ca26164" />

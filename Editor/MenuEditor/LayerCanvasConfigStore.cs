@@ -41,7 +41,9 @@ namespace AdvancedPS.Editor
         /// <summary>
         /// Rebuilds <see cref="LayerCanvasConfig.Entries"/> to hold exactly one entry per current layer name, in the
         /// given order, preserving each layer's sorting order / prefab and dropping orphans (renamed / deleted layers).
-        /// Returns true when the membership changed (an entry was added or an orphan pruned) — the caller saves then.
+        /// Also back-fills the mandatory canvas: any entry without a prefab (a freshly added layer, or an older config
+        /// from before the default existed) gets the consumer's <see cref="DefaultCanvas"/>. Returns true when anything
+        /// changed (an entry was added, an orphan pruned, or a canvas back-filled) — the caller saves then.
         /// </summary>
         internal static bool Reconcile(LayerCanvasConfig config, IEnumerable<string> names)
         {
@@ -64,9 +66,41 @@ namespace AdvancedPS.Editor
                 ordered.Add(existing);
             }
 
-            bool changed = added || ordered.Count != config.Entries.Count;
+            bool filled = FillMissingCanvases(ordered);
+
+            bool changed = added || filled || ordered.Count != config.Entries.Count;
             config.Entries = ordered;
             return changed;
+        }
+
+        /// <summary>
+        /// The default canvas prefab assigned to layers with no explicit canvas, created on first use (see
+        /// <see cref="DefaultCanvasFactory"/>). May be null if the asset could not be created — the runtime keeps its
+        /// own fallback for that case.
+        /// </summary>
+        internal static Canvas DefaultCanvas() => DefaultCanvasFactory.EnsureDefault();
+
+        /// <summary>
+        /// Assigns <see cref="DefaultCanvas"/> to every entry that has no canvas. The default is resolved lazily (only
+        /// when there is something to fill), so a project whose layers are all assigned — or that has no layers — never
+        /// materializes the prefab. Returns true if any entry was filled.
+        /// </summary>
+        private static bool FillMissingCanvases(List<LayerCanvasConfig.Entry> entries)
+        {
+            bool filled = false;
+            Canvas fallback = null;
+            for (int i = 0; i < entries.Count; i++)
+            {
+                LayerCanvasConfig.Entry e = entries[i];
+                if (e == null || e.CanvasPrefab != null)
+                    continue;
+                fallback ??= DefaultCanvas();
+                if (fallback == null)
+                    break; // couldn't create it (logged) — leave null; the runtime auto-creates a fallback canvas.
+                e.CanvasPrefab = fallback;
+                filled = true;
+            }
+            return filled;
         }
 
         /// <summary> Flushes in-memory edits to disk. </summary>

@@ -37,6 +37,11 @@ namespace AdvancedPS.Editor
         private static GUIContent DeleteIcon =>
             _deleteIcon ??= new GUIContent(EditorGUIUtility.IconContent("Toolbar Minus").image, "Delete this layer");
 
+        private static readonly GUIContent CanvasLabel = new GUIContent(
+            "Canvas",
+            "Canvas prefab this layer's popups are instantiated under. Required — clearing it resets to the APS default " +
+            "canvas (Assets/AdvancedPopupSystem/APS_DefaultCanvas.prefab), which you can edit to control the default for all layers.");
+
         public static void Initialize()
         {
             LoadState();
@@ -200,14 +205,15 @@ namespace AdvancedPS.Editor
             }
             GUILayout.EndHorizontal();
 
-            // Row 2: canvas prefab (leave empty → APS auto-creates a plain overlay canvas at the sorting order)
+            // Row 2: canvas prefab. Required — every layer routes to a canvas; clearing the field snaps it back to the
+            // consumer's default canvas prefab so it can never be left empty.
             using (new EditorGUI.DisabledScope(entry == null))
             {
                 var shownCanvas = entry?.CanvasPrefab;
-                var newCanvas = (Canvas)EditorGUILayout.ObjectField("Canvas", shownCanvas, typeof(Canvas), false);
+                var newCanvas = (Canvas)EditorGUILayout.ObjectField(CanvasLabel, shownCanvas, typeof(Canvas), false);
                 if (entry != null && newCanvas != entry.CanvasPrefab)
                 {
-                    entry.CanvasPrefab = newCanvas;
+                    entry.CanvasPrefab = newCanvas != null ? newCanvas : LayerCanvasConfigStore.DefaultCanvas();
                     _configChanged = true;
                 }
             }
@@ -313,7 +319,9 @@ namespace AdvancedPS.Editor
             LayerCanvasConfig.Entry entry = EntryFor(name);
             if (entry == null)
             {
-                entry = new LayerCanvasConfig.Entry { Layer = name };
+                // Canvas is mandatory — seed a new layer with the default so its row is populated immediately, before
+                // the next save's Reconcile would back-fill it anyway.
+                entry = new LayerCanvasConfig.Entry { Layer = name, CanvasPrefab = LayerCanvasConfigStore.DefaultCanvas() };
                 _config.Entries.Add(entry);
             }
             return entry;

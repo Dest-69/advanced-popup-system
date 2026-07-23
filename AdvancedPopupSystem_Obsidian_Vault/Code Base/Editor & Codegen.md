@@ -48,10 +48,13 @@ Hand-editing the file is futile — it's regenerated from the store ([[Invariant
 
 ### Per-layer canvas config (`LayerCanvasConfigStore`)
 
-Beside each name the panel edits a **sorting order** + optional **canvas prefab**, persisted to the runtime
+Beside each name the panel edits a **sorting order** + a **canvas prefab** (mandatory), persisted to the runtime
 `LayerCanvasConfig` SO via **`LayerCanvasConfigStore`**: `LoadOrCreate` the single asset in the consumer's
-`Assets/Resources/`, `Reconcile` its entries with the current names (add missing, prune orphans — keyed **by name**),
-then `Save`. Names stay owned by `LayerCatalog`; this config is joined to them by name. The rows are **displayed sorted
+`Assets/Resources/`, `Reconcile` its entries with the current names (add missing, prune orphans — keyed **by name**, and
+**back-fill any entry with no canvas** with the consumer-owned default from **`DefaultCanvasFactory`** — a responsive
+full-screen overlay prefab (UI layer, ScaleWithScreenSize 1920×1080) baked once into
+`Assets/AdvancedPopupSystem/APS_DefaultCanvas.prefab`, outside the package so updates never clobber the user's edits),
+then `Save`. Clearing a row's canvas in the panel snaps it back to that default, so the field is never empty. Names stay owned by `LayerCatalog`; this config is joined to them by name. The rows are **displayed sorted
 by sorting order**, but the canonical name/bit order is left untouched — reordering it would renumber `PopupLayerEnum`
 and break serialized `PopupLayer` masks ([[Invariants]]). Sorting/prefab edits save only the SO (no recompile); name
 add/rename/delete go through the codegen path above and re-sync the SO. Runtime consumption in [[Core System]]

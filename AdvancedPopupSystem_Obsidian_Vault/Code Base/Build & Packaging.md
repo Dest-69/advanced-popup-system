@@ -24,6 +24,7 @@ update. The fix is to keep consumer state **out of the shipped package**, and to
 | Settings | `Assets/Resources/AP_Settings.json` (consumer project) | outside the package ([[Settings & Logging]]) |
 | Layer set | `ProjectSettings/APS_Layers.json` (consumer project) | outside the package; enum is healed from it ([[Layers]]) |
 | Custom displays | `Assets/AdvancedPopupSystem/Generated/Displays/` (consumer, own asmdef) | outside the package → import never touches them |
+| Default canvas | `Assets/AdvancedPopupSystem/APS_DefaultCanvas.prefab` (consumer project) | outside the package; baked on first use, user-editable → import never overwrites it |
 | `PopupLayerEnum.generated.cs` | **ships in the package** (`Runtime/Generated/Layers/`, own assembly) | a compile-time type must ship; it's a rebuildable projection of the store — reset to the default set on export, healed in place when the package is writable |
 | Addressable index | `Assets/Resources/APS_AddressablePopupIndex.asset` (consumer project) | outside the package; rescanned from the consumer's prefabs |
 

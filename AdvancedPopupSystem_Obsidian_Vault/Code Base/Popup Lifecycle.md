@@ -5,6 +5,8 @@ description: IAdvancedPopup + AdvancedPopup — init/cache, subscribe/unsubscrib
 code_paths:
   - Assets/advanced-popup-system/Runtime/Core/Abstract/IAdvancedPopup.cs
   - Assets/advanced-popup-system/Runtime/Core/Popups/AdvancedPopup.cs
+  - Assets/advanced-popup-system/Runtime/Core/Popups/AdvancedPopupData.cs
+  - Assets/advanced-popup-system/Runtime/Core/Abstract/IDataPopup.cs
 ---
 
 # Popup Lifecycle
@@ -16,7 +18,7 @@ Show/Hide/Switch overrides. **User popups extend `AdvancedPopup`.**
 ## Inspector fields (on the base)
 
 `PopupLayer` (which layers can show this), `ManualInit`, `AutoHideOnInit` (default `true`), `Inactive` (blocks Show),
-`EscapePolicy` (`EscapePolicyEnum`: `Hide` default / `Ignore` / `Block` — escape-stack participation, see
+`EscapePolicy` (`EscapePolicyEnum`: `Hide` / `Ignore` default / `Block` — escape-stack participation, see
 [[Core System]]), `DeepPopups` (child/dependent popups), `KeyBindingShowSettings`/`KeyBindingHideSettings`
 ([[Input & Hotkeys]]); the **Addressable** box `Addressable` / `AddressableLoadMode` + the per-scene selection
 `PreloadSceneGuids` (empty = Everyone) / `UnloadSceneGuids` (empty = None), both scene **GUIDs**, and the **Pool** box
@@ -81,6 +83,26 @@ Lane-A popup with `PoolCapacity == 0` (despawn on hide) the success path **relea
 > screen. Blindly adding that rollback regresses the common *Hide-cancels-Show* path (Hide is the one that should own
 > teardown), so it needs a proper transition state machine — see the review notes before touching it.
 
+## Data popups (`AdvancedPopup<TData>`)
+
+`AdvancedPopup<TData>` (`Popups/AdvancedPopupData.cs`, a same-name generic beside `AdvancedPopup`; implements
+`IDataPopup` — the non-generic `HasData`/`ClearData` surface in `Abstract/`, used by `Despawn`) is the typed
+per-open-data base (2026-07-23). The contract:
+
+- **`Bind(TData)` (abstract) is the single place data meets UI** — called from `SetData` only, never from data-less
+  shows. `SetData` stores `Data`/`HasData` **before** invoking `Bind` and skips entirely when
+  `IsSameData(current, next)` — a virtual whose **default is `false` = always re-bind**. Deliberate: a skipped bind on
+  changed data is a stale-UI bug, a redundant bind is only wasted work; popups with expensive binds override this one
+  standardized hook (version field, `Equals` for record data) instead of consumers writing ad-hoc dedup checks.
+- **`Show(data)`/`ShowAsync(data, …)` bind then show.** No `IsBeVisible` guard before `SetData` on purpose — on a
+  visible popup it is a live content update (`ShowAsync`'s own guard prevents a double show). A `Bind` throw inside
+  the `Operation` faults it (logged) and the show is skipped — an unconfigured popup never appears.
+- **Retention is Lane-A-only:** data survives hide/show, so escape/hotkey/`LayerShow`/`SwitchShowHide` re-shows render
+  the last content with zero re-bind cost. Lane B: `Despawn` clears via `IDataPopup` (a pooled copy must not leak the
+  previous use's content); `SpawnAsync<TPopup,TData>(data)` is the paired bind-on-spawn ([[Addressables]]).
+- Statics on the system: `Show<TPopup,TData>(data, settings)` and the popup-agnostic `Show<T>(Action<T> configure)`
+  ([[Core System]] "Show / hide by type").
+
 ## Deep popups
 
 `DeepPopups` are children/dependents animated **in parallel** with the parent; the parent's `ShowAsync`/`HideAsync`
@@ -97,8 +119,9 @@ replace the flag with a `DeepPopups` lookup.
 ## Spawning & pooling (was `AdvancedPopupInstantiate`)
 
 The old `AdvancedPopupInstantiate` NoOp stub is **removed** (breaking — [[Invariants]]). Runtime spawn + pooling is now
-`AdvancedPopupSystem.SpawnAsync<T>`/`Despawn` over Addressable prefabs (Lane B), and a popup's `PoolCapacity` (`-1`
-resident default / `0` despawn on hide / `N` keep-up-to-N) decides retention for both lanes. See [[Addressables]].
+`AdvancedPopupSystem.SpawnAsync<T>`/`Despawn` over Addressable prefabs (Lane B), and a popup's `PoolCapacity` (`1`
+single-instance default / `-1` resident-unlimited / `0` despawn on hide / `N` keep-up-to-N) decides retention for both
+lanes. See [[Addressables]].
 
 ## Depends on
 

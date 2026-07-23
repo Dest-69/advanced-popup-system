@@ -46,7 +46,7 @@ shape lives in **one** place — the SO — with no kept-in-sync copies to break
 
 ## Two lanes (the core distinction)
 
-- **Lane A — unique / singletons.** `LayerShow`, `Show<T>`, `GetPopupAsync<T>`, `TryGetPopup`. One instance per type,
+- **Lane A — unique / singletons.** `LayerShow`, `Show<T>`, `SwitchShowHide<T>`, `GetPopupAsync<T>`, `TryGetPopup`. One instance per type,
   lives in `AllPopups`/`PopupCacheByType`, participates in layers + escape. `LayerShow` calls `EnsureLayerLoadedAsync`
   before showing → materializes the layer's Addressable popups not already live. `GetPopupAsync<T>` is the **by-type**
   equivalent: same `Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer))` load, but for one type, returning
@@ -59,7 +59,9 @@ shape lives in **one** place — the SO — with no kept-in-sync copies to break
 - **Lane B — many copies.** `SpawnAsync<T>(parent)` / `Despawn(popup, release)`. For toasts / list rows. Reuses a
   pooled instance or loads a fresh one, then **pulls it out of the unique registries** its `Init()` joined
   (`DeactivateAdvancedPopup`) and tracks it in `SpawnedPopups` — so `LayerShow` ignores it, but it is still in
-  `ActivePopups` while visible, so **escape + HideAll reach it** ([[Core System]]).
+  `ActivePopups` while visible, so **escape + HideAll reach it** ([[Core System]]). Data popups:
+  `SpawnAsync<TPopup,TData>(data)` binds on spawn, and `Despawn` **clears** `IDataPopup` data before pooling/release —
+  a pooled copy never carries the previous use's content ([[Popup Lifecycle]] "Data popups").
 
 ## Loading, parenting, preload
 
@@ -85,13 +87,19 @@ shape lives in **one** place — the SO — with no kept-in-sync copies to break
   registered and scene-wins can suppress duplicates; the resolver registered at **`BeforeSceneLoad`**, so it is set.
   `PreloadAll()` / `PreloadLayer(layer)` still return `Operation`s and load **all** `Preload` entries regardless of
   scene — for gating a loading screen.
+- **Per-entry fault isolation** (2026-07-23, from a consumer incident): `EnsureEntryLoadedAsync` catches a failed load
+  (bad asset, an exception in the popup's `Awake`/DI injection…), logs it **naming the popup type**, and swallows it —
+  so every sequential batch above it (`PreloadAll`, `EnsureLayerLoadedAsync` → `LayerShow`/`PreloadLayer`, the
+  per-scene pass) continues with its remaining entries instead of silently dropping everything after the broken popup.
+  Isolation lives in that **one** method on purpose — don't re-add per-loop catches. Cancellation is not a failure:
+  the catch re-checks `OperationCancelled` and returns, and each loop's own check exits.
 - **`UnloadType(typeName)`** (`Core System`): releases the resident unique (Lane-A) instance via `Resolver.Release`
   (its `OnDestroy` prunes the registries) + drains `_pool`/`_singlePool` of that type; **skips a visible
   (`IsBeVisible`) instance** and user-owned `SpawnedPopups`. Releasing a scene-authored popup is a no-op (the resolver
   only frees what it created), so scene-wins popups are safe. No new static collection → no new leak guard.
 - **`IAdvancedPopup.PoolCapacity`** (one value, both lanes): how many idle copies to keep alive instead of releasing.
-  `-1` = keep unlimited (default; resident, like a scene popup), `0` = **despawn on hide** (release the handle so memory
-  can unload; reloads next show), `1` = a **single on/off instance** (one idle copy, no pool list), `N` (≥2) = keep at
+  `-1` = keep unlimited (resident, like a scene popup), `0` = **despawn on hide** (release the handle so memory
+  can unload; reloads next show), `1` = a **single on/off instance** (default; one idle copy, no pool list), `N` (≥2) = keep at
   most N idle copies. This **replaced** the old `HideBehavior` enum (`Despawn` ≡ capacity `0`) + `MaxPoolCount` — one
   field, no separate enum.
   - **Lane A** (`AdvancedPopup.HideAsync`): only `0` vs non-`0` matters — a unique popup either releases on hide (`0`) or

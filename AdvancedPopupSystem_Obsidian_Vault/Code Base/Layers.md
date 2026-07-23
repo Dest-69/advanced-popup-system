@@ -40,9 +40,11 @@ instead of per-popup.
   (`ActiveLayer == layer`) may then no-op unexpectedly.
 - Layers also **gate hotkeys**: a `PopupKeyBinding.Layers` value restricts when a key fires ([[Input & Hotkeys]]).
 - Layers also **select a canvas** for popups the system instantiates. Configured in the **Layers panel**
-  ([[Editor & Codegen]]): each layer carries a **sorting order** + optional **canvas prefab**, persisted to the runtime
+  ([[Editor & Codegen]]): each layer carries a **sorting order** + a **canvas prefab** (mandatory in the panel — seeded with the
+  consumer-owned `APS_DefaultCanvas` you edit to control the default; a cleared prefab still falls back to an auto-created
+  overlay), persisted to the runtime
   `LayerCanvasConfig` asset (`Assets/Resources/APS_LayerCanvasConfig.asset`, consumer-side like `AP_Settings.json`). APS
-  gives each layer its own canvas (the prefab, or an auto-created overlay) at that sort order, created **lazily** on the
+  gives each layer its own canvas (the prefab, or an auto-created overlay) at that sort order, named `<Layer> - APS Canvas`, created **lazily** on the
   first load/spawn of one of its popups; a runtime `AdvancedPopupSystem.RegisterLayerCanvas(layer, canvas)` still
   overrides. Unmapped → `Root`; scene-authored popups unaffected; multi-flag popups resolve to the lowest-bit mapped
   layer. The panel's **sorting order is display + canvas order only — it never reorders the name/bit store**, so
