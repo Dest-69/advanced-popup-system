@@ -16,9 +16,10 @@ namespace AdvancedPS.Core.System
     {
         #region Public
         /// <summary>
-        /// Layer of popup, check all layers where you expect this popup can be shown.
+        /// The single layer this popup belongs to. Layers are canvas-bound (each layer routes to its own canvas), so a
+        /// popup carries exactly one layer — or <see cref="PopupLayerEnum.None"/> to keep it out of layer control.
         /// </summary>
-        [Tooltip("Layer of popup, check all layers where you expect this popup can be shown.")]
+        [Tooltip("The single layer this popup belongs to. Layers are canvas-bound, so pick exactly one (or None to keep the popup out of layer control).")]
         public PopupLayerEnum PopupLayer;
         /// <summary>
         /// true - if need manual initialize popup via Init() func for better resources control.

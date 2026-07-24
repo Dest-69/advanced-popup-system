@@ -61,6 +61,10 @@ Do not break these. Deviation only after explicit agreement in the current task.
 `ActivePopups` add/remove).
 - **`CanvasGroup` is required** (`[RequireComponent]`); `RectTransform` + `CanvasGroup` are auto-added in `Init()` if
   missing. Displays animate via the `RectTransform` and `CanvasGroup`.
+- **One layer per popup.** `PopupLayer` carries exactly one `PopupLayerEnum` flag (`None` allowed) — layers are
+  canvas-bound, multi-membership would make the canvas ambiguous. Matching is any-of bitwise (queries may be masks);
+  the inspector is single-select; legacy multi-flag data degrades gracefully (lowest-bit canvas + warnings), never
+  hard-fails. See [[Layers]].
 
 ## Show/Hide & cancellation
 
@@ -113,7 +117,8 @@ Do not break these. Deviation only after explicit agreement in the current task.
   `.unitypackage`s, staged from `Samples~/` at build — [[Samples]]); pulls **no** third-party dependencies. The
   `PopupLayerEnum` **ships** (as a
   compile-time type), so keep the dev repo's shipped enum at the clean default set — the exporter can reset it. Keep
-  `Editor/Build/` on its deny-list.
+  `Editor/Build/` on its deny-list **and** behind its `APS_DEV`-constrained asmdef — the deny-list covers only the
+  `.unitypackage` channel; the UPM/git channel ships the folder and relies on the define gate ([[Build & Packaging]]).
 - **A shipped `PopupLayerEnum` file must always be _compilable_, never empty** — an empty `.cs` drops the
   `PopupLayerEnum` type and hard-fails the compile. `LayerCatalog` regenerates it (from the store when present, else
   `DefaultLayerNames`) only into a **writable** package. (The Addressable index is a data asset, so a missing index is

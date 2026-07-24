@@ -11,8 +11,11 @@ namespace AdvancedPS.Editor
     /// <summary>
     /// Dev-only tool that builds a distributable <c>.unitypackage</c> of the Advanced Popup System.
     ///
-    /// This tool <b>excludes itself</b> from the exported package (its whole <c>Editor/Build/</c> folder is on the
-    /// deny-list) so consumers never receive it. The build:
+    /// Consumers never get a working copy of this tool, per distribution channel: the <c>.unitypackage</c> build
+    /// <b>excludes</b> the whole <c>Editor/Build/</c> folder (deny-list below), while the UPM/git channel — which ships
+    /// the repo as-is, deny-list not applying — carries the folder but never compiles it: its own asmdef
+    /// (<c>dest-69.advanced-popup-system.editor.build</c>) is constrained to <c>APS_DEV</c>, a scripting define only
+    /// this dev project sets (Project Settings ▸ Player). The build:
     /// <list type="bullet">
     /// <item>ships only files under <c>Assets/advanced-popup-system</c>, with no third-party dependencies pulled in
     /// (no <see cref="ExportPackageOptions.IncludeDependencies"/>);</item>

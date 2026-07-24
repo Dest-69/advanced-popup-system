@@ -53,7 +53,7 @@ Newtonsoft.Json is pulled in automatically. Requires [Git](https://git-scm.com/)
 
 ## ✨ Features
 
-*   🗂️ **Layer-based Management** — Group popups into layer bitmasks (`GUI`, `GAME`, `MENU`…) and show or hide whole layers in one call. Each layer gets its own **canvas** and sort order in **`APS ▸ Layers`**, so HUD, dialogs and tooltips stack independently.
+*   🗂️ **Layer-based Management** — Give every popup a layer (`GUI`, `GAME`, `MENU`…) and show or hide whole layers in one call. Each layer gets its own **canvas** and sort order in **`APS ▸ Layers`**, so HUD, dialogs and tooltips stack independently.
 *   🎭 **Extensible Animations** — Built-in **Fade**, **Scale** and **Slide** with 30 easing curves, or scaffold your own display straight from the editor.
 *   🎬 **DOTween Integration** *(optional)* — Drive show/hide with hand-built [DOTween](https://github.com/Demigiant/dotween) `Sequence`s. Lives behind a `DOTWEEN` define in its own assembly; the core compiles fine without it.
 *   ⚡ **Async-First** — Fully `Task`-based transitions with `CancellationToken` cancellation throughout.
@@ -183,7 +183,7 @@ The **APS Editor Window** lists every registered popup and traces active operati
 
 ### Popup Inspector
 
-Configure animations, keys, child popups, and layer masks directly in the inspector. The **Preview** button plays the
+Configure animations, keys, child popups, and the popup's layer directly in the inspector. The **Preview** button plays the
 show → hide cycle right in edit mode (no play mode needed) and restores the popup's state afterwards:
 
 <p align="center">

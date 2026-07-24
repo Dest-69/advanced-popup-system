@@ -217,6 +217,7 @@ MonoBehaviour:
   AutoHideOnInit: 1
   Inactive: 0
   EscapePolicy: 0
+  CloseKey: 0
   RootTransform: {fileID: 0}
   canvasGroup: {fileID: 0}
   IsBeVisible: 0
@@ -267,9 +268,8 @@ MonoBehaviour:
   Addressable: 1
   AddressableLoadMode: 0
   PoolCapacity: 1
-  PreloadScenes: -1
-  UnloadScenes: 0
-  _sceneMaskInitialized: 1
+  PreloadSceneGuids: []
+  UnloadSceneGuids: []
 --- !u!225 &3104358853295099595
 CanvasGroup:
   m_ObjectHideFlags: 0

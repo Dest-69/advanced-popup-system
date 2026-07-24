@@ -37,6 +37,11 @@ namespace AdvancedPS.Editor
         private SerializedProperty _poolCapacityProperty;
         private SerializedProperty _closeKeyProperty;
 
+        // Single-select options for the Popup Layer row. Rebuilt every OnEnable — the Layers panel regenerates
+        // PopupLayerEnum, so the set must never be cached statically across domain reloads.
+        private string[] _layerNames;
+        private int[] _layerValues;
+
         /// <summary>
         /// Fields drawn by hand above (or intentionally hidden), so the default-inspector fallback skips them.
         /// Static — the set never changes, no need to rebuild it every repaint.
@@ -61,6 +66,11 @@ namespace AdvancedPS.Editor
             }
             
             _popupLayerProperty = serializedObject.FindProperty("PopupLayer");
+            _layerNames = Enum.GetNames(typeof(PopupLayerEnum));
+            var layerValues = (PopupLayerEnum[])Enum.GetValues(typeof(PopupLayerEnum));
+            _layerValues = new int[layerValues.Length];
+            for (int i = 0; i < layerValues.Length; i++)
+                _layerValues[i] = (int)layerValues[i];
             _inactiveProperty = serializedObject.FindProperty("Inactive");
             _escapePolicyProperty = serializedObject.FindProperty("EscapePolicy");
             _closeKeyProperty = serializedObject.FindProperty("CloseKey");
@@ -98,17 +108,7 @@ namespace AdvancedPS.Editor
             DrawInactive();
 
             // Popup Layer + a shortcut into the Layers editor.
-            EditorGUILayout.BeginHorizontal();
-            EditorGUI.showMixedValue = _popupLayerProperty.hasMultipleDifferentValues;
-            EditorGUI.BeginChangeCheck();
-            var newLayer = (PopupLayerEnum)EditorGUILayout.EnumFlagsField("Popup Layer", (PopupLayerEnum)_popupLayerProperty.intValue);
-            if (EditorGUI.EndChangeCheck())
-                _popupLayerProperty.intValue = (int)newLayer;
-            EditorGUI.showMixedValue = false;
-
-            if (GUILayout.Button("Edit Layers", GUILayout.Width(100), GUILayout.ExpandHeight(true)))
-                PopupSystemEditor.ShowLayers();
-            EditorGUILayout.EndHorizontal();
+            DrawPopupLayer();
 
             // Escape close behavior — grouped with the layer controls at the top.
             DrawEscapeClose();
@@ -145,6 +145,43 @@ namespace AdvancedPS.Editor
 
             EditorGUILayoutExtensions.DrawHorizontalLine();
         }
+
+        /// <summary>
+        /// Popup Layer row + a shortcut into the Layers editor. Layers are canvas-bound — a popup belongs to exactly
+        /// one layer (None keeps it out of layer control), so this is a single-select, not a flags mask. Legacy
+        /// multi-flag values get a warning and a one-click fix that keeps the lowest bit — the same layer the runtime
+        /// already routes the canvas by.
+        /// </summary>
+        private void DrawPopupLayer()
+        {
+            int current = _popupLayerProperty.intValue;
+            bool legacyMulti = (current & (current - 1)) != 0;
+            int index = Array.IndexOf(_layerValues, current);
+            if (index < 0) index = Array.IndexOf(_layerValues, LowestBit(current));
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUI.showMixedValue = _popupLayerProperty.hasMultipleDifferentValues;
+            EditorGUI.BeginChangeCheck();
+            int picked = EditorGUILayout.Popup("Popup Layer", index, _layerNames);
+            if (EditorGUI.EndChangeCheck() && picked >= 0)
+                _popupLayerProperty.intValue = _layerValues[picked];
+            EditorGUI.showMixedValue = false;
+
+            if (GUILayout.Button("Edit Layers", GUILayout.Width(100), GUILayout.ExpandHeight(true)))
+                PopupSystemEditor.ShowLayers();
+            EditorGUILayout.EndHorizontal();
+
+            if (legacyMulti && !_popupLayerProperty.hasMultipleDifferentValues)
+            {
+                GUILayout.Label($"Several layers are set ({(PopupLayerEnum)current}) — layers are canvas-bound, a popup belongs to exactly one.",
+                    APSEditorStyles.WarningTextStyle);
+                if (GUILayout.Button($"Keep '{(PopupLayerEnum)LowestBit(current)}'"))
+                    _popupLayerProperty.intValue = LowestBit(current);
+            }
+        }
+
+        /// <summary>Lowest set bit of a layer mask — matches the runtime's canvas tie-break for legacy multi-flag data.</summary>
+        private static int LowestBit(int mask) => mask & -mask;
 
         /// <summary>
         /// Edit-mode Preview: plays the cached show animation, holds ~1s, plays hide, then restores the exact

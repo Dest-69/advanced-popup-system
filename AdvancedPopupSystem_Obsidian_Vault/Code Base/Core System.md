@@ -46,7 +46,8 @@ popup ([[Popup Lifecycle]]).
   same pass — mappings whose **canvas** was destroyed are dropped (a reused scratch key-list avoids alloc). Any new
   static collection needs the same treatment.
 - **Registration:** `InitAdvancedPopup(popup)` (called from `AdvancedPopup.Init`) adds to `AllPopups` + type cache and
-  re-sorts; `DeactivateAdvancedPopup(popup)` (from `OnDestroy`) removes from `AllPopups`/`ActivePopups`, and from the
+  re-sorts; it also warns on legacy multi-flag `PopupLayer` data (one layer per popup — [[Layers]]).
+  `DeactivateAdvancedPopup(popup)` (from `OnDestroy`) removes from `AllPopups`/`ActivePopups`, and from the
   type cache **only if this popup was the cached representative** — then re-points that type to a surviving instance if
   one remains. (Guards the case of several popups sharing a type: removing a non-cached one must not evict the entry,
   and removing the cached one must not blind-drop it.)
@@ -75,7 +76,8 @@ allocation-light on purpose: one scratch list, depth computed once per popup, `L
   finds it) — no duplicate instance. That load runs under `CancellationToken.None` (a singleton must not be released
   because one caller cancelled); each caller honors its own `token` after the await. `RemoveInFlightWhenComplete` clears
   the entry on completion (success/failure) so a failed load can't poison the type.
-- `GetPopupByLayer(layer, activeOnly=true)` — first popup whose `PopupLayer` has the flag.
+- `GetPopupByLayer(layer, activeOnly=true)` — first popup whose layer is in the query (any-of bitwise; the query may
+  be a mask — [[Layers]] "one layer per popup").
 - `GetPopupByName(name, activeOnly=true)` — by `GameObject.name`, **case-sensitive**.
 
 ## Layer orchestration
@@ -139,9 +141,9 @@ resolve the parent through **`GetCanvasForLayer(popupLayer)`** instead of always
   bits and store one entry per flag (null clears). A pre-populated `_layerCanvases[flag]` makes `EnsureLayerCanvases` skip
   that flag → the manual mapping **wins** over the config.
 
-`GetCanvasForLayer` then returns the mapped canvas for the popup's layer, else `Root`. A popup carrying **several mapped
-layers** resolves deterministically to the **lowest-bit** layer's canvas — documented tie-break; give a popup one layer
-to avoid it. Lane A reads the popup's layer from the index asset's `Entry.Layer` (no instance yet at load); Lane B from
+`GetCanvasForLayer` then returns the mapped canvas for the popup's layer, else `Root`. A popup carries **one** layer
+([[Layers]]); legacy multi-flag data resolves deterministically to the **lowest-bit** mapped layer's canvas (and warns
+at registration). Lane A reads the popup's layer from the index asset's `Entry.Layer` (no instance yet at load); Lane B from
 the pooled instance (reuse) or `Entry.Layer` (fresh load). The cached SO is dropped on play-mode exit
 (`LayerCanvasConfig.ClearCache`, beside `_layerCanvases.Clear`); auto-created canvases are `DontDestroyOnLoad` (Unity
 destroys them on exit like `APS_Root`) and dead mappings are pruned on scene unload.

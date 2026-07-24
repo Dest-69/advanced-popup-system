@@ -260,8 +260,8 @@ namespace AdvancedPS.Core
         /// The canvas a popup with <paramref name="popupLayer"/> is parented under, or <see cref="Root"/> when none of
         /// its layers are mapped. Mappings come from two sources, checked together: a manual <see cref="RegisterLayerCanvas"/>
         /// (runtime override) and the APS Layers tool's <see cref="LayerCanvasConfig"/> — the latter's canvases are
-        /// created lazily on first use here. If a popup carries several mapped layers the lowest-bit layer wins
-        /// (deterministic) — give a popup a single layer to avoid the tie. Used by the load/spawn paths; scene-authored
+        /// created lazily on first use here. A popup belongs to exactly one layer; legacy multi-flag data still
+        /// resolves deterministically — the lowest-bit mapped layer wins. Used by the load/spawn paths; scene-authored
         /// popups don't call it.
         /// </summary>
         public static Transform GetCanvasForLayer(PopupLayerEnum popupLayer)
@@ -354,13 +354,14 @@ namespace AdvancedPS.Core
         }
         
         /// <summary>
-        /// First popup in a specific layer. Null if not found.
+        /// First popup whose layer is in <paramref name="layer"/> (a single flag, or a mask to match any of several
+        /// layers). Null if not found.
         /// </summary>
         public static IAdvancedPopup GetPopupByLayer(PopupLayerEnum layer, bool activeOnly = true)
         {
             var list = activeOnly ? ActivePopups : AllPopups;
             for (int i = 0; i < list.Count; i++)
-                if (list[i].PopupLayer.HasFlag(layer)) return list[i];
+                if ((list[i].PopupLayer & layer) != 0) return list[i];
             return null;
         }
         
@@ -1175,7 +1176,7 @@ namespace AdvancedPS.Core
         }
 
         /// <summary>
-        /// Get popups by layer in any loaded scene.
+        /// Get popups whose layer is in <paramref name="layer"/> (any-of for a mask) in any loaded scene.
         /// </summary>
         private static List<IAdvancedPopup> GetPopupsByLayer(PopupLayerEnum layer)
         {
@@ -1183,7 +1184,7 @@ namespace AdvancedPS.Core
             for (int i = 0; i < AllPopups.Count; i++)
             {
                 IAdvancedPopup popup = AllPopups[i];
-                if (popup != null && popup.PopupLayer.HasFlag(layer))
+                if (popup != null && (popup.PopupLayer & layer) != 0)
                     popups.Add(popup);
             }
             if (popups.Count == 0)
@@ -1193,7 +1194,7 @@ namespace AdvancedPS.Core
         }
 
         /// <summary>
-        /// Get popups excluding a specific layer in any loaded scene.
+        /// Get popups whose layer is NOT in <paramref name="layer"/> (any-of for a mask) in any loaded scene.
         /// </summary>
         private static List<IAdvancedPopup> GetPopupsExcludingLayer(PopupLayerEnum layer)
         {
@@ -1201,7 +1202,7 @@ namespace AdvancedPS.Core
             for (int i = 0; i < AllPopups.Count; i++)
             {
                 IAdvancedPopup popup = AllPopups[i];
-                if (popup != null && !popup.PopupLayer.HasFlag(layer))
+                if (popup != null && (popup.PopupLayer & layer) == 0)
                     popups.Add(popup);
             }
             if (popups.Count == 0)
@@ -1306,6 +1307,11 @@ namespace AdvancedPS.Core
         {
             if (!AllPopups.Contains(popup))
             {
+                // Layers are canvas-bound: a popup belongs to exactly one layer. Legacy multi-flag data still works
+                // (any-of matching; canvas = lowest bit) but should be re-authored — warn once, at registration.
+                int layerMask = (int)popup.PopupLayer;
+                if ((layerMask & (layerMask - 1)) != 0)
+                    APLogger.LogWarning($"<color=yellow>[AdvancedPopupSystem]</color> Popup '{popup.name}' carries several layers ({popup.PopupLayer}) — layers are canvas-bound, one layer per popup. It matches any of them, its canvas comes from the lowest bit; pick a single layer in the inspector.");
                 AllPopups.Add(popup);
                 PopupCacheByType[popup.GetType()] = popup;
                 SortPopups();

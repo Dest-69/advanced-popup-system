@@ -252,6 +252,11 @@ namespace AdvancedPS.Editor
 
         private static PopupEntryData BuildEntry(IAdvancedPopup popup, string typeName)
         {
+            // Layers are canvas-bound — one layer per popup. Legacy multi-flag prefabs still bake (any-of matching,
+            // canvas from the lowest bit), but the author should fix the prefab, so surface it at bake time.
+            int layerMask = (int)popup.PopupLayer;
+            if ((layerMask & (layerMask - 1)) != 0)
+                Debug.LogWarning($"[APS] Addressable popup '{typeName}' carries several layers ({popup.PopupLayer}) — layers are canvas-bound, one layer per popup. Pick a single layer on the prefab.");
             return new PopupEntryData
             {
                 TypeName = typeName,

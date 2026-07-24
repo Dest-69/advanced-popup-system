@@ -69,7 +69,9 @@ For which calls load and which don't, see the cheat sheet in [§9.6](#96-what-lo
   for your own async popup flows. Chain callbacks with `.OnComplete(...)`, abort with `.Cancel()`, inspect via
   `Status` / `Error` ([§3.2](#32-showing--hiding)).
 - **`PopupLayerEnum`** — a generated `[Flags]` enum grouping popups into logical screens (`GUI`, `GAME`, `MENU`…).
-  Several flags can be active at once. Edit it from the APS **Layers** panel ([§5](#5-the-aps-editor-window)).
+  Each popup belongs to **exactly one** layer (every layer routes to its own canvas —
+  [§9.5](#95-where-loaded-popups-live--canvas-per-layer)); the flags exist so several *layers* can be active at once
+  and `Layer*` calls can take masks. Edit it from the APS **Layers** panel ([§5](#5-the-aps-editor-window)).
 - **Displays & Settings** — a *display* runs an animation, a *settings* object holds its tunables. Built in:
   `FadeDisplay`/`FadeSettings`, `ScaleDisplay`/`ScaleSettings`, `SlideDisplay`/`SlideSettings`, and (optional)
   `DoTweenDisplay`/`DoTweenSettings`. `EasingType` provides 30 easing curves.
@@ -141,7 +143,7 @@ the default **Scale** transition ([§4](#4-animations--custom-transitions) to pi
 
 | Field | Meaning |
 | :--- | :--- |
-| **Popup Layer** | One or more layer flags this popup belongs to (used by `LayerShow` / `LayerHide`). |
+| **Popup Layer** | The single layer this popup belongs to (used by `LayerShow` / `LayerHide`; each layer routes to its own canvas — [§9.5](#95-where-loaded-popups-live--canvas-per-layer)). `None` keeps it out of layer control. |
 | **Modules** | Optional per-popup features — **Draggable**, **Resizable**, **Closable** ([§6.4](#64-modules-drag-resize--close)). |
 | **Auto Hide On Init** | Keep `true` so the popup starts hidden. Set `false` only for UI shown immediately on scene start. |
 | **Manual Init** | Keep `false` for scene popups. Set `true` to instantiate at runtime and call `Init()` yourself. Ignored for **Addressable** popups (they always auto-init). |
@@ -715,7 +717,7 @@ drawn on top; the topmost popup under the pointer wins.
   - Don't cancel a transition immediately after starting it (a new show/hide cancels the previous one).
 
 - **Wrong popups open/close with `LayerShow` / `LayerHide`**
-  - Check each popup's **Popup Layer** flags in the Inspector.
+  - Check each popup's **Popup Layer** in the Inspector — one layer per popup.
   - `LayerShow(..., autohide: true)` hides all other layers; use `autohide: false` to overlay.
   - Mixing manual `Show()/Hide()` with layer calls can desync `ActiveLayer` from what's actually visible.
 
@@ -876,8 +878,9 @@ AdvancedPopupSystem.UnregisterLayerCanvas(PopupLayerEnum.MENU); // back to the t
 - Only popups **APS instantiates** (Addressable loads and `SpawnAsync`) are routed. Popups you place in a scene keep
   their own canvas — position them where you want.
 - A layer with no tool config and no runtime mapping falls back to `Root`.
-- If a popup carries several mapped layers, the lowest-declared one wins — give a popup a single layer to keep it
-  unambiguous.
+- A popup belongs to exactly one layer. Legacy multi-flag data (authored before layers became canvas-bound) still
+  resolves — the lowest-declared mapped layer wins and APS logs a warning at registration — but re-author it to a
+  single layer (the inspector offers a one-click fix).
 - A `parent` passed explicitly to `SpawnAsync` wins over the layer canvas. A runtime `RegisterLayerCanvas` must run
   before a preloaded popup loads if that popup must start on it.
 

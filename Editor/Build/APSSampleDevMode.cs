@@ -18,7 +18,9 @@ namespace AdvancedPS.Editor
     /// GUIDs stay stable); <see cref="FinishEditing"/> moves it back, parking the showcase's own folder <c>.meta</c>
     /// next to the source in <c>Samples~/</c> so the folder GUID survives round-trips and exporter stagings.
     /// While anything is checked out, <see cref="APSPackageExporter"/> refuses to build — raw sources must never ship.
-    /// Lives in <c>Editor/Build/</c>, which is on the exporter's deny-list, so this tool never ships either.
+    /// Lives in <c>Editor/Build/</c>, so this tool never runs for consumers either: the folder is on the exporter's
+    /// deny-list (<c>.unitypackage</c> channel) and its asmdef is constrained to the dev-only <c>APS_DEV</c> define
+    /// (UPM/git channel ships the folder but never compiles it).
     /// </summary>
     public static class APSSampleDevMode
     {
@@ -41,6 +43,8 @@ namespace AdvancedPS.Editor
         /// <summary>Moves every hidden showcase <c>Samples~/ → Samples/</c> so Unity imports it for editing.</summary>
         public static void StartEditing()
         {
+            // Directory.Move never creates the destination's parent — make sure the root is there.
+            Directory.CreateDirectory(ToFs(SamplesFolder));
             var moved = new List<string>();
             foreach (string srcFs in SourceDirs().ToArray())
             {
@@ -77,6 +81,10 @@ namespace AdvancedPS.Editor
                 return;
 
             AssetDatabase.SaveAssets();
+            // With every showcase checked out, Samples~/ sits empty and rarely survives until check-in (git does not
+            // track empty folders, clean-up tools prune them). Directory.Move never creates the destination's parent,
+            // so recreate the root here instead of throwing DirectoryNotFoundException.
+            Directory.CreateDirectory(ToFs(SamplesTildeFolder));
             var moved = new List<string>();
             foreach (string stagedFs in staged)
             {

@@ -1,7 +1,7 @@
 ---
 type: code
 status: active
-description: PopupLayerEnum (generated flags), ActiveLayer bitmask semantics, autohide, and how a popup's multi-flag PopupLayer participates in layer show/hide. Read when working with layer grouping.
+description: PopupLayerEnum (generated flags), ActiveLayer bitmask semantics, autohide, and the one-layer-per-popup contract (layers are canvas-bound). Read when working with layer grouping.
 code_paths:
   - Assets/advanced-popup-system/Runtime/Generated/Layers/PopupLayerEnum.generated.cs
   - Assets/advanced-popup-system/Editor/MenuEditor/LayerCatalog.cs
@@ -30,8 +30,13 @@ instead of per-popup.
   `LayerCatalog` writes the store atomically (`.tmp` + `File.Replace` → `.bak`) and distinguishes *missing* (seed
   defaults) from *unreadable* (abort — **never** overwrite real layers on a read hiccup), recovering from `.bak`. Details
   in [[Editor & Codegen]].
-- A popup's inspector **`PopupLayer` may hold several flags** — it shows for **any** of them (`HasFlag` matching in
-  `GetPopupsByLayer`). So one popup can belong to multiple screens.
+- **One layer per popup.** `PopupLayer` holds exactly one flag (`None` = outside layer control) — layers are
+  canvas-bound, so multi-membership would make the popup's canvas ambiguous. The inspector is a **single-select**
+  (not a flags mask). Matching is **any-of bitwise** (`(popup.PopupLayer & query) != 0` in `GetPopupsByLayer`/
+  `GetPopupByLayer`/index `ForLayer`), so a `Layer*` **query** may still be a mask spanning several layers. **Legacy
+  multi-flag data** (pre-canvas-bound era) keeps working — any-of matching, canvas from the lowest bit — but warns at
+  registration (`InitAdvancedPopup`) and at index bake; the inspector shows a warning with a one-click
+  "keep lowest" fix.
 - **`AdvancedPopupSystem.ActiveLayer`** is the OR of currently active layers. It is mutated **only** by
   `LayerShow`/`LayerHide`/`HideAll` ([[Core System]]) — `autohide:true` sets it to the single layer (hiding the rest),
   `autohide:false` ORs it in, `LayerHide` clears the flag, `HideAll` resets to `0`.
@@ -45,9 +50,9 @@ instead of per-popup.
   `LayerCanvasConfig` asset (`Assets/Resources/APS_LayerCanvasConfig.asset`, consumer-side like `AP_Settings.json`). APS
   gives each layer its own canvas (the prefab, or an auto-created overlay) at that sort order, named `<Layer> - APS Canvas`, created **lazily** on the
   first load/spawn of one of its popups; a runtime `AdvancedPopupSystem.RegisterLayerCanvas(layer, canvas)` still
-  overrides. Unmapped → `Root`; scene-authored popups unaffected; multi-flag popups resolve to the lowest-bit mapped
+  overrides. Unmapped → `Root`; scene-authored popups unaffected; legacy multi-flag popups resolve to the lowest-bit mapped
   layer. The panel's **sorting order is display + canvas order only — it never reorders the name/bit store**, so
-  serialized `PopupLayer` masks stay valid. Mechanism in [[Core System]] ("Canvas routing"); parenting sites in
+  serialized `PopupLayer` values stay valid. Mechanism in [[Core System]] ("Canvas routing"); parenting sites in
   [[Addressables]].
 
 ## Depends on

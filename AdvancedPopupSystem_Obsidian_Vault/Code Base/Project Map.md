@@ -35,6 +35,7 @@ code_paths:
 | `dest-69.advanced-popup-system.oldinput` | `Runtime/Core/Input/Old/` | `AdvancedPS.Core.Input` | `!HAS_NEWINPUT` | Legacy Input Manager path |
 | `dest-69.advanced-popup-system.dotween` | `Runtime/Generated/Displays/DoTweenDisplay/` | — | `DOTWEEN` | Optional DoTween display |
 | `dest-69.advanced-popup-system.editor` | `Editor/` | `AdvancedPS.Editor` | Editor platform | APS window, inspectors, menus |
+| `dest-69.advanced-popup-system.editor.build` | `Editor/Build/` | `AdvancedPS.Editor` | Editor + `APS_DEV` | Dev-only exporter tooling; `APS_DEV` is set only in the dev project's Player settings, so the UPM/git channel ships the folder **inert** (never compiles for consumers) |
 | `dest-69.advanced-popup-system.addressables` | `Runtime/Addressables/` | `AdvancedPS.Core.System` | `APS_ADDRESSABLES` | Optional Addressables resolver ([[Addressables]]) |
 | `dest-69.advanced-popup-system.addressables.editor` | `Editor/Addressables/` | `AdvancedPS.Editor` | Editor + `APS_ADDRESSABLES` | Optional index codegen + group sync |
 | `AdvancedPS.Generated.Layers` | `Runtime/Generated/Layers/` (**ships in package**) | `AdvancedPS.Core` | — | Holds generated `PopupLayerEnum`; **no references** (so core references it without a cycle); `autoReferenced`; editing needs a writable package |
@@ -44,7 +45,9 @@ code_paths:
 **Define constraints are load-bearing** ([[Invariants]]): `HAS_NEWINPUT` selects the New vs Old input assembly
 (mutually exclusive — set by a `versionDefine` on `com.unity.inputsystem`); `DOTWEEN` gates the DoTween display + its
 example; `APS_ADDRESSABLES` (a `versionDefine` on `com.unity.addressables`) gates the optional Addressables assemblies +
-the inspector's Addressable box ([[Addressables]]). Never merge the input assemblies or reference the DoTween/Addressables
+the inspector's Addressable box ([[Addressables]]); `APS_DEV` gates the dev-only `Editor/Build/` assembly and lives
+**only** in the dev project's scripting defines (Project Settings ▸ Player — outside the repo; re-add it on a fresh
+dev-project checkout). Never merge the input assemblies or reference the DoTween/Addressables
 assemblies from core runtime.
 
 ## Folder → namespace (`Runtime/`)

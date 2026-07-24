@@ -53,6 +53,21 @@ Read-only package assets (images, built-in displays) are resolved via
 threw `TypeInitializationException` when the folder wasn't found (poisoning every icon site + the heal under UPM) is
 gone: accessors are lazy and return `null` on failure. `FolderRenamePrevention` still guards the folder-name fallback.
 
+## Dev-only tooling never reaches consumers — two mechanisms, one per channel
+
+`Editor/Build/` (the exporter + `APSSampleDevMode`) is kept away from consumers **twice**, because the two distribution
+channels ship differently:
+
+- **`.unitypackage` channel** — the exporter's deny-list excludes the folder from the export (see below).
+- **UPM/git channel** — ships the repo **as-is** (the deny-list never runs), so the folder rides along; it just never
+  compiles: `Editor/Build/` has its own asmdef (`dest-69.advanced-popup-system.editor.build`) constrained to
+  **`APS_DEV`**, a scripting define set **only** in the dev project's Player settings (not versioned in this repo —
+  re-add on a fresh dev-project checkout, [[Project Map]]). No define → no assembly, no `APS ▸ Build` menu, no
+  `InitializeOnLoad` in consumer projects.
+
+The vault, `CLAUDE.md`, `.agents`/`.claude` also ride the UPM channel (deny-listed only from the `.unitypackage`) —
+deliberate: they are docs/config, not compiled code.
+
 ## The exporter (`APSPackageExporter`)
 
 Dev-only `EditorWindow` at `APS ▸ Build ▸ Export Package…`, in `Editor/Build/` — **excludes itself** from the package.

@@ -22,13 +22,14 @@ namespace AdvancedPS.Core
         internal static bool HasEntries => Entries.Length > 0;
 
         /// <summary>
-        /// Entries that participate in <paramref name="layer"/> (same <c>HasFlag</c> matching as live popups).
+        /// Entries whose layer is in <paramref name="layer"/> — a single flag, or a mask to match any of several
+        /// layers (same any-of matching as live popups).
         /// </summary>
         internal static IEnumerable<Entry> ForLayer(PopupLayerEnum layer)
         {
             Entry[] entries = Entries;
             for (int i = 0; i < entries.Length; i++)
-                if (entries[i].Layer.HasFlag(layer))
+                if ((entries[i].Layer & layer) != 0)
                     yield return entries[i];
         }
 
