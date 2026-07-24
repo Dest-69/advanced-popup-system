@@ -1,7 +1,7 @@
 ---
 type: code
 status: active
-description: KeyEventSystemAPS (New vs Old input, PlayerLoop-injected), PopupKeyBinding, and Auto Switch Input Module. Read when working on hotkeys, key-triggered show/hide, or input-backend behavior.
+description: KeyEventSystemAPS (New vs Old input, PlayerLoop-injected) driving the escape close stack, the per-popup CloseKey override, and Auto Switch Input Module. Read when working on the close key, key-triggered hide, or input-backend behavior.
 code_paths:
   - Assets/advanced-popup-system/Runtime/Core/Input/
   - Assets/advanced-popup-system/Samples/Utils/InputSwitcher.cs
@@ -9,50 +9,56 @@ code_paths:
 
 # Input & Hotkeys
 
-Popups can toggle themselves on key presses. Two **mutually exclusive** static `KeyEventSystemAPS` implementations live
-in `AdvancedPS.Core.Input`, chosen by the `HAS_NEWINPUT` define / assembly ([[Project Map]]).
+APS reads the keyboard for **exactly one thing** — stepping the escape close stack. Two **mutually exclusive** static
+`KeyEventSystemAPS` implementations live in `AdvancedPS.Core.Input`, chosen by the `HAS_NEWINPUT` define / assembly
+([[Project Map]]).
+
+The old per-popup **show/hide key bindings** (`PopupKeyBinding`, `KeyBindingShowSettings`/`KeyBindingHideSettings`, with
+their any-key / layer / required-popup gates and `OnTrigger` UnityEvent) were **cut** — they duplicated the escape stack
+and nobody used them. Don't reintroduce a second key→popup path; a popup's own key belongs in `CloseKey` (below).
 
 ## Runtime wiring
 
-- Both `Initialize()` under `[RuntimeInitializeOnLoadMethod(AfterSceneLoad)]` **inject a `PlayerLoopSystem` into the
-  `Update` loop** (guarded against double-insert). In editor, `ExitingPlayMode` restores the default player loop
-  (leak/duplication guard — [[Invariants]]). `IsEnabled` mirrors `Settings.KeyEventSystemEnabled`
-  ([[Settings & Logging]]).
-- The per-frame `Update` scans `AdvancedPopupSystem.AllPopups` and, on the **first** matching popup, calls `Show()` or
-  `Hide()` and fires the binding's `OnTrigger`, then `break`s. Iteration order is deepest-first ([[Core System]]).
+- Both `Initialize()` run under `[RuntimeInitializeOnLoadMethod(AfterSceneLoad)]` and **inject a `PlayerLoopSystem` into
+  the `Update` loop** (guarded against double-insert). The escape stack is the only thing that update does, so
+  `Settings.EscapeCloseEnabled` **gates the injection itself** — off means zero per-frame cost, but also means flipping
+  `IsEnabled` at runtime can't bring it back. `IsEnabled` remains the runtime gate for *temporarily* suppressing the key
+  (cutscenes) while the feature is on. In editor, `ExitingPlayMode` restores the default player loop (leak/duplication
+  guard — [[Invariants]]).
+- New's `Initialize` calls `AutoSwitchInputModule()` **before** that early return — swapping the EventSystem's module is
+  about UI input as a whole, not about the escape key.
+- The per-frame `Update` bails unless a key was actually pressed this frame (`anyKey`/`anyKeyDown`), then calls
+  `AdvancedPopupSystem.EscapeStep(predicate)` — the walk itself lives in [[Core System]].
 
-## Match conditions (per popup, per direction)
+## Per-popup close key
 
-A show binding fires when: popup **not** `IsBeVisible` **and** (`AnyHotKey` or a bound key was pressed) **and** the
-`Layers` gate passes (`default` or `ActiveLayer` has the flag) **and** required `Popups` are visible **and**
-**`AreParentsVisible`** (every ancestor popup is `IsBeVisible`). Hide binding is the mirror for a visible popup. The
-`Popups`/parent checks make nested popups' keys context-aware.
+`IAdvancedPopup.CloseKey` (a single `KeyCode`, `None` by default) overrides `Settings.EscapeCloseKey` **for that popup**.
+Read only for `EscapePolicyEnum.Hide` — `Block` swallows any key and `Ignore` is transparent, so neither consults it (the
+inspector reveals the field for `Hide` only, [[Editor & Codegen]]). Matching semantics and the "topmost closable popup
+owns the press" rule — [[Core System]]; per-popup `EscapePolicy` and the `ShownByCascade` grouping flag — in
+[[Popup Lifecycle]].
+
+**One key, not a list** — deliberate (user call, 2026-07-24): a popup closes on one key, and by default *the* key from
+the settings. `None` means "inherit", resolved at press time rather than baked into the popup, so editing the setting
+still reaches every popup that never overrode it. Don't reintroduce a list.
+
+**Backend seam:** the backends don't resolve *which* key was pressed — core asks *them* about the one candidate key via
+a `Predicate<KeyCode>` passed to `EscapeStep`. That is what lets one walk serve two input backends. Each backend caches
+the delegate in a `static readonly` field so the hot path allocates nothing; a lambda closing over `Keyboard.current`
+would allocate per frame. The Old backend's cached `KeyCode[]` + full `GetKeyDown` scan (it used to need the pressed
+key's identity) is **gone** — don't bring it back.
 
 ## Backends
 
-- **New** (`Input/New`): uses `Keyboard.current` (`anyKey.wasPressedThisFrame`, `kb[key].wasPressedThisFrame`) with a
-  cached `KeyCode → Key` map (auto-matched by name + manual overrides for `Return→Enter`, `Alpha#→Digit#`, keypad→
-  numpad, etc.).
-- **Old** (`Input/Old`): uses `UnityEngine.Input.anyKeyDown` + a `KeyCode` scan (`GetKeyDown`) over a **cached**
-  `KeyCode[]` (`Enum.GetValues` runs once at load, not per keypress).
+- **New** (`Input/New`): `Keyboard.current` (`anyKey.wasPressedThisFrame`, `kb[key].wasPressedThisFrame`) with a cached
+  `KeyCode → Key` map (auto-matched by name + manual overrides for `Return→Enter`, `Alpha#→Digit#`, keypad→numpad, etc.).
+  The map is still needed — it translates `CloseKey`/`EscapeCloseKey`, which stay `KeyCode` in the public API.
+- **Old** (`Input/Old`): `UnityEngine.Input.anyKeyDown` + `UnityEngine.Input.GetKeyDown` as the predicate. Note the
+  fully-qualified `UnityEngine.Input` — the enclosing namespace `AdvancedPS.Core.Input` shadows the bare name.
 
-**Per-frame allocation gotcha:** the `Update` scan runs on the hot path, so it must stay allocation-free — the `Layers`
-gate uses a bitwise `(Layers & ActiveLayer) == ActiveLayer` check, **not** `Enum.HasFlag` (which boxes under IL2CPP),
-and the Old backend iterates the cached `KeyCode[]`. Don't reintroduce `HasFlag` or `Enum.GetValues` in these loops.
-
-## PopupKeyBinding
-
-`struct` with two instances per popup (`KeyBindingShowSettings` / `KeyBindingHideSettings`): `AnyHotKey`, `HotKeys`
-(`List<KeyCode>`), `Layers` (gate), `Popups` (required visible), `OnTrigger` (`UnityEvent`).
-
-## Escape close stack
-
-One key steps back through open popups, Android-back style. Both backends, in `Update` **before** the binding scan:
-if `Settings.EscapeCloseEnabled`, the `Settings.EscapeCloseKey` was pressed and `AdvancedPopupSystem.EscapeStep()`
-returned true → the frame is **consumed** (binding scan skipped, so one press can't also fire a binding or an
-`AnyHotKey` show). The walk itself lives in [[Core System]]; per-popup `EscapePolicy` and the `ShownByCascade`
-grouping flag — in [[Popup Lifecycle]]. Key-driven path needs **both** `KeyEventSystemEnabled` and
-`EscapeCloseEnabled` ([[Settings & Logging]]); calling `EscapeStep()` manually (UI "back" button) works regardless.
+**Not compile-verifiable offline:** the dev project has no Input System package, so `newinput.csproj` lists no sources
+and no references. Only the Old backend can be checked by the offline Roslyn recipe — the New one needs a real Unity with
+the package installed.
 
 ## Auto Switch Input Module
 
@@ -63,5 +69,5 @@ help-boxed without the Input System) ([[Settings & Logging]]).
 
 ## Depends on
 
-- [[Core System]] (`AllPopups`, iteration order, `ActiveLayer`), [[Popup Lifecycle]] (`IsBeVisible`, `Show`/`Hide`),
-  [[Settings & Logging]] (`KeyEventSystemEnabled`, `AutoSwitchInputModule`)
+- [[Core System]] (`EscapeStep`, `ActivePopups`, iteration order), [[Popup Lifecycle]] (`IsBeVisible`, `Hide`),
+  [[Settings & Logging]] (`EscapeCloseEnabled`, `EscapeCloseKey`, `AutoSwitchInputModule`)

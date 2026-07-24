@@ -139,8 +139,8 @@ Pure, allocation-free (`Utils`, one reused `Vector3[4]` buffer, main-thread only
 - **Resize doesn't clamp *size* to bounds**, only repositions after — growing a grip at a screen edge shoves the whole
   popup inward. Fine for popups smaller than the bounds; revisit if needed.
 - **Stretched anchors on a resized axis** are approximate (size maps to insets); drag/resize target fixed-anchor popups.
-- No settings toggle yet (unlike `KeyEventSystemEnabled`): `PointerEventSystemAPS.IsEnabled` defaults true. Add a
-  `PopupSettings` flag + panel toggle if a global off-switch is wanted ([[Settings & Logging]]).
+- No settings toggle (unlike the keyboard side's `EscapeCloseEnabled`): `PointerEventSystemAPS.IsEnabled` defaults true.
+  Add a `PopupSettings` flag + panel toggle if a global off-switch is wanted ([[Settings & Logging]]).
 
 ## Depends on
 

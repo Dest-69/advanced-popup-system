@@ -105,8 +105,32 @@ is actually involved, so unrelated prefab saves and project open trigger no Addr
   ([[Settings & Logging]]) switches between the APS view, an optimized view, and Unity's default. `CustomHierarchyrIcon`
   adds the hierarchy icon; `APSEditorStyles`/`EditorGUILayoutExtensions` are shared GUI helpers. `IAdvancedPopupEditor`
   caches its `SerializedProperty`s in `OnEnable` (no per-repaint `FindProperty`) and draws `Inactive` at the very top and
-  `EscapePolicy` beside the layer controls; every field it draws by hand is listed in the static `ExcludedProperties` so
-  the default-inspector fallback (which still catches user-added fields on `AdvancedPopup` subclasses) doesn't double them.
+  the escape-close block beside the layer controls; every field it draws by hand is listed in the static
+  `ExcludedProperties` so the default-inspector fallback (which still catches user-added fields on `AdvancedPopup`
+  subclasses) doesn't double them.
+  - **Conditional config is the house pattern:** `DrawEscapeClose` reveals `CloseKey` only for the `Hide` policy (the
+    other policies never read it — [[Input & Hotkeys]]), the same way Modules reveals a feature's config only when its
+    flag is ticked and Addressable reveals load mode only when the toggle is on. Don't draw a control the runtime
+    ignores. The old **Show / Hide Key Settings** block (a PlayerPrefs-backed pair of switch buttons over
+    `KeyBindingShowSettings`/`KeyBindingHideSettings`) was removed with the feature.
+  - **`CloseKey` is drawn resolved, stored unresolved:** the popup renders the stored `None` as the *settings* key, so
+    the row always reads as the key that really closes this popup; picking that same key writes `None` back. The field
+    therefore shows a real key while still inheriting — never "fix" this by writing the settings key into the popup, or
+    the inheritance ([[Core System]]) dies at authoring time.
+- **Edit-mode Preview (`PopupPreviewDriver`)** — the inspector's Preview button plays show → 1s hold → hide entirely
+  editor-side, then restores an exact snapshot (activeSelf, localScale, anchoredPosition3D, sizeDelta,
+  alpha/interactable/blocksRaycasts; no Undo/SetDirty — nothing is dirtied). The runtime path can never run in edit
+  mode — `OperationCancelled` treats `!isPlaying` as cancelled AND `Time.deltaTime` is frozen there (verified: constant
+  across editor ticks even with `QueuePlayerLoopUpdate`) — so the driver re-samples the three built-ins from
+  `EditorApplication.timeSinceStartup` with the same lerp + easing as their generated bodies (**keep the samplers in
+  sync when editing those bodies**; Slide lerps clamped, Fade enables interactable only at show-end). Any other
+  display (custom/DoTween) degrades to its instant methods. It never calls Show/Hide/Subscribe: the first preview runs
+  the popup's public `Init()` once (the only way to learn the user-cached displays — they are runtime-only; its
+  instant-hide fires the user's OnAnimation* once, same as runtime init) and `DeactivateAdvancedPopup` undoes the
+  registration on cleanup; `OnAnimationStart/End` are reflection-detached from the cached settings for the whole
+  preview so the instant calls stay silent. Ends-and-restores on beforeAssemblyReload / ExitingEditMode / sceneSaving /
+  prefabSaving / destroyed target (`_show`, a plain C# object, is the "preview live" marker — a destroyed popup is
+  fake-null). Button disabled in play mode, for multi-select, and on the persistent prefab asset (Prefab Mode works).
 - **`APSEditorStyles` styles are lazy + self-healing.** The 1×1 background textures behind the dark box groups are plain
   `Texture2D`s that Unity culls on memory cleanup (play-mode enter/exit, scene load, `UnloadUnusedAssets`); a static style
   built once then held a *destroyed* texture, so the box background silently vanished until the next domain reload — the

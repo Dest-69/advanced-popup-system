@@ -91,7 +91,7 @@ For which calls load and which don't, see the cheat sheet in [§9.6](#96-what-lo
 Fastest path: **`GameObject ▸ UI ▸ Advanced Popup`** — creates a stretched popup under a `Canvas` (making the Canvas if
 needed) with an `AdvancedPopup` already attached. Manually: under your UI `Canvas`, add an empty GameObject (e.g.
 `SettingsPopup`), then your visuals and buttons as children. To add a close button, link it under **Modules ▸ Close**
-(tick `Closable`) — see [§6.5](#65-modules-drag-resize--close).
+(tick `Closable`) — see [§6.4](#64-modules-drag-resize--close).
 
 > [!NOTE]
 > `RectTransform` and `CanvasGroup` are required, but APS **adds them automatically** during `Init()` if missing.
@@ -142,13 +142,20 @@ the default **Scale** transition ([§4](#4-animations--custom-transitions) to pi
 | Field | Meaning |
 | :--- | :--- |
 | **Popup Layer** | One or more layer flags this popup belongs to (used by `LayerShow` / `LayerHide`). |
-| **Modules** | Optional per-popup features — **Draggable**, **Resizable**, **Closable** ([§6.5](#65-modules-drag-resize--close)). |
+| **Modules** | Optional per-popup features — **Draggable**, **Resizable**, **Closable** ([§6.4](#64-modules-drag-resize--close)). |
 | **Auto Hide On Init** | Keep `true` so the popup starts hidden. Set `false` only for UI shown immediately on scene start. |
 | **Manual Init** | Keep `false` for scene popups. Set `true` to instantiate at runtime and call `Init()` yourself. Ignored for **Addressable** popups (they always auto-init). |
 | **Inactive** | `true` prevents the popup from ever showing (a hard gate on `Show`). |
-| **Escape Policy** | Reaction to the escape close key: `Hide`, `Ignore`, or `Block` ([§6.3](#63-escape-close-stack)). |
+| **Escape Policy** | Reaction to the escape close key: `Hide`, `Ignore`, or `Block` ([§6.2](#62-escape-close-stack)). |
+| **Close Key** | The key that closes *this* popup, overriding the project-wide escape key. Shown for the `Hide` policy; defaults to the project-wide key ([§6.2](#62-escape-close-stack)). |
 | **Deep Popups** | Child/dependent popups that mirror this popup's show/hide ([§6.1](#61-deep-popups)). |
-| **Key Binding Show / Hide Settings** | Hotkeys that toggle the popup ([§6.2](#62-hotkey-bindings)). |
+
+The **Preview** button at the top of the inspector plays the popup's show animation, holds it visible for a second,
+plays the hide animation, and then restores the exact pre-preview state — all without entering play mode and without
+dirtying the scene. It works in the Scene view and in Prefab Mode (select the prefab asset itself and it is disabled —
+open Prefab Mode instead). The built-in Fade / Scale / Slide transitions animate for real; custom and DOTween displays
+show their instant end states instead (their animation code needs play-mode time). While a preview is running the
+button turns into **Stop**.
 
 ---
 
@@ -241,8 +248,8 @@ AdvancedPopupSystem.Show<RewardPopup, RewardData>(reward);
 popup.Show(reward);
 ```
 
-- **`Bind` runs only when new data arrives** (`Show(data)` / `SetData(data)`). Data-less re-shows — hotkeys, the escape
-  stack, `LayerShow`, `SwitchShowHide` — reopen the popup with its last content and don't re-run `Bind`.
+- **`Bind` runs only when new data arrives** (`Show(data)` / `SetData(data)`). Data-less re-shows — `LayerShow`,
+  `SwitchShowHide`, a plain `Show()` — reopen the popup with its last content and don't re-run `Bind`.
 - **The last data is kept** (`Data` / `HasData`); calling `Show(data)` on a visible popup updates its content live.
 - **`Show(data)` re-binds by default, even if the data looks unchanged** — a skipped bind on changed data would be a
   stale-UI bug, while a redundant bind is only wasted work. For a genuinely expensive bind, override
@@ -555,27 +562,15 @@ Add child/dependent popups to a parent's **Deep Popups** list. When the parent s
 to each deep popup, all animations run **in parallel**, and the parent's `ShowAsync` / `HideAsync` resolves only after
 **all** child animations complete. Cycles are safe — APS traverses with a visited-set DFS (`ContainsDeepPopup`).
 
-### 6.2 Hotkey bindings
-
-Configure `Key Binding Show Settings` / `Key Binding Hide Settings` on the popup to toggle it via keys (handled by
-`KeyEventSystemAPS`):
-
-- **`Any Hot Key`** — trigger on any key.
-- **`Hot Keys`** — specific keys (e.g. `Escape`, `Tab`).
-- **`Layers`** — only when one of these layers is active (empty = no restriction).
-- **`Popups`** — only when these popups are visible (empty = no restriction).
-- **`On Trigger`** — a `UnityEvent` fired when the key triggers.
-
-A key only fires when the popup's ancestor popups are all visible, so nested popups' keys are context-aware. APS works
-with **both** the legacy Input Manager and the new Input System (auto-selected). With the new Input System, enable
-**Auto Switch Input Module** ([§7](#7-settings--logging)) to have APS replace `StandaloneInputModule` with
-`InputSystemUIInputModule` automatically.
-
-### 6.3 Escape close stack
+### 6.2 Escape close stack
 
 One key (default `Escape`) steps back through open popups — each press closes the **most recently shown** popup, like
-the Android back button. Opt in via `APS ▸ Settings ▸ Escape Close Stack` ([§7](#7-settings--logging)); it also requires
-**Key Event Tracking** to be on.
+the Android back button. Opt in via `APS ▸ Settings ▸ Escape Close Stack` ([§7](#7-settings--logging)); that toggle is
+the whole keyboard path, so with it off APS never installs its key-polling update at all.
+
+APS works with **both** the legacy Input Manager and the new Input System (auto-selected). With the new Input System,
+enable **Auto Switch Input Module** ([§7](#7-settings--logging)) to have APS replace `StandaloneInputModule` with
+`InputSystemUIInputModule` automatically.
 
 On a key press APS walks the visible popups newest-to-oldest and applies the first relevant popup's **Escape Policy** (an
 inspector field on every popup):
@@ -589,20 +584,29 @@ inspector field on every popup):
 Popups are **transparent by default** (`Ignore`): the stack is opt-in per popup — set the ones you want the key to close
 to `Hide`, and modal ones to `Block`.
 
+**Per-popup key.** A `Hide` popup gets a **Close Key** field in the inspector. It starts out showing the project-wide
+**Escape Close Key** and keeps following it — change the setting and every popup that never overrode it follows along.
+Pick a different key and *that* one closes this popup instead, so one screen can close on `Tab` and another on `Q`
+without touching the global setting.
+
+The topmost closable popup **owns** the press: if the key you pressed isn't its key, the step is dropped rather than
+reaching past it — a key bound to a background popup can never close it from under the popup on screen. `Block` and
+`Ignore` don't read the key at all (a modal swallows every key, a transparent popup passes every key through).
+
 **Grouping.** Popups shown by their parent's cascade (via **Deep Popups**) don't get their own step — closing the parent
 hides the whole group at once. A deep popup you later show **individually** (a nested dialog on top of its parent) gets
 its own step: the key closes it first, then its parent.
 
 Notes:
 
-- A consumed press eats the whole frame — it can't also trigger a hotkey binding from [§6.2](#62-hotkey-bindings).
 - The walk skips popups that are already hiding, so pressing repeatedly during animations steps on responsively.
 - `AdvancedPopupSystem.EscapeStep()` runs one step programmatically (returns `false` if nothing consumed it) — wire it
-  to a UI "Back" button for the same behavior without the keyboard. It works even with the key/toggle disabled.
+  to a UI "Back" button for the same behavior without the keyboard. It ignores Close Key (any closable popup answers)
+  and works even with the toggle off.
 - With the legacy Input Manager on Android the hardware Back button arrives as `Escape`, so the stack doubles as
   back-button navigation.
 
-### 6.4 Instantiating popups at runtime
+### 6.3 Instantiating popups at runtime
 
 Set **Manual Init** on the prefab, instantiate it, inject any data, then call `Init()` before showing:
 
@@ -617,7 +621,7 @@ This applies only to popups you instantiate yourself. For loading popups from **
 pooled copies, see [§9](#9-on-demand-loading-with-addressables) — those auto-initialize on load, so **Manual Init** does
 not apply to them.
 
-### 6.5 Modules (drag, resize & close)
+### 6.4 Modules (drag, resize & close)
 
 A popup's inspector has a **Modules** box with a `Features` flag field: tick a feature and its config block appears
 below. Features are **data on the popup**, not extra components. Three are built in — **Draggable**, **Resizable**,
@@ -675,11 +679,11 @@ drawn on top; the topmost popup under the pointer wins.
 
 `APS ▸ Settings` (persisted to `Assets/Resources/AP_Settings.json` in your project):
 
-- **Key Event Tracking** — enable/disable the hotkey system globally.
 - **Auto Switch Input Module** — (new Input System) auto-swap the EventSystem's input module at startup.
-- **Escape Close Stack** — one key steps back through open popups ([§6.3](#63-escape-close-stack)). Off by default;
-  needs Key Event Tracking on.
-- **Escape Close Key** — the key driving the escape close stack (default `Escape`).
+- **Escape Close Stack** — one key steps back through open popups ([§6.2](#62-escape-close-stack)). Off by default.
+  It is the master switch for APS's keyboard handling: off, and no key-polling update is installed at all.
+- **Escape Close Key** — the project-wide key driving the escape close stack (default `Escape`). Any popup can override
+  it with its own **Close Key**.
 - **Inspector View** — `APSInspector` (full custom), `APSOptimized` (lighter), or `UnityInspector` (default Unity view).
 - **Log Type** — verbosity filter for APS logs, routed through `APLogger`:
 
@@ -717,8 +721,12 @@ drawn on top; the topmost popup under the pointer wins.
 
 - **DOTween display missing** — `DoTweenDisplay` compiles only when DOTween is installed (behind the `DOTWEEN` define).
 
-- **Hotkeys/clicks not registering (new Input System)** — enable **Auto Switch Input Module**, or make sure your
+- **Escape key / clicks not registering (new Input System)** — enable **Auto Switch Input Module**, or make sure your
   EventSystem uses `InputSystemUIInputModule`.
+
+- **A popup's key doesn't close it** — its **Escape Policy** must be `Hide` (`Ignore` is the default and passes keys
+  through), **Escape Close Stack** must be on, and no popup above it may be open — the topmost closable popup owns the
+  press.
 
 ---
 
@@ -873,7 +881,7 @@ AdvancedPopupSystem.UnregisterLayerCanvas(PopupLayerEnum.MENU); // back to the t
 - A `parent` passed explicitly to `SpawnAsync` wins over the layer canvas. A runtime `RegisterLayerCanvas` must run
   before a preloaded popup loads if that popup must start on it.
 
-> The manual `Instantiate` + `Init()` pattern in [§6.4](#64-instantiating-popups-at-runtime) still works for popups you
+> The manual `Instantiate` + `Init()` pattern in [§6.3](#63-instantiating-popups-at-runtime) still works for popups you
 > load yourself without Addressables.
 
 ### 9.6 What loads and what doesn't — cheat sheet

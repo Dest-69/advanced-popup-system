@@ -14,16 +14,29 @@ using UnityEditor;
 
 namespace AdvancedPS.Core.Input
 {
+    /// <summary>
+    /// Drives the escape close stack from the keyboard: one PlayerLoop update that turns a key press into
+    /// <see cref="AdvancedPopupSystem.EscapeStep(Predicate{KeyCode})"/>.
+    /// </summary>
     public static class KeyEventSystemAPS
     {
+        /// <summary>
+        /// Runtime gate — set false to suppress the escape key temporarily (cutscenes, custom input modes).
+        /// Only meaningful while the Escape Close Stack setting is on: with it off the update isn't installed at all.
+        /// </summary>
         public static bool IsEnabled = true;
-        
+
         /// <summary>
         /// Auto-generated map: KeyCode → InputSystem.Key.
         /// Built once from Unity's own enum values + manual overrides for naming differences.
         /// </summary>
         private static readonly Dictionary<KeyCode, Key> KeyCodeToKeyMap = BuildKeyCodeToKeyMap();
-        
+
+        /// <summary>
+        /// Cached probe handed to EscapeStep — a static delegate so the per-frame path allocates nothing.
+        /// </summary>
+        private static readonly Predicate<KeyCode> KeyPressed = IsKeyPressed;
+
 #if UNITY_EDITOR
         [InitializeOnLoadMethod]
         private static void EditorInitialize()
@@ -44,10 +57,12 @@ namespace AdvancedPS.Core.Input
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void Initialize()
         {
-            IsEnabled = SettingsManager.Settings.KeyEventSystemEnabled;
-            
+            // Runs regardless of the escape setting — swapping the EventSystem's module is about UI input as a whole.
             AutoSwitchInputModule();
-            
+
+            // The escape close stack is the only thing this update does, so with it off we never touch the player loop.
+            if (!SettingsManager.Settings.EscapeCloseEnabled) return;
+
             var playerLoop = PlayerLoop.GetCurrentPlayerLoop();
             var updateSubsystemIndex = Array.FindIndex(playerLoop.subSystemList, subSystem => subSystem.type == typeof(Update));
 
@@ -85,100 +100,21 @@ namespace AdvancedPS.Core.Input
         private static void Update()
         {
             if (!IsEnabled) return;
-            
-            var kb = Keyboard.current;
+
+            // anyKey first: the escape walk (and its per-popup key probes) only runs on frames with a real press.
+            Keyboard kb = Keyboard.current;
             if (kb == null || !kb.anyKey.wasPressedThisFrame) return;
 
-            // Escape close stack has priority over per-popup bindings; a consumed step eats the whole frame
-            // so one press can't also trigger a binding (or an AnyHotKey show).
-            PopupSettings settings = SettingsManager.Settings;
-            if (settings.EscapeCloseEnabled &&
-                KeyCodeToKeyMap.TryGetValue(settings.EscapeCloseKey, out Key escapeKey) &&
-                kb[escapeKey].wasPressedThisFrame &&
-                AdvancedPopupSystem.EscapeStep())
-                return;
-
-            var allPopups = AdvancedPopupSystem.AllPopups;
-            for (int i = 0; i < allPopups.Count; i++)
-            {
-                var popup = allPopups[i];
-                if (popup == null) continue;
-                
-                var showSettings = popup.KeyBindingShowSettings;
-                if (!popup.IsBeVisible &&
-                    (showSettings.AnyHotKey || IsAnyHotKeyPressed(kb, showSettings.HotKeys)) &&
-                    (showSettings.Layers == default || (showSettings.Layers & AdvancedPopupSystem.ActiveLayer) == AdvancedPopupSystem.ActiveLayer) &&
-                    (showSettings.Popups == null || showSettings.Popups.Count == 0 || HasActivePopup(showSettings.Popups)))
-                {
-                    if (AreParentsVisible(popup))
-                    {
-                        popup.Show();
-                        showSettings.OnTrigger?.Invoke();
-                        break;
-                    }
-                }
-                
-                var hideSettings = popup.KeyBindingHideSettings;
-                if (popup.IsBeVisible &&
-                    (hideSettings.AnyHotKey || IsAnyHotKeyPressed(kb, hideSettings.HotKeys)) &&
-                    (hideSettings.Layers == default || (hideSettings.Layers & AdvancedPopupSystem.ActiveLayer) == AdvancedPopupSystem.ActiveLayer) &&
-                    (hideSettings.Popups == null || hideSettings.Popups.Count == 0 || HasActivePopup(hideSettings.Popups)))
-                {
-                    popup.Hide();
-                    hideSettings.OnTrigger?.Invoke();
-                    break;
-                }
-            }
+            AdvancedPopupSystem.EscapeStep(KeyPressed);
         }
 
         /// <summary>
-        /// Checks if any of the configured KeyCodes were pressed this frame
-        /// using the InputSystem Keyboard API directly.
+        /// Whether this KeyCode was pressed this frame, translated to the InputSystem Keyboard API.
         /// </summary>
-        private static bool IsAnyHotKeyPressed(Keyboard kb, List<KeyCode> hotKeys)
+        private static bool IsKeyPressed(KeyCode keyCode)
         {
-            if (hotKeys == null || hotKeys.Count == 0) return false;
-            
-            for (int i = 0; i < hotKeys.Count; i++)
-            {
-                if (KeyCodeToKeyMap.TryGetValue(hotKeys[i], out var key) && kb[key].wasPressedThisFrame)
-                    return true;
-            }
-            return false;
-        }
-        
-        /// <summary>
-        /// Checks if any of the required popups are currently active.
-        /// </summary>
-        private static bool HasActivePopup(List<IAdvancedPopup> requiredPopups)
-        {
-            for (int i = 0; i < requiredPopups.Count; i++)
-            {
-                if (requiredPopups[i] != null && AdvancedPopupSystem.ActivePopups.Contains(requiredPopups[i]))
-                    return true;
-            }
-            return false;
-        }
-
-        private static bool AreParentsVisible(IAdvancedPopup popup)
-        {
-            Transform parentTransform = popup.transform.parent;
-
-            while (parentTransform != null)
-            {
-                IAdvancedPopup parentPopup = parentTransform.GetComponent<IAdvancedPopup>();
-                if (parentPopup != null)
-                {
-                    if (!parentPopup.IsBeVisible) return false;
-                    parentTransform = parentPopup.transform.parent;
-                }
-                else
-                {
-                    parentTransform = parentTransform.parent;
-                }
-            }
-
-            return true;
+            Keyboard kb = Keyboard.current;
+            return kb != null && KeyCodeToKeyMap.TryGetValue(keyCode, out Key key) && kb[key].wasPressedThisFrame;
         }
 
         /// <summary>

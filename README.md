@@ -57,8 +57,7 @@ Newtonsoft.Json is pulled in automatically. Requires [Git](https://git-scm.com/)
 *   🎭 **Extensible Animations** — Built-in **Fade**, **Scale** and **Slide** with 30 easing curves, or scaffold your own display straight from the editor.
 *   🎬 **DOTween Integration** *(optional)* — Drive show/hide with hand-built [DOTween](https://github.com/Demigiant/dotween) `Sequence`s. Lives behind a `DOTWEEN` define in its own assembly; the core compiles fine without it.
 *   ⚡ **Async-First** — Fully `Task`-based transitions with `CancellationToken` cancellation throughout.
-*   🎹 **Hotkey Bindings** — Bind popups to keys or controllers; works with both the Legacy Input Manager and the new Input System.
-*   ⬅️ **Escape Close Stack** — One key steps back through open popups like the Android back button, with a per-popup policy (`Hide` / `Ignore` / `Block`) for modals and pass-through popups.
+*   ⬅️ **Escape Close Stack** — One key steps back through open popups like the Android back button, with a per-popup policy (`Hide` / `Ignore` / `Block`) for modals and pass-through popups. Each popup can override the key with its own **Close Key**; works with both the Legacy Input Manager and the new Input System.
 *   🖱️ **Drag & Resize Modules** — Tick `Draggable` / `Resizable` to move or resize a popup at runtime, clamped to the screen (or a safe-area / custom rect) for any anchors. Data-driven flags, no extra components; resize grips show a re-skinnable directional cursor.
 *   📦 **Addressables Loading** *(optional)* — Flag a popup **Addressable** to load its prefab on demand — lazily, preloaded on the scenes you choose, or as pooled copies — instead of placing it in every scene. Scene instances still win for effortless testing. Requires the Addressables package.
 *   🧩 **Typed Data Popups** — Declare a popup's data (`class RewardPopup : AdvancedPopup<RewardData>`), implement one `Bind(data)`, and open it with `Show<RewardPopup, RewardData>(data)` — the data binds **before** the popup is visible, with no empty-popup flash.
@@ -164,7 +163,7 @@ Open the **APS** window from the top menu bar:
 | :--- | :--- |
 | **`APS ▸ Layers`** | Add / rename / delete `PopupLayerEnum` flags (the enum is code-generated for you) and set each layer's canvas + sort order. |
 | **`APS ▸ Displays`** | Scaffold a custom display — APS generates the display + settings scripts with ready-to-fill stubs. |
-| **`APS ▸ Settings`** | Toggle key-event tracking, the escape close stack, auto input-module switching, inspector view, and log verbosity. |
+| **`APS ▸ Settings`** | Toggle the escape close stack and its key, auto input-module switching, inspector view, and log verbosity. |
 
 See the [full documentation](documentation.md) for the complete API, custom-display authoring, and troubleshooting.
 
@@ -184,7 +183,8 @@ The **APS Editor Window** lists every registered popup and traces active operati
 
 ### Popup Inspector
 
-Configure animations, keys, child popups, and layer masks directly in the inspector:
+Configure animations, keys, child popups, and layer masks directly in the inspector. The **Preview** button plays the
+show → hide cycle right in edit mode (no play mode needed) and restores the popup's state afterwards:
 
 <p align="center">
   <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/54e29df7-a352-4394-8304-b058e8342b22" />

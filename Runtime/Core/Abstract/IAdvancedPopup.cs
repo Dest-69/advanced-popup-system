@@ -46,6 +46,16 @@ namespace AdvancedPS.Core.System
                  "Block — consumes the press without closing (modal).")]
         public EscapePolicyEnum EscapePolicy = EscapePolicyEnum.Ignore;
         /// <summary>
+        /// The key that closes THIS popup, overriding the project-wide escape close key
+        /// (see PopupSettings.EscapeCloseKey). <see cref="KeyCode.None"/> (the default) — the popup answers to the
+        /// project-wide key, so changing it in the settings still reaches every popup that never overrode it.
+        /// Only read for <see cref="EscapePolicyEnum.Hide"/>: a Block popup swallows every key and an Ignore popup is
+        /// transparent, so neither consults it (see AdvancedPopupSystem.EscapeStep).
+        /// </summary>
+        [Tooltip("The key that closes this popup, overriding the project-wide Escape Close Key.\n" +
+                 "None — the popup answers to the project-wide key.")]
+        public KeyCode CloseKey = KeyCode.None;
+        /// <summary>
         /// Root transform.
         /// </summary>
         [HideInInspector] public RectTransform RootTransform;
@@ -72,16 +82,6 @@ namespace AdvancedPS.Core.System
         /// </summary>
         [Tooltip("Child or dependent popups of the current one, use if you need more control via Show/Hide.")] [Space]
         public List<IAdvancedPopup> DeepPopups = new List<IAdvancedPopup>();
-        /// <summary>
-        /// Settings for showing popup by key binding.
-        /// </summary>
-        [Tooltip("Settings for showing popup by key binding.")]
-        public PopupKeyBinding KeyBindingShowSettings;
-        /// <summary>
-        /// Settings for hiding popup by key binding.
-        /// </summary>
-        [Tooltip("Settings for hiding popup by key binding.")]
-        public PopupKeyBinding KeyBindingHideSettings;
         /// <summary>
         /// Data-driven interactive features (drag, resize, …) for this popup and their per-feature config.
         /// Enable features via the <see cref="PopupFeatureEnum"/> flags; the central PointerEventSystemAPS reads this —

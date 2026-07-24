@@ -222,22 +222,6 @@ MonoBehaviour:
   IsBeVisible: 0
   IsVisible: 0
   DeepPopups: []
-  KeyBindingShowSettings:
-    AnyHotKey: 0
-    HotKeys: 
-    Layers: 0
-    Popups: []
-    OnTrigger:
-      m_PersistentCalls:
-        m_Calls: []
-  KeyBindingHideSettings:
-    AnyHotKey: 0
-    HotKeys: 
-    Layers: 0
-    Popups: []
-    OnTrigger:
-      m_PersistentCalls:
-        m_Calls: []
   Modules:
     Features: 5
     Drag:

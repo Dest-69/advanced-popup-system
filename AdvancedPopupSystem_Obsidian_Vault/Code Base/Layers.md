@@ -38,7 +38,6 @@ instead of per-popup.
 - **Gotcha:** a manual `popup.Show()/Hide()` changes `ActivePopups` but **not** `ActiveLayer` — mixing manual and layer
   control desyncs "what layer is active" from "what's visible", and the layer calls' idempotency guards
   (`ActiveLayer == layer`) may then no-op unexpectedly.
-- Layers also **gate hotkeys**: a `PopupKeyBinding.Layers` value restricts when a key fires ([[Input & Hotkeys]]).
 - Layers also **select a canvas** for popups the system instantiates. Configured in the **Layers panel**
   ([[Editor & Codegen]]): each layer carries a **sorting order** + a **canvas prefab** (mandatory in the panel — seeded with the
   consumer-owned `APS_DefaultCanvas` you edit to control the default; a cleared prefab still falls back to an auto-created

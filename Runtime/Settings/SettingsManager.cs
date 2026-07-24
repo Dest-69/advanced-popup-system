@@ -68,7 +68,6 @@ namespace AdvancedPS.Core.System
             Settings = new PopupSettings
             {
                 InspectorView = InspectorEnum.APSInspector,
-                KeyEventSystemEnabled = true,
                 LogType = "Warning",
                 EscapeCloseEnabled = true,
                 EscapeCloseKey = KeyCode.Escape

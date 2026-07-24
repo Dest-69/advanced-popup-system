@@ -19,8 +19,8 @@ Show/Hide/Switch overrides. **User popups extend `AdvancedPopup`.**
 
 `PopupLayer` (which layers can show this), `ManualInit`, `AutoHideOnInit` (default `true`), `Inactive` (blocks Show),
 `EscapePolicy` (`EscapePolicyEnum`: `Hide` / `Ignore` default / `Block` — escape-stack participation, see
-[[Core System]]), `DeepPopups` (child/dependent popups), `KeyBindingShowSettings`/`KeyBindingHideSettings`
-([[Input & Hotkeys]]); the **Addressable** box `Addressable` / `AddressableLoadMode` + the per-scene selection
+[[Core System]]), `CloseKey` (single `KeyCode`, `None` = inherit the project-wide escape key; `Hide` policy only —
+[[Input & Hotkeys]]), `DeepPopups` (child/dependent popups); the **Addressable** box `Addressable` / `AddressableLoadMode` + the per-scene selection
 `PreloadSceneGuids` (empty = Everyone) / `UnloadSceneGuids` (empty = None), both scene **GUIDs**, and the **Pool** box
 `PoolCapacity` (unified on-hide + pool control: -1 unlimited / 0 despawn / N keep — all [[Addressables]]).
 Hidden: `RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**), `IsVisible` (set when it
@@ -97,7 +97,7 @@ per-open-data base (2026-07-23). The contract:
 - **`Show(data)`/`ShowAsync(data, …)` bind then show.** No `IsBeVisible` guard before `SetData` on purpose — on a
   visible popup it is a live content update (`ShowAsync`'s own guard prevents a double show). A `Bind` throw inside
   the `Operation` faults it (logged) and the show is skipped — an unconfigured popup never appears.
-- **Retention is Lane-A-only:** data survives hide/show, so escape/hotkey/`LayerShow`/`SwitchShowHide` re-shows render
+- **Retention is Lane-A-only:** data survives hide/show, so escape/`LayerShow`/`SwitchShowHide` re-shows render
   the last content with zero re-bind cost. Lane B: `Despawn` clears via `IDataPopup` (a pooled copy must not leak the
   previous use's content); `SpawnAsync<TPopup,TData>(data)` is the paired bind-on-spawn ([[Addressables]]).
 - Statics on the system: `Show<TPopup,TData>(data, settings)` and the popup-agnostic `Show<T>(Action<T> configure)`
@@ -126,4 +126,4 @@ lanes. See [[Addressables]].
 ## Depends on
 
 - [[Displays & Animations]] (the display/settings driving animation), [[Operations & Cancellation]] (CTS, `Operation`,
-  `APSStats`), [[Core System]] (registration), [[Input & Hotkeys]] (key bindings)
+  `APSStats`), [[Core System]] (registration), [[Input & Hotkeys]] (the close key)

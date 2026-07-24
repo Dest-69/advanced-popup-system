@@ -7,7 +7,6 @@ namespace AdvancedPS.Core.System
     public class PopupSettings
     {
         public InspectorEnum InspectorView { get; set; }
-        public bool KeyEventSystemEnabled { get; set; }
         public bool AutoSwitchInputModule { get; set; }
         public string LogType { get; set; }
         public bool EscapeCloseEnabled { get; set; }

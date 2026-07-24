@@ -1,4 +1,13 @@
 # Changelog
+## [2.0.3] - 2026-07-24
+### Added
+- **Each popup can have its own close key** — a popup set to close on the escape key now has a **Close Key** field right in its inspector. It starts on the project-wide key and keeps following it, so changing that one setting still reaches every popup you left alone; pick another key and only this popup changes. The popup on top always owns the key press, so a key you gave a background popup can never close it from underneath.
+- **Preview animations without pressing Play** — the **Preview** button in the popup inspector now works: it plays the popup's show animation, holds it for a second, then plays the hide — right in edit mode, in the scene or in Prefab Mode. When it finishes (or you press **Stop**), the popup snaps back to exactly how it was, so nothing in your scene changes. The built-in Fade, Scale and Slide transitions play for real; custom and DOTween transitions show their end states instead.
+### Removed
+- **Hotkeys that open and close popups** — the *Show / Hide Key Settings* block is gone from the popup inspector, along with its any-key, layer and popup conditions and its UnityEvent. Closing by key now lives entirely in the escape close stack, where it's one setting instead of two parallel systems. *Upgrading: for closing, set the popup's **Escape Policy** to `Hide` and pick its **Close Key**. For opening by key, call `Show<YourPopup>()` from your own input handling.*
+### Changed
+- **One switch for keyboard handling** — the separate **Key Event Tracking** toggle is gone; **Escape Close Stack** is now the single switch, and with it off APS installs no per-frame key polling at all. *Upgrading: if you had Key Event Tracking on, make sure **Escape Close Stack** is on too.*
+
 ## [2.0.2] - 2026-07-23
 ### Added
 - **Customizable default canvas per layer** — edit one prefab to restyle every layer's popup canvas; saved in your project, so updates keep your changes.

@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Threading.Tasks;
 using AdvancedPS.Core;
 using AdvancedPS.Core.System;
 using AdvancedPS.Core.Utils;
@@ -38,16 +35,7 @@ namespace AdvancedPS.Editor
         private SerializedProperty _preloadSceneGuidsProperty;
         private SerializedProperty _unloadSceneGuidsProperty;
         private SerializedProperty _poolCapacityProperty;
-        private SerializedProperty _keyBindingSettings;
-        private SerializedProperty _anyHotKey;
-        private SerializedProperty _hotKeys;
-        private SerializedProperty _layers;
-        private SerializedProperty _popups;
-        private SerializedProperty _actions;
-
-        private bool _isHideSettings;
-
-        private const string IsHideKeySettings = "APS_HideKeySettingsEnabled";
+        private SerializedProperty _closeKeyProperty;
 
         /// <summary>
         /// Fields drawn by hand above (or intentionally hidden), so the default-inspector fallback skips them.
@@ -56,9 +44,9 @@ namespace AdvancedPS.Editor
         private static readonly string[] ExcludedProperties =
         {
             "PopupLayer", "m_Script", "DeepPopups", "inspectorShowDisplay", "inspectorHideDisplay",
-            "cachedShowSettings", "cachedHideSettings", "AutoHideOnInit", "ManualInit", "KeyBindingShowSettings",
-            "KeyBindingHideSettings", "Modules", "Addressable", "AddressableLoadMode", "PoolCapacity",
-            "PreloadSceneGuids", "UnloadSceneGuids", "Inactive", "EscapePolicy"
+            "cachedShowSettings", "cachedHideSettings", "AutoHideOnInit", "ManualInit",
+            "Modules", "Addressable", "AddressableLoadMode", "PoolCapacity",
+            "PreloadSceneGuids", "UnloadSceneGuids", "Inactive", "EscapePolicy", "CloseKey"
         };
         
         private void OnEnable()
@@ -75,6 +63,7 @@ namespace AdvancedPS.Editor
             _popupLayerProperty = serializedObject.FindProperty("PopupLayer");
             _inactiveProperty = serializedObject.FindProperty("Inactive");
             _escapePolicyProperty = serializedObject.FindProperty("EscapePolicy");
+            _closeKeyProperty = serializedObject.FindProperty("CloseKey");
             _autoHideOnInitProperty = serializedObject.FindProperty("AutoHideOnInit");
             _manualInitProperty = serializedObject.FindProperty("ManualInit");
             _deepPopupsProperty = serializedObject.FindProperty("DeepPopups");
@@ -92,17 +81,6 @@ namespace AdvancedPS.Editor
             _unloadSceneGuidsProperty = serializedObject.FindProperty("UnloadSceneGuids");
             _poolCapacityProperty = serializedObject.FindProperty("PoolCapacity");
 
-            if (!PlayerPrefs.HasKey(IsHideKeySettings))
-                PlayerPrefs.SetInt(IsHideKeySettings, 0);
-            else
-                _isHideSettings = PlayerPrefs.GetInt(IsHideKeySettings) == 1;
-            
-            _keyBindingSettings = serializedObject.FindProperty(_isHideSettings ? "KeyBindingHideSettings" : "KeyBindingShowSettings");
-            _anyHotKey = _keyBindingSettings.FindPropertyRelative("AnyHotKey");
-            _hotKeys = _keyBindingSettings.FindPropertyRelative("HotKeys");
-            _layers = _keyBindingSettings.FindPropertyRelative("Layers");
-            _popups = _keyBindingSettings.FindPropertyRelative("Popups");
-            _actions = _keyBindingSettings.FindPropertyRelative("OnTrigger");
         }
         
         public override void OnInspectorGUI()
@@ -133,22 +111,9 @@ namespace AdvancedPS.Editor
             EditorGUILayout.EndHorizontal();
 
             // Escape close behavior — grouped with the layer controls at the top.
-            if (_escapePolicyProperty != null)
-                EditorGUILayout.PropertyField(_escapePolicyProperty, new GUIContent("Escape Policy"));
+            DrawEscapeClose();
 
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            GUI.enabled = false;
-            if (GUILayout.Button(new GUIContent("Preview",
-                        EditorGUIUtility.IconContent("console.warnicon.sml").image,
-                        "-Experimental-\nPreview show & hide animation in editor."), APSEditorStyles.ExperimentalButtonStyle))
-            {
-                ExperimentalShowHide();
-            }
-            GUI.enabled = true;
-            EditorGUILayout.EndHorizontal();
-
-            DrawPopupSettings();
+            DrawPreview();
 
             EditorGUILayoutExtensions.DrawSectionHeader("General Settings");
             DrawBoolPropertiesInGrid();
@@ -181,139 +146,79 @@ namespace AdvancedPS.Editor
             EditorGUILayoutExtensions.DrawHorizontalLine();
         }
 
-        private async void ExperimentalShowHide()
+        /// <summary>
+        /// Edit-mode Preview: plays the cached show animation, holds ~1s, plays hide, then restores the exact
+        /// pre-preview state (see <see cref="PopupPreviewDriver"/>). Disabled in play mode (just Show() the popup
+        /// there), for multi-selection, and on the prefab asset itself — open Prefab Mode to preview a prefab.
+        /// </summary>
+        private void DrawPreview()
         {
-            var targetType = target.GetType();
-            var methods = targetType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
 
-            var initMethod = methods.FirstOrDefault(m => m.Name == "Init");
-            var showMethod = methods.FirstOrDefault(m => m.Name == "ShowAsync" && !m.IsGenericMethod);
-            var hideMethod = methods.FirstOrDefault(m => m.Name == "HideAsync" && !m.IsGenericMethod);
-            
-            if (initMethod == null || showMethod == null || hideMethod == null)
-            {
-                Debug.LogError("Not found methods Init/ShowAsync/HideAsync - preview was safely aborted.");
-                return;
-            }
-            
-            var popup = (IAdvancedPopup)target;
-            bool wasActive = popup.gameObject.activeSelf;
-            bool wasVisible = popup.GetComponent<CanvasGroup>().alpha != 0 && popup.transform.localScale != Vector3.zero;
-            
-            if (!wasActive)
-                popup.gameObject.SetActive(true);
+            var popup = target as IAdvancedPopup;
+            bool previewing = PopupPreviewDriver.IsPreviewing(popup);
+            bool canPreview = popup != null && targets.Length == 1 &&
+                              !EditorApplication.isPlayingOrWillChangePlaymode &&
+                              !EditorUtility.IsPersistent(target);
 
-            initMethod.Invoke(target, null);
+            using (new EditorGUI.DisabledScope(!canPreview))
+            {
+                GUIContent content = previewing
+                    ? new GUIContent("Stop", "Stop the preview and restore the popup state.")
+                    : new GUIContent("Preview", EditorGUIUtility.IconContent("PlayButton").image,
+                        "Preview the show & hide animation without entering play mode.\n" +
+                        "The popup state is restored when the preview ends.");
+                if (GUILayout.Button(content, APSEditorStyles.ExperimentalButtonStyle))
+                {
+                    if (previewing) PopupPreviewDriver.Stop();
+                    else PopupPreviewDriver.Start(popup);
+                }
+            }
 
-            if (wasVisible)
-            {
-                popup.IsBeVisible = true;
-                popup.IsVisible = true;
-                await (Task)hideMethod.Invoke(target, new object[] { default, null });
-                await (Task)showMethod.Invoke(target, new object[] { default, null });
-            }
-            else
-            {
-                popup.IsBeVisible = false;
-                popup.IsVisible = false;
-                await (Task)showMethod.Invoke(target, new object[] { default, null });
-                await (Task)hideMethod.Invoke(target, new object[] { default, null });
-            }
-            
-            if (!wasActive)
-                popup.gameObject.SetActive(false);
+            EditorGUILayout.EndHorizontal();
         }
 
-        private void DrawPopupSettings()
+        /// <summary>
+        /// Escape close block: the policy, plus this popup's own Close Key revealed only for <c>Hide</c> — the other
+        /// two policies never consult it (Block swallows any key, Ignore is transparent), so drawing it there would
+        /// promise behavior that doesn't exist. Warns when the whole keyboard path is switched off.
+        /// </summary>
+        private void DrawEscapeClose()
         {
-            float width = EditorGUIUtility.currentViewWidth / 4.3f;
-            EditorGUILayoutExtensions.DrawHorizontalLine();
-            GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical(GUILayout.Width(width));
-            // Show Settings Button
-            GUI.enabled = _isHideSettings;
-            GUIStyle buttonStyle = _isHideSettings ? APSEditorStyles.BoldButtonStyle : GUI.skin.button;
-            if (GUILayout.Button("Switch to Show Settings", buttonStyle))
-            {
-                PlayerPrefs.SetInt(IsHideKeySettings, 0);
-                _isHideSettings = false;
-                BindKeyBindingProps(false);
-            }
-            GUILayout.EndVertical();
+            if (_escapePolicyProperty == null) return;
 
-            EditorGUILayoutExtensions.DrawVerticalLine();
+            EditorGUILayout.PropertyField(_escapePolicyProperty, new GUIContent("Escape Policy"));
 
-            GUILayout.BeginVertical(GUILayout.Width(width));
-            GUI.enabled = !_isHideSettings;
-            buttonStyle = !_isHideSettings ? APSEditorStyles.BoldButtonStyle : GUI.skin.button;
-            // Hide Settings Button
-            if (GUILayout.Button("Switch to Hide Settings", buttonStyle))
-            {
-                PlayerPrefs.SetInt(IsHideKeySettings, 1);
-                _isHideSettings = true;
-                BindKeyBindingProps(true);
-            }
-            GUILayout.EndVertical();
-            GUILayout.EndHorizontal();
-            
-            GUI.enabled = true;
-            DrawPopupKeyBindingSettings();
+            bool hidePolicy = !_escapePolicyProperty.hasMultipleDifferentValues &&
+                              _escapePolicyProperty.enumValueIndex == (int)EscapePolicyEnum.Hide;
+            if (!hidePolicy || _closeKeyProperty == null) return;
 
-            EditorGUILayoutExtensions.DrawHorizontalLine();
-        }
-        
-        private void BindKeyBindingProps(bool hide) 
-        {
-            _keyBindingSettings = serializedObject.FindProperty(hide ? "KeyBindingHideSettings" : "KeyBindingShowSettings");
-            _anyHotKey = _keyBindingSettings.FindPropertyRelative("AnyHotKey");
-            _hotKeys   = _keyBindingSettings.FindPropertyRelative("HotKeys");
-            _layers    = _keyBindingSettings.FindPropertyRelative("Layers");
-            _popups    = _keyBindingSettings.FindPropertyRelative("Popups");
-            _actions   = _keyBindingSettings.FindPropertyRelative("OnTrigger");
-        }
-        
-        private void DrawPopupKeyBindingSettings()
-        {
-            EditorGUILayoutExtensions.DrawHorizontalLine();
-            
-            string lableName = _isHideSettings ? "Hide" : "Show";
-            if (_settings.KeyEventSystemEnabled)
+            // "None" is drawn as the settings key itself, so the row always reads as the key that actually closes this
+            // popup — while the stored value stays None and keeps following the setting.
+            EditorGUI.indentLevel++;
+            var stored = (KeyCode)_closeKeyProperty.intValue;
+            bool inherited = stored == KeyCode.None;
+
+            EditorGUI.showMixedValue = _closeKeyProperty.hasMultipleDifferentValues;
+            EditorGUI.BeginChangeCheck();
+            var picked = (KeyCode)EditorGUILayout.EnumPopup(new GUIContent("Close Key",
+                    "The key that closes this popup. Defaults to the project-wide Escape Close Key; pick another to override it here."),
+                inherited ? _settings.EscapeCloseKey : stored);
+            if (EditorGUI.EndChangeCheck())
+                _closeKeyProperty.intValue = (int)(picked == _settings.EscapeCloseKey ? KeyCode.None : picked);
+            EditorGUI.showMixedValue = false;
+
+            if (inherited && !_closeKeyProperty.hasMultipleDifferentValues)
+                GUILayout.Label("Follows the project-wide Escape Close Key.", APSEditorStyles.WarpedTextStyle);
+            EditorGUI.indentLevel--;
+
+            if (!_settings.EscapeCloseEnabled)
             {
-                GUILayout.Label($"{lableName} Key Settings", APSEditorStyles.HeaderLabelStyle);
-            }
-            else
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                GUILayout.Label("Key Event Tracking disabled.", APSEditorStyles.WarningTextStyle);
-                GUILayout.FlexibleSpace();
-                GUILayout.EndHorizontal();
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                GUILayout.Label("To turn it on, toggle 'Key Event Tracking' on, in the APS settings menu.", APSEditorStyles.WarpedTextStyle);
+                GUILayout.Label("Escape Close Stack is off — no key closes popups.", APSEditorStyles.WarningTextStyle);
                 if (GUILayout.Button("APS settings"))
                     PopupSystemEditor.ShowSettings();
-                GUILayout.FlexibleSpace();
-                GUILayout.EndHorizontal();
             }
-            EditorGUILayoutExtensions.DrawHorizontalLine();
-            
-            if (!_settings.KeyEventSystemEnabled) return;
-            
-            _anyHotKey.boolValue = EditorGUILayout.Toggle("Any Hot Key", _anyHotKey.boolValue);
-
-            if (!_anyHotKey.boolValue)
-            {
-                EditorGUI.indentLevel++;
-                EditorGUILayout.PropertyField(_hotKeys, new GUIContent("Hot Keys"), true);
-                EditorGUI.indentLevel--;
-            }
-            
-            EditorGUILayout.PropertyField(_layers, new GUIContent($"{lableName} if Layer active"));
-            EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(_popups, new GUIContent($"{lableName} if Popup active"));
-            EditorGUI.indentLevel--;
-            EditorGUILayout.PropertyField(_actions, new GUIContent($"Invoke UnityEvent on {lableName} key press"));
         }
 
         private void DrawDefaultInspectorExcept(string[] propertyNamesToExclude)

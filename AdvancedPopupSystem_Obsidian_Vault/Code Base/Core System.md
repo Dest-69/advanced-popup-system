@@ -156,10 +156,22 @@ destroys them on exit like `APS_Root`) and dead mappings are pruned on scene unl
 (`Subscribe` appends at show-start, `Unsubscribe` removes at hide-start — self-cleaning; no separate static stack, so
 no new leak guards). Skips `null`/`!IsBeVisible` (also shields the known cancel-rollback gap) and `ShownByCascade`
 popups (cascade groups are represented by their root — [[Popup Lifecycle]]). First relevant popup's `EscapePolicy`:
-`Hide` → `popup.Hide()` + consumed; `Block` → consumed without closing (modal); `Ignore` → keep walking. Returns false
-when nothing consumed → the key backends fall through to the normal binding scan ([[Input & Hotkeys]]). Public API —
-also drivable from a UI "back" button, independent of the key/settings toggles. `LayerShow` batches get one step per
-popup (no layer grouping in v1 — group via DeepPopups instead).
+`Hide` → `popup.Hide()` + consumed; `Block` → consumed without closing (modal); `Ignore` → keep walking. `LayerShow`
+batches get one step per popup (no layer grouping in v1 — group via DeepPopups instead).
+
+**Two overloads, one walk.** `EscapeStep(Predicate<KeyCode>)` is the key-driven form the input backends call
+([[Input & Hotkeys]]); the parameterless `EscapeStep()` delegates to it with `null` and is the UI "back" button path —
+independent of the key and of the settings toggle. The predicate is only consulted on the `Hide` branch, via
+`MatchesCloseKey`: the popup's own `CloseKey` if it overrode one, else `Settings.EscapeCloseKey`. The fallback is
+resolved **here, per press** — never baked into the popup — so editing the setting still reaches every popup that left
+`CloseKey` at `None` ([[Input & Hotkeys]]).
+
+**Decision — the topmost closable popup owns the press.** On a `Hide` popup whose key *doesn't* match, the walk
+**returns false** instead of continuing. Falling through would let a key bound to a background popup close it from under
+the popup on screen. `Block`/`Ignore` deliberately never consult the key at all (a modal swallows everything; a
+transparent popup passes everything). With no `CloseKey` overrides anywhere this reproduces the pre-v2.1 behavior exactly.
+
+Runs on the input hot path — index loop, no LINQ, no per-call delegate allocation (backends cache theirs).
 
 ## Depends on
 

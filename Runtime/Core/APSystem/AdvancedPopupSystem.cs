@@ -817,11 +817,27 @@ namespace AdvancedPS.Core
         /// DeepPopups), Block consumes the step without closing (modal), Ignore passes it to the next popup.
         /// Popups shown as part of a parent's cascade (DeepPopups) don't get their own step — the cascade
         /// root represents the whole group.
-        /// Invoked by KeyEventSystemAPS on the escape close key (see PopupSettings.EscapeCloseKey); call it
-        /// directly to drive the same behavior from a UI "back" button.
+        /// This keyless overload matches every popup regardless of its close keys — call it to drive the same
+        /// behavior from a UI "back" button.
         /// </summary>
         /// <returns> True if the step was consumed — a popup was hidden or blocked it. </returns>
         public static bool EscapeStep()
+        {
+            return EscapeStep(null);
+        }
+
+        /// <summary>
+        /// <see cref="EscapeStep()"/> driven by a key press: the popup the walk reaches closes only if the pressed key
+        /// is ITS close key — <see cref="IAdvancedPopup.CloseKey"/>, or the project-wide
+        /// <see cref="PopupSettings.EscapeCloseKey"/> when the popup didn't override it. Otherwise the step is dropped
+        /// rather than reaching past it: the topmost closable popup owns the press, so a key bound to a background popup
+        /// can't close it from under the one on screen. Block still consumes any key (modal) and Ignore is still
+        /// transparent — neither consults the key.
+        /// Invoked per frame by KeyEventSystemAPS.
+        /// </summary>
+        /// <param name="isKeyPressed">Backend probe "was this KeyCode pressed this frame"; null matches any key.</param>
+        /// <returns> True if the step was consumed — a popup was hidden or blocked it. </returns>
+        public static bool EscapeStep(Predicate<KeyCode> isKeyPressed)
         {
             for (int i = ActivePopups.Count - 1; i >= 0; i--)
             {
@@ -832,6 +848,8 @@ namespace AdvancedPS.Core
                 switch (popup.EscapePolicy)
                 {
                     case EscapePolicyEnum.Hide:
+                        if (!MatchesCloseKey(popup, isKeyPressed))
+                            return false;
                         popup.Hide();
                         return true;
                     case EscapePolicyEnum.Block:
@@ -840,6 +858,19 @@ namespace AdvancedPS.Core
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Whether the frame's key press addresses this popup: its own CloseKey when it overrode one, else the
+        /// project-wide escape close key. The fallback is resolved here rather than baked into the popup so changing
+        /// the setting still reaches every popup that never overrode it.
+        /// </summary>
+        private static bool MatchesCloseKey(IAdvancedPopup popup, Predicate<KeyCode> isKeyPressed)
+        {
+            if (isKeyPressed == null) return true;
+
+            KeyCode key = popup.CloseKey != KeyCode.None ? popup.CloseKey : SettingsManager.Settings.EscapeCloseKey;
+            return isKeyPressed(key);
         }
         #endregion
 
