@@ -176,9 +176,9 @@ See the [full documentation](documentation.md) for the complete API, custom-disp
 The **APS Editor Window** lists every registered popup and traces active operations and tasks at runtime.
 
 <p align="center">
-  <img width="32%" alt="Editor View 1" src="https://github.com/user-attachments/assets/f484cfa7-addc-4af8-bbd2-5b9b18427674" />
-  <img width="32%" alt="Editor View 2" src="https://github.com/user-attachments/assets/d7663a35-f90a-4745-9255-9c9b67468293" />
-  <img width="32%" alt="Editor View 3" src="https://github.com/user-attachments/assets/8b8f56a8-543e-48ca-a61e-ed56e7cb5128" />
+  <img width="32%" alt="Editor View 1" src="https://github.com/user-attachments/assets/897b5471-2a7a-4c0a-8b07-b762a8ac9026" />
+  <img width="32%" alt="Editor View 2" src="https://github.com/user-attachments/assets/6af2907b-7347-4381-9f8f-f50e44021ece" />
+  <img width="32%" alt="Editor View 3" src="https://github.com/user-attachments/assets/84540c94-f3b6-4871-9595-fb5b2696cba0" />
 </p>
 
 ### Popup Inspector
@@ -187,8 +187,8 @@ Configure animations, keys, child popups, and layer masks directly in the inspec
 show → hide cycle right in edit mode (no play mode needed) and restores the popup's state afterwards:
 
 <p align="center">
-  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/54e29df7-a352-4394-8304-b058e8342b22" />
-  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/e29c4014-9be0-4f9e-9f53-7d21746e1ec0" />
+  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/9be62d64-fa84-47cd-a7e9-5febf067230b" />
+  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/74f790eb-2b85-490d-a217-2fc0b87e4d3e" />
 </p>
 
 ### Animation Showcases
