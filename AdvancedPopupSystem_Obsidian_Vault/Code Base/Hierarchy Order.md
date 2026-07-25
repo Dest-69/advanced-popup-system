@@ -111,12 +111,20 @@ Second **non-gesture** feature after `Closable` ([[Interaction Modules]] explain
   **`SaveAssetIfDirty`**, not `SaveAssets`: the postprocessor and the inspector call it, and neither may flush the user's
   other unsaved assets. `Load` is the **cold-path** variant that never creates the asset.
 - **Layer tags come from three sources:** the popup inspector (on a layer change — the only source for scene-authored
-  popups), `PopupOrderPostprocessor` (per saved prefab), and a **full `t:Prefab` scan the panel runs itself** when the tab
-  is opened (user request, 2026-07-25: no button to press). The scan is gated so it can't become routine cost: the
-  postprocessor sets a `SessionState` flag on any prefab change (`MarkScanNeeded`, string checks only), and the panel scans
-  only when `IsScanNeeded()` — default true, so it runs once per editor session and after real prefab churn, **not** on
-  every recompile that reopens the window. It runs on the **Layout** event only (it can re-group rows, and changing the row
-  set between Layout and Repaint corrupts IMGUI's layout state) and shows a cancelable progress bar instead of freezing.
+  popups), `PopupOrderPostprocessor` (per saved prefab, `SetLayer(..., createIfMissing: true)` so a brand-new popup type
+  arrives already tagged), and a **full `t:Prefab` scan the panel offers itself** when the tab is opened (user request,
+  2026-07-25: no button to press).
+- **The scan is signal-driven and asks first.** `IsScanNeeded` (`SessionState`) defaults to **false** and is raised in
+  exactly two places: `LoadOrCreate` when the catalog is first created, and the postprocessor's **bulk** branch (contents
+  deliberately unknown there). The panel then shows a yes/no dialog — the pass opens every prefab in the project, so it is
+  the user's call — and clears the flag either way, so declining doesn't nag on the next repaint.
+  - **Two bugs this shape fixes** (reported 2026-07-25): defaulting to *true* scanned on the first open of every session
+    for nothing; and marking the flag from the import callback on *any* `.prefab` meant first-time setup — where the Layers
+    panel writes `APS_DefaultCanvas.prefab` — looked like a popup change and produced a **second** scan on the next open.
+    Hence: the flag is raised only after a prefab is confirmed to carry a popup, or when contents can't be checked at all.
+- Mechanics: the scan is dispatched through `EditorApplication.delayCall` (a dialog + row rebuild inside an open IMGUI
+  layout group is asking for layout errors), guarded by `_scanQueued` so a repaint can't queue it twice, and shows a
+  cancelable progress bar.
 - **Inspector** (`IAdvancedPopupEditor`): a read-only **Draw Order** row (`#n of N`, or "not listed") beside the layer row
   + an *Edit Order* button, resolved once in `OnEnable` via a direct `Resources.Load` (not `PopupOrderConfig.Loaded` — its
   cached null-resolution would hide a catalog created later in the same session, and the inspector must never create the

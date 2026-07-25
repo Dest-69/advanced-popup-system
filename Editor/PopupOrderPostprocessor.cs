@@ -37,24 +37,14 @@ namespace AdvancedPS.Editor
         {
             Collect(imported);
             Collect(moved);
-
-            // Deleted prefabs bring no tag to update, but they do mean the panel's grouping may be stale — the flag is
-            // just a bool, so recording it costs nothing beyond the string checks already done.
-            if (PendingPrefabPaths.Count > 0 || HasPrefab(deleted))
-                PopupOrderConfigStore.MarkScanNeeded();
-
             if (PendingPrefabPaths.Count == 0) return;
 
+            // Note: the "scan needed" signal is NOT raised here. Any prefab import would look like a reason, including
+            // ones APS itself writes during first-time setup (APS_DefaultCanvas.prefab) — which produced a second,
+            // pointless scan right after the first. The deferred pass below already loads each changed prefab, so it
+            // raises the flag only once it has seen an actual popup.
             EditorApplication.delayCall -= DeferredSync;
             EditorApplication.delayCall += DeferredSync;
-        }
-
-        private static bool HasPrefab(string[] paths)
-        {
-            for (int i = 0; i < paths.Length; i++)
-                if (paths[i].EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
-                    return true;
-            return false;
         }
 
         private static void Collect(string[] paths)
@@ -78,8 +68,10 @@ namespace AdvancedPS.Editor
 
             if (paths.Count > BulkPrefabCap)
             {
-                // The scan flag is already set, so the Order panel picks the grouping up the next time it is opened.
-                APLogger.Log($"<color=green>[APS Order]</color> {paths.Count} prefabs changed at once — skipping the incremental layer-tag refresh instead of loading them all; APS ▸ Order re-reads them when you open it.");
+                // Contents unknown (we deliberately don't open them), so assume popups were among them and let the
+                // Order panel offer a scan next time it is opened.
+                PopupOrderConfigStore.MarkScanNeeded();
+                APLogger.Log($"<color=green>[APS Order]</color> {paths.Count} prefabs changed at once — skipping the incremental layer-tag refresh instead of loading them all; APS ▸ Order offers to re-read them when you open it.");
                 return;
             }
 
@@ -89,8 +81,10 @@ namespace AdvancedPS.Editor
                 var go = AssetDatabase.LoadAssetAtPath<GameObject>(paths[i]);
                 if (go == null || !go.TryGetComponent(out IAdvancedPopup popup)) continue;
 
+                // createIfMissing: a popup type new to the catalog gets its entry (at the back) and its tag right here,
+                // so no scan is ever "needed" just because a popup was added — saving its prefab is enough.
                 changed |= PopupOrderConfigStore.SetLayer(config, popup.GetType().FullName,
-                    PopupOrderConfigStore.LayerNameOf(popup));
+                    PopupOrderConfigStore.LayerNameOf(popup), true);
             }
 
             if (changed)

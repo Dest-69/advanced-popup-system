@@ -42,6 +42,9 @@ namespace AdvancedPS.Editor
             config = ScriptableObject.CreateInstance<PopupOrderConfig>();
             AssetDatabase.CreateAsset(config, AssetPath);
             AssetDatabase.SaveAssets();
+
+            // A brand-new catalog has no layer tags at all — that is the one moment a scan is genuinely due.
+            MarkScanNeeded();
             return config;
         }
 
@@ -121,10 +124,14 @@ namespace AdvancedPS.Editor
         }
 
         /// <summary>
-        /// Writes the layer tag of one popup type, keeping the entry's position. No-op when the type has no entry (it will
-        /// get one, unassigned, on the panel's next reconcile) or the tag already matches. Returns true when it changed.
+        /// Writes the layer tag of one popup type, keeping the entry's position. Returns true when something changed.
         /// </summary>
-        internal static bool SetLayer(PopupOrderConfig config, string typeName, string layerName)
+        /// <param name="createIfMissing">
+        /// Append an entry for a type the catalog doesn't list yet — at the back, exactly where <see cref="Reconcile"/>
+        /// would put it. The import postprocessor passes true so a brand-new popup arrives already tagged, instead of
+        /// sitting unassigned until someone runs a full scan.
+        /// </param>
+        internal static bool SetLayer(PopupOrderConfig config, string typeName, string layerName, bool createIfMissing = false)
         {
             if (config?.Order == null || string.IsNullOrEmpty(typeName))
                 return false;
@@ -137,7 +144,11 @@ namespace AdvancedPS.Editor
                 entry.Layer = layerName;
                 return true;
             }
-            return false;
+
+            if (!createIfMissing) return false;
+
+            config.Order.Add(new PopupOrderConfig.Entry { TypeName = typeName, Layer = layerName });
+            return true;
         }
 
         /// <summary>
@@ -181,17 +192,22 @@ namespace AdvancedPS.Editor
 
         #region Scan flag
         /// <summary>
-        /// "A prefab changed since the last layer scan" — set by <see cref="PopupOrderPostprocessor"/> (string checks
-        /// only, no loads) and consumed by the Order panel when it opens. <see cref="SessionState"/> so it survives domain
-        /// reloads but resets with the editor session: the panel scans once per session and after real prefab changes,
-        /// instead of on every recompile that happens to reopen the window.
+        /// "A popup prefab changed since the last layer scan" — set by <see cref="PopupOrderPostprocessor"/> (only once it
+        /// has confirmed the changed prefab really carries a popup) and by <see cref="LoadOrCreate"/> when the catalog is
+        /// first created. Consumed by the Order panel, which offers the scan.
+        /// <para>
+        /// Defaults to <b>false</b>: a scan happens only on a real signal. Defaulting to true meant every first open of a
+        /// session scanned for nothing — and during first-time setup the Layers panel creating <c>APS_DefaultCanvas.prefab</c>
+        /// looked like "a prefab changed", so a second scan followed on the next open.
+        /// </para>
+        /// <see cref="SessionState"/> keeps it across domain reloads but resets it with the editor session, so a signal
+        /// can't outlive the run that produced it.
         /// </summary>
         private const string ScanNeededKey = "APS_OrderScanNeeded";
 
         internal static void MarkScanNeeded() => SessionState.SetBool(ScanNeededKey, true);
 
-        /// <summary> True when a scan is due — defaults to true, so the first open in an editor session always scans. </summary>
-        internal static bool IsScanNeeded() => SessionState.GetBool(ScanNeededKey, true);
+        internal static bool IsScanNeeded() => SessionState.GetBool(ScanNeededKey, false);
 
         internal static void ClearScanNeeded() => SessionState.SetBool(ScanNeededKey, false);
         #endregion

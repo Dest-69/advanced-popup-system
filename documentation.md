@@ -947,8 +947,8 @@ never fight. Inside one canvas the order is Unity's hierarchy order — and APS 
 - **One layer at a time.** Popups only compete on their own layer's canvas, so the list is filtered by layer — and every
   row in **`APS ▸ Layers`** has a small **Order** button that opens exactly that layer's list (the popup inspector's
   **Edit Order** button does the same for its own layer). The grouping keeps itself current: APS tags a popup's layer when
-  you set it in the inspector and when its prefab is saved, and opening the tab re-reads the project's popup prefabs
-  whenever any prefab changed since the last look — nothing to press.
+  you set it in the inspector and when its prefab is saved. Only when it can't know — the first time the catalog is
+  created, or after a bulk import — does opening the tab ask whether to re-read the project's popup prefabs.
 - **The catalog is per popup *type*, not per instance.** Every popup type in the project is listed; the position is
   stored in `Assets/Resources/APS_PopupOrderConfig.asset` (your project, not the package — updates never clobber it).
   Arranging one layer never disturbs another: a drag rearranges those popups within the slots they already hold.

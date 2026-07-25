@@ -321,6 +321,15 @@ namespace AdvancedPS.Editor
 
             try
             {
+                // Ask first — the scan opens every prefab in the project, so it is the user's call, not a surprise
+                // freeze. Declining clears the flag too: the offer returns when popup prefabs change again.
+                if (!EditorUtility.DisplayDialog("Advanced Popup System",
+                        "Popup prefabs changed — re-read them to refresh the layer grouping in APS ▸ Order?\n\n" +
+                        "This opens every prefab in the project once, so it can take a moment in a large project. " +
+                        "It only affects how this list is grouped; the order itself is untouched.",
+                        "Rescan", "Not now"))
+                    return;
+
                 if (_config == null) LoadState();
                 if (_changed) SaveChanges();
 
@@ -332,7 +341,7 @@ namespace AdvancedPS.Editor
             }
             finally
             {
-                // Even a cancelled or failed scan must clear the flag, or the panel would retry it on every repaint.
+                // Even a declined, cancelled or failed scan must clear the flag, or the panel would ask on every repaint.
                 PopupOrderConfigStore.ClearScanNeeded();
             }
 
