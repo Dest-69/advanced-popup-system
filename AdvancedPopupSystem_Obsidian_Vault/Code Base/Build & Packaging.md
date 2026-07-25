@@ -35,7 +35,10 @@ compile error. So it ships inside the package (assembly `AdvancedPS.Generated.La
 consumer were tried and **proven impossible** (see [[Invariants]]): a fresh-install *bootstrap* (can't run — core is red)
 and a *same-name define-swap* (Unity rejects duplicate assembly names even when define-constrained apart). The cost of
 shipping it: editing layers needs a **writable** package, so a read-only UPM install must be **embedded** first (the
-Layers panel's Customization toggle offers it — [[Layers]]). The Addressable index has no such constraint — it is **data**
+Layers panel's Customization toggle offers it — [[Layers]]). Embedding costs the **update path** too — Package Manager
+labels an embedded package *Custom* and stops updating it — so APS ships its own (`PackageUpdater`,
+[[Editor & Codegen]]): add the Git URL **while still embedded**, then replace the folder, then re-embed. Deleting first
+would leave the project with no APS at all, deadlocking exactly like the bootstrap above. The Addressable index has no such constraint — it is **data**
 (`AddressablePopupIndexAsset`, read at runtime), rescanned from the consumer's prefabs.
 
 ## `FileSearcher` default-content safety net

@@ -25,6 +25,8 @@ namespace AdvancedPS.Editor.Styles
         private static GUIStyle _scrollView;
         private static GUIStyle _line;
         private static GUIStyle _header;
+        private static GUIStyle _versionOk;
+        private static GUIStyle _versionNew;
 
         // Texture-backed styles (rebuilt when their background texture is culled).
         private static GUIStyle _selectedTab;
@@ -75,6 +77,18 @@ namespace AdvancedPS.Editor.Styles
         {
             alignment = TextAnchor.MiddleCenter,
             fontSize = 12
+        };
+
+        /// <summary> "(latest)" beside the window's version — green, darkened for the light skin to stay readable. </summary>
+        public static GUIStyle VersionOkStyle => _versionOk ??= new GUIStyle(EditorStyles.miniLabel)
+        {
+            normal = { textColor = IsDark ? new Color(0.45f, 0.82f, 0.45f) : new Color(0.11f, 0.45f, 0.13f) }
+        };
+
+        /// <summary> "(new x.y.z)" beside the window's version — amber, darkened for the light skin to stay readable. </summary>
+        public static GUIStyle VersionNewStyle => _versionNew ??= new GUIStyle(EditorStyles.miniLabel)
+        {
+            normal = { textColor = IsDark ? new Color(0.95f, 0.76f, 0.31f) : new Color(0.62f, 0.44f, 0.03f) }
         };
 
         public static GUIStyle SelectedTabStyle

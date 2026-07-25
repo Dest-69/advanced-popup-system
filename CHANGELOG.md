@@ -1,4 +1,14 @@
 # Changelog
+## [2.2.3] - 2026-07-25
+### Added
+- **APS tells you when a new version is out** — the top of the editor window shows your version with *(latest)* in green or *(new x.y.z)* in amber, and an **Update** button appears beside it.
+- **One-click update** — Package Manager updates APS in neither of the ways it's normally installed: it keeps a Git dependency on the revision it first fetched, and it leaves a customized copy (listed as *Custom*) alone entirely. The Update button reinstalls the newest version for both, and a customized copy stays customizable. Your layers, settings, canvases and displays are untouched.
+- **Going back is one click too** — **Remove embedded copy** in the Layers tab hands APS back to Package Manager as a normal read-only install.
+### Changed
+- **The editor window is now called "Advanced Popup System"** — the version moved inside the window, where it can also tell you whether it's current.
+### Fixed
+- **The Layers tab no longer gets stuck on "Embedding…"** — once the embedded copy is gone it returns to its locked state instead of waiting for an embed that will never come.
+
 ## [2.2.1] - 2026-07-25
 ### Changed
 - **Cancelling a preload stops it at the next popup** — the one already loading finishes and stays in memory, since another call may be waiting for it.

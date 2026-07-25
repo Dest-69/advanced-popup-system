@@ -547,6 +547,11 @@ Open from the top **`APS`** menu — one window, four tabs:
   turning on Customization offers to **embed** the package first. Don't hand-edit the generated file — edits are
   overwritten. (If your own code is in a separate assembly definition, reference `AdvancedPS.Generated.Layers` to see
   `PopupLayerEnum`.)
+  An embedded copy lives in your project's `Packages/` folder, which is why Package Manager then labels it **Custom**.
+  **Remove embedded copy** (same block) hands it back as a plain read-only install whenever you're done customizing —
+  layer editing turns off, your layer list stays in `ProjectSettings/APS_Layers.json`, but the compiled enum falls back
+  to the layers APS ships with until you embed it again. Updating either shape is handled by the version line at the
+  top of the window ([§5.1](#51-version--updating)).
 - **`APS ▸ Order`** — drag popup types up and down to decide **which one is drawn in front** when several share a canvas
   ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)). Filtered by layer, since that is the canvas boundary —
   each layer row in the Layers tab has an **Order** button that jumps straight to its list; the one at the top wins.
@@ -559,6 +564,21 @@ Open from the top **`APS`** menu — one window, four tabs:
   in sync on their own — use it after a bulk import or if the index ever looks stale).
 
 Layers, Order and Displays share an **Auto-Save** toggle; with it off, use the **Save** button to apply changes.
+
+### 5.1 Version & updating
+
+The line at the very top of the window, above the tabs, shows the installed version, and — once per editor session —
+checks the Git remote:
+**`(latest)`** in green means you're current, **`(new x.y.z)`** in amber means you're not, and an **Update** button
+appears next to it. No badge at all just means the check couldn't run (offline, or APS wasn't installed from GitHub);
+nothing else changes.
+
+Update exists because Package Manager can't do it for either shape APS is normally installed in — it doesn't update a
+Git dependency in place, and it doesn't update a *Custom* (embedded) package at all. The button reinstalls APS at the
+newest revision of the Git URL it came from, and re-embeds it afterwards if that's how it was installed, so layer
+editing keeps working. If your dependency pins a branch or tag (`….git#v2.2.0`) that pin is respected — you'll stay on
+it. Your layers, settings, canvases and generated displays live outside the package and are kept; hand-edits made
+*inside* the package folder are not. Unity recompiles a few times along the way.
 
 ---
 

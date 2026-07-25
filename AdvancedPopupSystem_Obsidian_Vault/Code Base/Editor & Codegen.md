@@ -27,8 +27,8 @@ sync**, else a name the panel accepts is stripped on save); **Auto-Save** persis
   `PopupLayerEnum.generated.cs` is a *projection* that **ships in the package** (`Runtime/Generated/Layers/`, resolved by
   `FileSearcher.LayersEnumFilePath`) — regenerated in place, which needs a **writable** package.
 - **Editing is gated** — `PopupLayerEditorPanel` locks add/rename/delete behind a **Customization** toggle; on a
-  read-only install unlocking offers `FileSearcher.EmbedPackage` (make writable) first. Canvas order/prefab stay editable
-  (consumer-side `LayerCanvasConfig`).
+  read-only install unlocking offers to embed the package (make writable) first. Canvas order/prefab stay editable
+  (consumer-side `LayerCanvasConfig`). The install-shape half lives in `PackageUpdater` (below).
 - **Read safety** — `LayerCatalog.TryLoadNames` returns `Missing`/`Ok`/`Unreadable`; `Reconcile` seeds defaults only on
   `Missing` and **aborts on `Unreadable`** so a locked/mid-write/corrupt store is never overwritten with defaults (the
   corruption bug). It recovers from `.bak` when the live store is missing/corrupt.
@@ -45,6 +45,45 @@ sync**, else a name the panel accepts is stripped on save); **Auto-Save** persis
   valid name (which then triggers the codegen path).
 
 Hand-editing the file is futile — it's regenerated from the store ([[Invariants]], [[Layers]]).
+
+### Install shape (`PackageUpdater`)
+
+Embedding is the price of shipping the enum, and it carries costs Package Manager won't cover: it labels an embedded
+package **Custom** and updates neither it *nor* a Git dependency (a Git URL has to be re-added). `PackageUpdater`
+(`Editor/`, `[InitializeOnLoad]`) owns the whole install story — the embed handshake, the version check, the update, and
+the way back out.
+
+- **UI split by meaning, not by mechanism.** Updating is a property of the *install*, so it lives on the version line in
+  `PopupSystemEditor.DrawVersionBar` (badge + **Update**, shown only when `UpdateAvailable && CanUpdate`). Embedding and
+  **Remove embedded copy** are the two directions of the Customization toggle, so they stay in the Layers panel.
+- **The lock must not outlive the install it was taken against.** `Unlocked` is a `PlayerPrefs` flag while writability
+  is a property of the install, so removing the embedded copy (or reinstalling from Git) used to strand the panel on a
+  permanent *"Embedding… once Unity finishes recompiling"* — an embed that was never coming. `SyncLockWithPackage`
+  relocks whenever the package reads read-only and no embed is actually in flight (`EmbedInProgress` = a `Client.Embed`
+  fired this session, or a running run). `BeginEmbed` is the only embed entry point, so "we asked" is always recorded.
+- **One state machine, three intents** (`UpdateGit`, `UpdateEmbedded`, `Detach`) over `Client.Add`/`Add`/`Embed`. Only
+  the ends differ: a Git install skips the prime step (no folder in the way), `Detach` stops before the re-embed.
+  **Ordering is load-bearing** for the other two: the first Add runs *while still embedded* — the embedded folder
+  shadows it, so nothing on disk changes — purely to validate the URL and pull the revision into Unity's global cache.
+  Only then is the folder deleted. Delete-first would leave the project without APS, taking this class, the run, and the
+  consumer's compile down together — the same deadlock that killed the consumer-side enum ([[Build & Packaging]]).
+- **Every request recompiles**, so the step is parked in `SessionState`: `Poll` finishes a request that outlived its
+  step, `Resume` picks up the ones a domain reload swallowed. Post-reload there is no request object, so project state
+  is the only evidence — after the prime step the **manifest entry** is the gate (`Client.Add` writes it only on
+  success). A reload landing between "sent" and "package caught up" is indistinguishable from a failure, hence **one
+  bounded retry per run**, never a loop. `SessionState` (not `PlayerPrefs`) is deliberate: a run interrupted by closing
+  the editor is abandoned, never replayed against a project it no longer knows.
+- **The Git URL is recovered, not stored** — the consumer's `manifest.json` entry first (embedding doesn't rewrite it,
+  and it is the only source that keeps a pinned branch/tag), then the repository the package declares in its own
+  `package.json` (default branch, so `.git` is appended). A registry version or a `file:` path fails the Git-URL test,
+  which is the point: it is what gates `CanUpdate` down to Embedded/Git installs.
+- **The latest version is read off the remote, not from a release feed** — raw `package.json` at the ref the install
+  actually tracks (`#pin`, else `HEAD`, which spares us guessing `main` vs `master`), so the badge answers "what an
+  update would give me". GitHub-only URL rewriting; once per session, polled from `EditorApplication.update` because
+  `AsyncOperation.completed` is unreliable outside play mode; **silent on every failure** — a missing badge is the right
+  amount of noise for a nice-to-have, and the editor must never stall or spam on a network hiccup (the editor-perf rule).
+- The enum needs no special handling here — `LayerEnumSyncPostprocessor` heals it from the store once a writable copy is
+  back ([[Layers]]). After a `Detach` there is none, so the shipped default stands until the user embeds again.
 
 ### Per-layer canvas config (`LayerCanvasConfigStore`)
 
@@ -86,7 +125,8 @@ under `Packages/` **or** `Assets/`), with a folder-name (`advanced-popup-system`
 **Package paths** — `ImagesFolderPath` (asset path, for `LoadAssetAtPath`), `BuiltinDisplaysFolderPath` (real FS), and
 `LayersEnumFilePath` (the shipped enum — writable only when the package is). **Consumer path** —
 `CustomDisplaysFolderPath` (`Assets/AdvancedPopupSystem/Generated/Displays/`, ensures folder + asmdef). **Writability** —
-`IsPackageWritable` + `EmbedPackage` (Embedded/Local/loose = writable; Git/registry = read-only until embedded).
+`IsPackageWritable` + `EmbedPackage` (Embedded/Local/loose = writable; Git/registry = read-only until embedded) — the
+embed is always fired through `PackageUpdater.BeginEmbed`, never directly, so the panel can tell it apart from a stale lock.
 `ToAssetPath`/`ToFsPath` convert both `Assets/` and `Packages/`. **All accessors are lazy and
 non-throwing** — a failure logs once and returns `null` (callers guard); the old eager static ctor threw
 `TypeInitializationException` under UPM and poisoned every downstream site. **`FolderRenamePrevention`** still reverts a

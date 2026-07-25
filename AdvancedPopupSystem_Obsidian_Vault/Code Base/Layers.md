@@ -24,7 +24,9 @@ instead of per-popup.
   core runtime) — it must, because it is a compile-time type and a fresh install can't run code to create it first (the
   two consumer-side approaches — bootstrap, define-swap — were proven impossible; see [[Build & Packaging]]). **Editing
   needs a writable package:** the panel gates add/rename/delete behind a **Customization** toggle, and on a read-only UPM
-  install unlocking offers to **embed** the package first (`FileSearcher.IsPackageWritable`/`EmbedPackage`); canvas
+  install unlocking offers to **embed** the package first (`FileSearcher.IsPackageWritable`, fired via
+  `PackageUpdater.BeginEmbed`, which also relocks a lock left over from an install that is no longer embedded, owns the
+  panel's **Remove embedded copy** way back out, and the window's version badge + **Update** — [[Editor & Codegen]]); canvas
   order/prefab stay editable regardless (consumer-side asset). On a writable install `LayerCatalog.Reconcile` +
   `LayerEnumSyncPostprocessor` regenerate the enum from the store and heal it after an update. **Store safety:**
   `LayerCatalog` writes the store atomically (`.tmp` + `File.Replace` → `.bak`) and distinguishes *missing* (seed

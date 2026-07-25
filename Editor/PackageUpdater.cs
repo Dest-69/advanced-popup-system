@@ -1,0 +1,650 @@
+using System;
+using System.IO;
+using System.Text.RegularExpressions;
+using AdvancedPS.Core.Utils;
+using UnityEditor;
+using UnityEditor.PackageManager;
+using UnityEditor.PackageManager.Requests;
+using UnityEngine;
+using UnityEngine.Networking;
+using PackageInfo = UnityEditor.PackageManager.PackageInfo;
+
+namespace AdvancedPS.Editor
+{
+    /// <summary>
+    /// Everything about the shape of this install: which version is out there, and how to move between the two shapes
+    /// APS can take.
+    ///
+    /// Editing layers regenerates <c>PopupLayerEnum</c> <i>inside</i> the package, so it needs a writable copy — a
+    /// Git/registry install must be <b>embedded</b> first. That carries two costs this class pays back:
+    /// <list type="bullet">
+    /// <item>Package Manager labels an embedded package <b>Custom</b> and updates neither it nor (in practice) a Git
+    /// install — hence <see cref="BeginUpdate"/>, and <see cref="EnsureLatestChecked"/> to know an update exists;</item>
+    /// <item>the copy is stuck in the project until <see cref="BeginDetach"/> hands it back to Package Manager;</item>
+    /// <item>the Customization lock is a <see cref="PlayerPrefs"/> flag that must not outlive the install it was taken
+    /// against — <see cref="BeginEmbed"/>/<see cref="EmbedInProgress"/> let the Layers panel tell "still embedding"
+    /// from "the embedded copy is gone".</item>
+    /// </list>
+    ///
+    /// <b>Ordering is load-bearing.</b> A run that replaces the embedded copy adds the Git URL <i>before</i> deleting
+    /// anything: the first Add validates the URL and pulls the revision into Unity's global cache, so the delete can
+    /// never leave the project without APS — which would take this class, the rest of the run, and the consumer's
+    /// compile down with it. Every UPM request recompiles, so the step is parked in <see cref="SessionState"/> and
+    /// picked up by <see cref="Resume"/> on the next load. Session lifetime is deliberate: a run that did not finish
+    /// before the editor closed is abandoned, never replayed against a project state it no longer knows.
+    /// </summary>
+    [InitializeOnLoad]
+    internal static class PackageUpdater
+    {
+        #region VARIABLES
+
+        private const string ManifestPath = "Packages/manifest.json";
+
+        private const string StepKey = "APS_PkgUpdate_Step";
+        private const string IntentKey = "APS_PkgUpdate_Intent";
+        private const string UrlKey = "APS_PkgUpdate_Url";
+        private const string NameKey = "APS_PkgUpdate_Name";
+        private const string FromVersionKey = "APS_PkgUpdate_FromVersion";
+        private const string RetryKey = "APS_PkgUpdate_Retry";
+        private const string EmbedPendingKey = "APS_PkgUpdate_EmbedPending";
+        private const string LatestKey = "APS_PkgUpdate_Latest";
+        private const string LatestUrlKey = "APS_PkgUpdate_LatestUrl";
+
+        /// <summary>Where a run stands between domain reloads — a reload drops the in-flight <see cref="Request"/>.</summary>
+        private enum Step
+        {
+            None = 0,
+            /// <summary>Add while still embedded: validates the URL and fills Unity's cache, changing nothing on disk.</summary>
+            Priming = 1,
+            /// <summary>The Add that actually installs the Git copy (the embedded folder, if any, is gone by now).</summary>
+            Reinstalling = 2,
+            /// <summary>Make the fresh copy writable again so layer editing keeps working.</summary>
+            Embedding = 3
+        }
+
+        /// <summary>What the run is for — it decides where the run stops and what the user is told.</summary>
+        private enum Intent
+        {
+            /// <summary>Read-only Git install → newest revision, still read-only. No folder to replace.</summary>
+            UpdateGit = 0,
+            /// <summary>Embedded copy → newest revision, embedded again.</summary>
+            UpdateEmbedded = 1,
+            /// <summary>Embedded copy → hand it back to Package Manager as a read-only Git install.</summary>
+            Detach = 2
+        }
+
+        private static Request _request;
+        private static UnityWebRequest _versionRequest;
+
+        private static PackageInfo _pkg;
+        private static bool _pkgResolved;
+        private static string _gitUrl;
+        private static bool _gitUrlResolved;
+
+        static PackageUpdater()
+        {
+            // Runs on every domain reload; Resume no-ops unless a run is parked.
+            EditorApplication.delayCall += Resume;
+        }
+
+        #endregion
+
+        #region Install shape
+
+        /// <summary>True when APS is an embedded copy under <c>Packages/</c> — what Package Manager labels "Custom".</summary>
+        public static bool IsEmbedded => Package?.source == PackageSource.Embedded;
+
+        /// <summary>
+        /// True when this install is one APS can reinstall itself: embedded (Package Manager refuses) or from a Git URL
+        /// (Package Manager offers no update either — a Git dependency has to be re-added). A local path or a loose
+        /// folder under <c>Assets/</c> is whoever put it there's business.
+        /// </summary>
+        public static bool CanUpdate
+        {
+            get
+            {
+                PackageSource? source = Package?.source;
+                return (source == PackageSource.Embedded || source == PackageSource.Git) && GitUrl != null;
+            }
+        }
+
+        /// <summary>True while a run is in flight (it spans several domain reloads).</summary>
+        public static bool IsBusy => CurrentStep != Step.None;
+
+        /// <summary>
+        /// A writable copy is being made right now. The panel must not read the package's momentary read-only state as
+        /// "the Customization lock is stale" while this is true.
+        /// </summary>
+        public static bool EmbedInProgress => IsBusy || SessionState.GetBool(EmbedPendingKey, false);
+
+        /// <summary>Called by the panel once the package reads writable again — the embed landed. Per-repaint, so it no-ops when already clear.</summary>
+        public static void ClearEmbedPending()
+        {
+            if (SessionState.GetBool(EmbedPendingKey, false))
+                SessionState.SetBool(EmbedPendingKey, false);
+        }
+
+        /// <summary>Embeds the package so the layer enum can be regenerated in place, remembering that we asked.</summary>
+        public static void BeginEmbed()
+        {
+            SessionState.SetBool(EmbedPendingKey, true);
+            FileSearcher.EmbedPackage();
+        }
+
+        #endregion
+
+        #region Latest version
+
+        /// <summary>The newest version published on the Git remote, or null while unknown (not checked, offline, non-GitHub host).</summary>
+        public static string LatestVersion
+        {
+            get
+            {
+                string value = SessionState.GetString(LatestKey, string.Empty);
+                return string.IsNullOrEmpty(value) ? null : value;
+            }
+        }
+
+        /// <summary>True when the remote is ahead of what is installed.</summary>
+        public static bool UpdateAvailable => IsNewer(LatestVersion, InstalledVersion);
+
+        /// <summary>
+        /// The version the window shows. Goes through <see cref="PackageVersionHelper"/> rather than
+        /// <see cref="PackageInfo"/> so the badge also works for a loose folder under <c>Assets/</c>, where there is no
+        /// package to ask; its "Dev" fallback simply fails the version parse, which reads as "no update".
+        /// </summary>
+        private static string InstalledVersion => PackageVersionHelper.GetVersion();
+
+        /// <summary>
+        /// Reads <c>package.json</c> off the Git remote once per editor session (the APS window kicks it off on open).
+        /// Deliberately reads the raw file at the ref the install actually tracks — a pinned branch/tag, else the
+        /// default branch — so the answer is "what an update would give me", not "what the newest tag is". Silent on
+        /// failure: a missing badge is the right amount of noise for a nice-to-have, and the editor must never stall or
+        /// spam on a network hiccup.
+        /// </summary>
+        public static void EnsureLatestChecked(Action onDone = null)
+        {
+            if (_versionRequest != null) return;
+
+            string rawUrl = RawPackageJsonUrl(GitUrl);
+            if (rawUrl == null) return;
+
+            // "Already checked" is scoped to what was checked, not to the session: nothing to ask (no Git URL yet) must
+            // not count as an answer, and an install that changes ref — detach, a re-pin — deserves a fresh look.
+            // Re-evaluating is nearly free, since GitUrl is cached per domain.
+            if (SessionState.GetString(LatestUrlKey, string.Empty) == rawUrl) return;
+            SessionState.SetString(LatestUrlKey, rawUrl);
+
+            _versionRequest = UnityWebRequest.Get(rawUrl);
+            _versionRequest.timeout = 10;
+            _versionRequest.SendWebRequest();
+
+            // Polled from the editor loop rather than AsyncOperation.completed, which is unreliable outside play mode.
+            void PollVersion()
+            {
+                if (_versionRequest == null) { EditorApplication.update -= PollVersion; return; }
+                if (!_versionRequest.isDone) return;
+
+                EditorApplication.update -= PollVersion;
+                if (_versionRequest.result == UnityWebRequest.Result.Success)
+                {
+                    string version = ParseJsonFields(_versionRequest.downloadHandler.text)?.version;
+                    if (!string.IsNullOrEmpty(version))
+                        SessionState.SetString(LatestKey, version);
+                }
+                _versionRequest.Dispose();
+                _versionRequest = null;
+                onDone?.Invoke();
+            }
+
+            EditorApplication.update += PollVersion;
+        }
+
+        /// <summary>
+        /// Git URL → the raw <c>package.json</c> behind it. GitHub only (the host APS ships from); anything else returns
+        /// null and the version badge simply stays hidden. <c>HEAD</c> resolves to the default branch, so no guessing
+        /// between <c>main</c> and <c>master</c>; an explicit <c>#ref</c> pin wins, since that is what the install tracks.
+        /// </summary>
+        private static string RawPackageJsonUrl(string gitUrl)
+        {
+            if (string.IsNullOrEmpty(gitUrl)) return null;
+
+            Match match = Regex.Match(gitUrl, @"github\.com[:/]([^/]+)/([^/#?]+?)(?:\.git)?([?#].*)?$");
+            if (!match.Success) return null;
+
+            // UPM's two modifiers are independent and can combine: "?path=<folder>" packages a subfolder of the repo,
+            // "#<ref>" pins a branch/tag/commit. Reading the root package.json of a "?path=" repo would answer with a
+            // completely different package's version — a confidently wrong badge is worse than none.
+            string tail = match.Groups[3].Success ? match.Groups[3].Value : string.Empty;
+            int hash = tail.IndexOf('#');
+
+            string reference = hash >= 0 && hash + 1 < tail.Length ? tail.Substring(hash + 1) : "HEAD";
+            string query = hash >= 0 ? tail.Substring(0, hash) : tail;
+
+            Match subfolder = Regex.Match(query, @"[?&]path=([^&]+)");
+            string subPath = subfolder.Success ? "/" + subfolder.Groups[1].Value.Trim('/') : string.Empty;
+
+            return $"https://raw.githubusercontent.com/{match.Groups[1].Value}/{match.Groups[2].Value}/{reference}{subPath}/package.json";
+        }
+
+        /// <summary>Numeric <c>x.y.z</c> comparison; anything unparseable answers "no update" rather than a false alarm.</summary>
+        private static bool IsNewer(string candidate, string current)
+        {
+            int[] a = ParseVersion(candidate);
+            int[] b = ParseVersion(current);
+            if (a == null || b == null) return false;
+
+            for (int i = 0; i < 3; i++)
+            {
+                if (a[i] != b[i]) return a[i] > b[i];
+            }
+            return false;
+        }
+
+        private static int[] ParseVersion(string version)
+        {
+            if (string.IsNullOrEmpty(version)) return null;
+
+            Match match = Regex.Match(version.Trim(), @"^v?(\d+)\.(\d+)(?:\.(\d+))?");
+            if (!match.Success) return null;
+
+            return new[]
+            {
+                int.Parse(match.Groups[1].Value),
+                int.Parse(match.Groups[2].Value),
+                match.Groups[3].Success ? int.Parse(match.Groups[3].Value) : 0
+            };
+        }
+
+        #endregion
+
+        #region Entry points
+
+        /// <summary>
+        /// Reinstalls APS at the newest revision of the Git URL it came from — embedding it again afterwards if that is
+        /// how it was installed, so layer editing keeps working. User-confirmed; no-op unless <see cref="CanUpdate"/>.
+        /// Consumer state (layers, settings, canvases, custom displays) lives outside the package and survives; the
+        /// layer enum is healed from <c>ProjectSettings/APS_Layers.json</c> by <see cref="LayerEnumSyncPostprocessor"/>.
+        /// </summary>
+        public static void BeginUpdate()
+        {
+            if (IsBusy || !CanUpdate) return;
+
+            PackageInfo pkg = Package;
+            string url = GitUrl;
+            bool embedded = pkg.source == PackageSource.Embedded;
+
+            string what = embedded
+                ? $"The embedded copy at Packages/{pkg.name} is replaced, then embedded again so layers stay editable. " +
+                  "Your layers, settings, canvases and custom displays live outside the package and are kept — but any " +
+                  "hand-edit inside the package folder is lost."
+                : "Package Manager cannot update a Git dependency in place, so APS re-adds it — the read-only install " +
+                  "is replaced by the newest revision.";
+
+            if (!EditorUtility.DisplayDialog("Update Advanced Popup System",
+                    $"Reinstall {pkg.name} (currently {pkg.version}) from:\n\n{url}\n\n{what}\n\n" +
+                    "Unity will recompile a few times.",
+                    "Update", "Cancel"))
+                return;
+
+            Start(embedded ? Intent.UpdateEmbedded : Intent.UpdateGit, pkg, url);
+        }
+
+        /// <summary>
+        /// Hands the embedded copy back to Package Manager as a plain read-only Git install — the way out of "Custom".
+        /// User-confirmed; no-op unless <see cref="IsEmbedded"/>. The layer <b>list</b> survives in
+        /// <c>ProjectSettings/APS_Layers.json</c>, but a read-only package can't be regenerated, so the compiled enum
+        /// falls back to the layers the package ships with until it is embedded again.
+        /// </summary>
+        public static void BeginDetach()
+        {
+            if (IsBusy || !IsEmbedded) return;
+
+            PackageInfo pkg = Package;
+            string url = GitUrl;
+            if (url == null)
+            {
+                EditorUtility.DisplayDialog("Advanced Popup System",
+                    "Could not work out which Git URL this copy came from, so it cannot be handed back automatically.\n\n" +
+                    "Delete Packages/" + pkg.name + "/ by hand and install APS from its Git URL via " +
+                    "Package Manager ▸ Install package from git URL.", "OK");
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("Remove embedded copy",
+                    $"Packages/{pkg.name} is deleted and APS is reinstalled read-only from:\n\n{url}\n\n" +
+                    "Layer editing turns off. Your layer list is safe in ProjectSettings/APS_Layers.json, but a " +
+                    "read-only package cannot regenerate the enum, so PopupLayerEnum falls back to the layers APS " +
+                    "ships with — popups tagged with a custom layer keep their value but lose its name until you " +
+                    "enable Customization again.\n\nAny hand-edit inside the package folder is lost.",
+                    "Remove & reinstall", "Cancel"))
+                return;
+
+            Start(Intent.Detach, pkg, url);
+        }
+
+        private static void Start(Intent intent, PackageInfo pkg, string url)
+        {
+            SessionState.SetInt(IntentKey, (int)intent);
+            SessionState.SetString(UrlKey, url);
+            SessionState.SetString(NameKey, pkg.name);
+            SessionState.SetString(FromVersionKey, pkg.version ?? "?");
+            SessionState.SetInt(RetryKey, 0);
+
+            // A Git install has no embedded folder in the way, so it skips straight to the Add that does the work.
+            Send(intent == Intent.UpdateGit ? Step.Reinstalling : Step.Priming, Client.Add(url));
+        }
+
+        #endregion
+
+        #region Run
+
+        private static Step CurrentStep
+        {
+            get => (Step)SessionState.GetInt(StepKey, 0);
+            set => SessionState.SetInt(StepKey, (int)value);
+        }
+
+        private static Intent CurrentIntent => (Intent)SessionState.GetInt(IntentKey, 0);
+
+        private static void Send(Step step, Request request)
+        {
+            CurrentStep = step;
+            _request = request;
+            EditorApplication.update -= Poll;
+            EditorApplication.update += Poll;
+        }
+
+        /// <summary>In-domain completion: the request object outlived the step, so its status is authoritative.</summary>
+        private static void Poll()
+        {
+            if (_request == null || !_request.IsCompleted) return;
+
+            Request done = _request;
+            _request = null;
+            EditorApplication.update -= Poll;
+
+            if (done.Status != StatusCode.Success)
+            {
+                Fail(done.Error?.message ?? "the Package Manager request failed.");
+                return;
+            }
+
+            InvalidatePackage();
+            switch (CurrentStep)
+            {
+                case Step.Priming: ReplaceEmbeddedCopy(); break;
+                case Step.Reinstalling: AfterReinstall(); break;
+                case Step.Embedding: Finish(); break;
+            }
+        }
+
+        /// <summary>
+        /// Post-reload completion: the request object is gone, so the project state is the only evidence. A reload can
+        /// also land between a request being sent and the package catching up, which looks exactly like a failure —
+        /// hence the single bounded retry.
+        /// </summary>
+        private static void Resume()
+        {
+            Step step = CurrentStep;
+            if (step == Step.None) return;
+
+            InvalidatePackage();
+            PackageInfo pkg = Package;
+            string name = SessionState.GetString(NameKey, null);
+            string url = SessionState.GetString(UrlKey, null);
+
+            switch (step)
+            {
+                case Step.Priming:
+                    // Add writes the manifest entry only on success, so the manifest is the "URL is good and the
+                    // revision is cached" gate that makes deleting the embedded folder safe. Nothing changed yet.
+                    if (!string.Equals(ReadManifestDependency(name), url, StringComparison.Ordinal))
+                    {
+                        Fail("the Git URL could not be added to Packages/manifest.json — nothing was changed.");
+                        return;
+                    }
+                    ReplaceEmbeddedCopy();
+                    return;
+
+                case Step.Reinstalling:
+                    if (pkg == null)
+                    {
+                        if (TakeRetry() && !string.IsNullOrEmpty(url)) Send(Step.Reinstalling, Client.Add(url));
+                        else
+                            Fail($"the Git copy did not resolve. Packages/manifest.json still points at {url} — " +
+                                 "reopen the project (or Package Manager ▸ Refresh) once you are online.");
+                        return;
+                    }
+                    if (CurrentIntent != Intent.UpdateGit && pkg.source == PackageSource.Embedded)
+                    {
+                        Fail($"the embedded folder at {pkg.resolvedPath} is still there — delete it by hand, then let " +
+                             "Package Manager restore the Git copy.");
+                        return;
+                    }
+                    AfterReinstall();
+                    return;
+
+                case Step.Embedding:
+                    if (pkg != null && pkg.source == PackageSource.Embedded) Finish();
+                    else if (TakeRetry()) StartEmbed();
+                    else Fail("the package was reinstalled from Git but embedding it did not complete — enable " +
+                              "Customization again to retry.");
+                    return;
+            }
+        }
+
+        /// <summary>
+        /// Deletes the embedded folder and installs the Git copy in its place. Only reachable once the prime Add
+        /// succeeded, so the revision is already cached locally and the reinstall cannot strand the project.
+        /// </summary>
+        private static void ReplaceEmbeddedCopy()
+        {
+            string name = SessionState.GetString(NameKey, null);
+            string url = SessionState.GetString(UrlKey, null);
+            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(url))
+            {
+                Fail("the run lost track of what it was updating.");
+                return;
+            }
+
+            PackageInfo pkg = Package;
+            string relative = "Packages/" + name;
+            string root = pkg != null && pkg.source == PackageSource.Embedded && !string.IsNullOrEmpty(pkg.resolvedPath)
+                ? pkg.resolvedPath.Replace('\\', '/').TrimEnd('/')
+                : relative;
+
+            // Never hand a recursive delete anything but <…>/Packages/<package name>.
+            if (root != relative && !root.EndsWith("/" + relative, StringComparison.Ordinal))
+            {
+                Fail($"refusing to delete an unexpected path: {root}");
+                return;
+            }
+
+            try
+            {
+                if (Directory.Exists(root)) Directory.Delete(root, true);
+            }
+            catch (Exception ex)
+            {
+                Fail($"could not delete {root}: {ex.Message}");
+                return;
+            }
+
+            Send(Step.Reinstalling, Client.Add(url));
+        }
+
+        /// <summary>The fresh Git copy is in — only an update of an embedded copy goes on to make it writable again.</summary>
+        private static void AfterReinstall()
+        {
+            if (CurrentIntent == Intent.UpdateEmbedded) StartEmbed();
+            else Finish();
+        }
+
+        private static void StartEmbed()
+        {
+            string name = SessionState.GetString(NameKey, null);
+            if (string.IsNullOrEmpty(name))
+            {
+                Fail("the run lost track of what it was updating.");
+                return;
+            }
+
+            SessionState.SetBool(EmbedPendingKey, true);
+            Send(Step.Embedding, Client.Embed(name));
+        }
+
+        /// <summary>One retry for the whole run, so a genuinely stuck run can never loop.</summary>
+        private static bool TakeRetry()
+        {
+            if (SessionState.GetInt(RetryKey, 0) > 0) return false;
+            SessionState.SetInt(RetryKey, 1);
+            return true;
+        }
+
+        private static void Finish()
+        {
+            InvalidatePackage();
+            Intent intent = CurrentIntent;
+            string from = SessionState.GetString(FromVersionKey, "?");
+            string to = Package?.version ?? "?";
+            ClearState();
+
+            string message = intent == Intent.Detach
+                ? $"Advanced Popup System is a read-only Package Manager install again (v{to}).\n\nLayer editing is " +
+                  "off — enable Customization in APS ▸ Layers to embed it again. Your layer list is still in " +
+                  "ProjectSettings/APS_Layers.json."
+                : (from == to ? $"Reinstalled {to} from Git — already the newest revision." : $"Updated {from} → {to}.") +
+                  (intent == Intent.UpdateEmbedded
+                      ? "\n\nThe copy is embedded again, so layer editing still works, and your layers were restored " +
+                        "from ProjectSettings/APS_Layers.json."
+                      : string.Empty);
+
+            APLogger.Log($"<color=green>[APS]</color> {message.Replace("\n\n", " ")}");
+            EditorUtility.DisplayDialog("Advanced Popup System", message, "OK");
+        }
+
+        private static void Fail(string reason)
+        {
+            ClearState();
+            APLogger.LogError($"[APS] Package update stopped: {reason}");
+            EditorUtility.DisplayDialog("Advanced Popup System", "Package update stopped: " + reason, "OK");
+        }
+
+        private static void ClearState()
+        {
+            _request = null;
+            EditorApplication.update -= Poll;
+            CurrentStep = Step.None;
+            SessionState.SetBool(EmbedPendingKey, false);
+            SessionState.EraseInt(IntentKey);
+            SessionState.EraseInt(RetryKey);
+            SessionState.EraseString(UrlKey);
+            SessionState.EraseString(NameKey);
+            SessionState.EraseString(FromVersionKey);
+        }
+
+        #endregion
+
+        #region Package facts
+
+        /// <summary>The APS package, or null when APS is a loose folder under <c>Assets/</c> (the dev project).</summary>
+        private static PackageInfo Package
+        {
+            get
+            {
+                if (_pkgResolved) return _pkg;
+                _pkgResolved = true;
+                try { _pkg = PackageInfo.FindForAssembly(typeof(PackageUpdater).Assembly); }
+                catch { _pkg = null; }
+                return _pkg;
+            }
+        }
+
+        /// <summary>
+        /// The Git URL this copy came from, or null when there is none to find. Prefers the consumer's manifest entry —
+        /// embedding does not rewrite it, and it is the only source that preserves a pinned branch or tag
+        /// (<c>….git#v2.2.0</c>). Falls back to the repository the package declares in its own <c>package.json</c>
+        /// (default branch), which is also the only source a loose folder under <c>Assets/</c> has — it can't be
+        /// updated from here, but it can still be told a newer version exists. Cached: the UI reads this every repaint.
+        /// </summary>
+        private static string GitUrl
+        {
+            get
+            {
+                if (_gitUrlResolved) return _gitUrl;
+                _gitUrlResolved = true;
+                _gitUrl = null;
+
+                PackageInfo pkg = Package;
+                if (pkg != null)
+                {
+                    string fromManifest = ReadManifestDependency(pkg.name);
+                    if (IsGitUrl(fromManifest)) return _gitUrl = fromManifest;
+                }
+
+                string declared = ReadDeclaredRepository(pkg?.resolvedPath ?? FileSearcher.PackageRootPath);
+                if (!IsGitUrl(declared)) return null;
+
+                return _gitUrl = declared.EndsWith(".git", StringComparison.OrdinalIgnoreCase) ? declared : declared + ".git";
+            }
+        }
+
+        private static void InvalidatePackage()
+        {
+            _pkgResolved = false;
+            _gitUrlResolved = false;
+        }
+
+        /// <summary>A registry version ("2.2.2") and a local path ("file:../…") both fail this, which is the point.</summary>
+        private static bool IsGitUrl(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return false;
+            return value.StartsWith("http://", StringComparison.Ordinal)
+                || value.StartsWith("https://", StringComparison.Ordinal)
+                || value.StartsWith("ssh://", StringComparison.Ordinal)
+                || value.StartsWith("git@", StringComparison.Ordinal)
+                || value.StartsWith("git+", StringComparison.Ordinal);
+        }
+
+        private static string ReadManifestDependency(string packageName)
+        {
+            if (string.IsNullOrEmpty(packageName)) return null;
+            try
+            {
+                if (!File.Exists(ManifestPath)) return null;
+                Match match = Regex.Match(File.ReadAllText(ManifestPath),
+                    "\"" + Regex.Escape(packageName) + "\"\\s*:\\s*\"([^\"]*)\"");
+                return match.Success ? match.Groups[1].Value : null;
+            }
+            catch { return null; }
+        }
+
+        private static string ReadDeclaredRepository(string packageRootFs)
+        {
+            if (string.IsNullOrEmpty(packageRootFs)) return null;
+            try
+            {
+                string manifest = Path.Combine(packageRootFs, "package.json");
+                return File.Exists(manifest) ? ParseJsonFields(File.ReadAllText(manifest))?.url : null;
+            }
+            catch { return null; }
+        }
+
+        private static PackageJsonFields ParseJsonFields(string json)
+        {
+            try { return string.IsNullOrEmpty(json) ? null : JsonUtility.FromJson<PackageJsonFields>(json); }
+            catch { return null; }
+        }
+
+        /// <summary>The two <c>package.json</c> fields this class reads — of the local copy and of the remote one.</summary>
+        [Serializable]
+        private class PackageJsonFields
+        {
+            public string url;
+            public string version;
+        }
+
+        #endregion
+    }
+}

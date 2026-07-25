@@ -106,6 +106,23 @@ namespace AdvancedPS.Core.Utils
         }
 
         /// <summary>
+        /// Real filesystem path of the package root, no trailing '/'. Resolves for every shape APS can take — UPM
+        /// (<c>Packages/</c> or the read-only cache) and a loose folder under <c>Assets/</c>, where there is no
+        /// <see cref="PackageInfo"/> to ask. Null if it could not be located.
+        /// </summary>
+        public static string PackageRootPath
+        {
+            get
+            {
+#if UNITY_EDITOR
+                return PackageRootFsPath();
+#else
+                return null;
+#endif
+            }
+        }
+
+        /// <summary>
         /// Real filesystem path of the package's <b>built-in</b> displays folder (Fade/Scale/Slide/DoTween), for
         /// listing them read-only. Null if the package could not be located.
         /// </summary>

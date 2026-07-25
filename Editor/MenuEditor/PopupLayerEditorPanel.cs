@@ -106,8 +106,8 @@ namespace AdvancedPS.Editor
         /// <summary>
         /// Layer add/rename/delete regenerate the compiled <see cref="PopupLayerEnum"/>, so they are locked behind an
         /// explicit opt-in (canvas order/prefab, a consumer-side asset, stay editable). On a read-only Package Manager
-        /// install the enum can't be written in place, so unlocking offers to <see cref="FileSearcher.EmbedPackage"/>
-        /// (make the package writable) first.
+        /// install the enum can't be written in place, so unlocking offers to embed the package (make it writable)
+        /// first — see <see cref="PackageUpdater"/>, which also keeps this flag honest when the install changes under it.
         /// </summary>
         private static bool Unlocked
         {
@@ -118,6 +118,7 @@ namespace AdvancedPS.Editor
         private static void DrawCustomizationHeader()
         {
             bool writable = FileSearcher.IsPackageWritable;
+            SyncLockWithPackage(writable);
 
             // Same idiom as the Settings tab: a label + a [x]/[ ] toggle (the plain toggle glyph doesn't render in the
             // pro skin, so the state is shown as text).
@@ -140,7 +141,49 @@ namespace AdvancedPS.Editor
                 EditorGUILayout.HelpBox(
                     "Embedding… once Unity finishes recompiling, layer edits will save into the embedded package.",
                     MessageType.Warning);
+
+            DrawEmbeddedCopyRow();
             GUILayout.Space(5);
+        }
+
+        /// <summary>
+        /// Keeps the persisted lock honest about the package it was unlocked against. The lock lives in
+        /// <see cref="PlayerPrefs"/> but writability is a property of the install, so the two drift the moment the
+        /// embedded copy goes away (removed by hand, reinstalled from Git): the panel would then promise an embed that
+        /// is never coming. Relock instead — unless a writable copy is genuinely being made right now.
+        /// </summary>
+        private static void SyncLockWithPackage(bool writable)
+        {
+            if (writable)
+                PackageUpdater.ClearEmbedPending();
+            else if (Unlocked && !PackageUpdater.EmbedInProgress)
+                Unlocked = false;
+        }
+
+        /// <summary>
+        /// The way back out of an embedded ("Custom") copy — the counterpart of the embed this toggle performs, so it
+        /// belongs here rather than beside the version, where updating lives (<see cref="PackageUpdater"/>). Hidden for
+        /// every other install shape: there is nothing to hand back.
+        /// </summary>
+        private static void DrawEmbeddedCopyRow()
+        {
+            if (!PackageUpdater.IsEmbedded) return;
+
+            GUILayout.Space(5);
+            EditorGUILayout.HelpBox(
+                "Embedded copy — APS lives in your project's Packages/ folder, which is why Package Manager lists it " +
+                "as \"Custom\". Update it from the version line at the top of this window. Removing it hands APS back " +
+                "to Package Manager as a read-only install and turns layer editing off.",
+                MessageType.Info);
+
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            using (new EditorGUI.DisabledScope(PackageUpdater.IsBusy))
+            {
+                if (GUILayout.Button("Remove embedded copy", GUILayout.Width(160)))
+                    PackageUpdater.BeginDetach();
+            }
+            GUILayout.EndHorizontal();
         }
 
         private static void SetUnlocked(bool want, bool writable)
@@ -150,11 +193,12 @@ namespace AdvancedPS.Editor
                 bool embed = EditorUtility.DisplayDialog(
                     "Unlock layer editing",
                     "Editing layers needs a writable copy of Advanced Popup System.\n\n" +
-                    "Embed the package into your project now? It moves into Packages/ and will no longer auto-update " +
-                    "via Package Manager (remove the embedded copy later to return to the registry version).",
+                    "Embed the package into your project now? It moves into Packages/, where Package Manager lists it " +
+                    "as \"Custom\" and stops updating it — use this panel's Update from Git button instead (remove the " +
+                    "embedded copy to return to the registry version).",
                     "Embed & unlock", "Cancel");
                 if (!embed) return;
-                FileSearcher.EmbedPackage();
+                PackageUpdater.BeginEmbed();
             }
             Unlocked = want;
         }

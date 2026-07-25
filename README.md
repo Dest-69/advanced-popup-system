@@ -49,6 +49,8 @@ Newtonsoft.Json is pulled in automatically. Requires [Git](https://git-scm.com/)
 
 > Custom displays are generated into an `Assets/AdvancedPopupSystem/` folder in your project — commit it like the rest of your code. Editing layers is behind a **Customization** toggle in **APS ▸ Layers** (see the [documentation](documentation.md#5-the-aps-editor-window)).
 
+**Updating.** Open any **APS** window: the version line at the top shows *(latest)* or *(new x.y.z)* and an **Update** button. Use it rather than Package Manager, which updates neither a Git dependency in place nor a customized (embedded) copy — details in the [documentation](documentation.md#51-version--updating).
+
 ---
 
 ## ✨ Features
