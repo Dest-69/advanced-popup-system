@@ -10,6 +10,7 @@ namespace AdvancedPS.Editor
         private enum Tab
         {
             Layers,
+            Order,
             Displays,
             Settings,
         }
@@ -27,6 +28,23 @@ namespace AdvancedPS.Editor
             var window = GetWindow<PopupSystemEditor>("Popup System Editor");
             window.titleContent = new GUIContent($"Popup System Editor v{Version}");
             currentTab = Tab.Layers;
+        }
+        [MenuItem("APS/Order")]
+        public static void ShowOrder()
+        {
+            var window = GetWindow<PopupSystemEditor>("Popup System Editor");
+            window.titleContent = new GUIContent($"Popup System Editor v{Version}");
+            currentTab = Tab.Order;
+        }
+
+        /// <summary>
+        /// Opens the Order tab filtered to one layer — popups compete only inside their layer's canvas, so this is the
+        /// useful entry point from a layer row (Layers tab) or a popup inspector.
+        /// </summary>
+        public static void ShowOrder(string layerName)
+        {
+            ShowOrder();
+            PopupOrderEditorPanel.FocusLayer(layerName);
         }
         [MenuItem("APS/Displays")]
         public static void ShowDisplays()
@@ -55,6 +73,7 @@ namespace AdvancedPS.Editor
             
             // Initialize and load necessary resources
             PopupLayerEditorPanel.Initialize();
+            PopupOrderEditorPanel.Initialize();
             PopupDisplaysEditorPanel.Initialize();
             PopupSettingsEditor.Initialize();
         }
@@ -91,6 +110,9 @@ namespace AdvancedPS.Editor
                 case Tab.Layers:
                     PopupLayerEditorPanel.OnGUIInternal();
                     break;
+                case Tab.Order:
+                    PopupOrderEditorPanel.OnGUIInternal();
+                    break;
                 case Tab.Displays:
                     PopupDisplaysEditorPanel.OnGUIInternal();
                     break;
@@ -109,6 +131,10 @@ namespace AdvancedPS.Editor
             if (GUILayout.Button("Layers", currentTab == Tab.Layers ? APSEditorStyles.SelectedTabStyle : APSEditorStyles.NormalTabStyle))
             {
                 currentTab = Tab.Layers;
+            }
+            if (GUILayout.Button("Order", currentTab == Tab.Order ? APSEditorStyles.SelectedTabStyle : APSEditorStyles.NormalTabStyle))
+            {
+                currentTab = Tab.Order;
             }
             if (GUILayout.Button("Displays", currentTab == Tab.Displays ? APSEditorStyles.SelectedTabStyle : APSEditorStyles.NormalTabStyle))
             {

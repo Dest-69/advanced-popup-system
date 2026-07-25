@@ -24,12 +24,12 @@ namespace AdvancedPS.Editor
         private SerializedProperty _escapePolicyProperty;
         private SerializedProperty _autoHideOnInitProperty;
         private SerializedProperty _manualInitProperty;
-        private SerializedProperty _deepPopupsProperty;
         private SerializedProperty _modulesProperty;
         private SerializedProperty _featuresProperty;
         private SerializedProperty _dragProperty;
         private SerializedProperty _resizeProperty;
         private SerializedProperty _closeProperty;
+        private SerializedProperty _focusProperty;
         private SerializedProperty _addressableProperty;
         private SerializedProperty _addressableLoadModeProperty;
         private SerializedProperty _preloadSceneGuidsProperty;
@@ -41,13 +41,18 @@ namespace AdvancedPS.Editor
         private string[] _layerNames;
         private int[] _layerValues;
 
+        // This popup type's slot in the Order catalog, resolved once per inspector open (see DrawOrder).
+        // -1 = the catalog exists but doesn't list this type; _orderTotal 0 = no catalog at all.
+        private int _orderRank = -1;
+        private int _orderTotal;
+
         /// <summary>
         /// Fields drawn by hand above (or intentionally hidden), so the default-inspector fallback skips them.
         /// Static — the set never changes, no need to rebuild it every repaint.
         /// </summary>
         private static readonly string[] ExcludedProperties =
         {
-            "PopupLayer", "m_Script", "DeepPopups", "inspectorShowDisplay", "inspectorHideDisplay",
+            "PopupLayer", "m_Script", "inspectorShowDisplay", "inspectorHideDisplay",
             "cachedShowSettings", "cachedHideSettings", "AutoHideOnInit", "ManualInit",
             "Modules", "Addressable", "AddressableLoadMode", "PoolCapacity",
             "PreloadSceneGuids", "UnloadSceneGuids", "Inactive", "EscapePolicy"
@@ -74,7 +79,6 @@ namespace AdvancedPS.Editor
             _escapePolicyProperty = serializedObject.FindProperty("EscapePolicy");
             _autoHideOnInitProperty = serializedObject.FindProperty("AutoHideOnInit");
             _manualInitProperty = serializedObject.FindProperty("ManualInit");
-            _deepPopupsProperty = serializedObject.FindProperty("DeepPopups");
             _modulesProperty = serializedObject.FindProperty("Modules");
             if (_modulesProperty != null)
             {
@@ -82,6 +86,7 @@ namespace AdvancedPS.Editor
                 _dragProperty = _modulesProperty.FindPropertyRelative("Drag");
                 _resizeProperty = _modulesProperty.FindPropertyRelative("Resize");
                 _closeProperty = _modulesProperty.FindPropertyRelative("Close");
+                _focusProperty = _modulesProperty.FindPropertyRelative("Focus");
             }
             _addressableProperty = serializedObject.FindProperty("Addressable");
             _addressableLoadModeProperty = serializedObject.FindProperty("AddressableLoadMode");
@@ -89,6 +94,34 @@ namespace AdvancedPS.Editor
             _unloadSceneGuidsProperty = serializedObject.FindProperty("UnloadSceneGuids");
             _poolCapacityProperty = serializedObject.FindProperty("PoolCapacity");
 
+            ResolveOrderSlot();
+        }
+
+        /// <summary>
+        /// Looks this popup type up in the consumer's Order catalog for the read-only Draw Order row. Loaded straight
+        /// from Resources (not through <see cref="PopupOrderConfig.Loaded"/>) so a catalog created after this editor
+        /// session started is still found, and so the inspector never creates the asset.
+        /// </summary>
+        private void ResolveOrderSlot()
+        {
+            _orderRank = -1;
+            _orderTotal = 0;
+
+            var config = Resources.Load<PopupOrderConfig>(PopupOrderConfig.ResourceName);
+            if (config?.Order == null) return;
+
+            _orderTotal = config.Order.Count;
+            if (targets.Length != 1 || target == null) return;
+
+            string typeName = target.GetType().FullName;
+            for (int i = 0; i < config.Order.Count; i++)
+            {
+                if (config.Order[i] != null && config.Order[i].TypeName == typeName)
+                {
+                    _orderRank = i;
+                    break;
+                }
+            }
         }
         
         public override void OnInspectorGUI()
@@ -108,6 +141,9 @@ namespace AdvancedPS.Editor
             // Popup Layer + a shortcut into the Layers editor.
             DrawPopupLayer();
 
+            // Where this popup sits among the popups sharing its canvas + a shortcut into the Order editor.
+            DrawOrder();
+
             // Escape close behavior — grouped with the layer controls at the top.
             DrawEscapeClose();
 
@@ -115,7 +151,6 @@ namespace AdvancedPS.Editor
 
             EditorGUILayoutExtensions.DrawSectionHeader("General Settings");
             DrawBoolPropertiesInGrid();
-            DrawDeepPopupsProperty();
             EditorGUILayout.EndVertical();
 
             DrawModules();
@@ -162,7 +197,14 @@ namespace AdvancedPS.Editor
             EditorGUI.BeginChangeCheck();
             int picked = EditorGUILayout.Popup("Popup Layer", index, _layerNames);
             if (EditorGUI.EndChangeCheck() && picked >= 0)
+            {
                 _popupLayerProperty.intValue = _layerValues[picked];
+                // Keep the Order tab's per-layer grouping honest for scene-authored popups too (the prefab
+                // postprocessor only sees prefab saves).
+                RecordOrderLayer(_layerValues[picked] == 0
+                    ? PopupOrderConfigStore.UnassignedLayer
+                    : _layerNames[picked]);
+            }
             EditorGUI.showMixedValue = false;
 
             if (GUILayout.Button("Edit Layers", GUILayout.Width(100), GUILayout.ExpandHeight(true)))
@@ -180,6 +222,73 @@ namespace AdvancedPS.Editor
 
         /// <summary>Lowest set bit of a layer mask — matches the runtime's canvas tie-break for legacy multi-flag data.</summary>
         private static int LowestBit(int mask) => mask & -mask;
+
+        /// <summary>
+        /// Read-only row showing this popup type's draw order inside its canvas (front → back, from the APS Order tool)
+        /// plus a shortcut to edit it. The order is per <b>type</b>, not per instance, so there is nothing to edit here —
+        /// see <see cref="PopupOrderConfig"/>.
+        /// </summary>
+        private void DrawOrder()
+        {
+            EditorGUILayout.BeginHorizontal();
+
+            string label;
+            if (targets.Length != 1)
+                label = "—  (single popup only)";
+            else if (_orderTotal == 0)
+                label = "Not configured — show order decides";
+            else if (_orderRank < 0)
+                label = $"Not listed — behind the {_orderTotal} ordered popup{(_orderTotal == 1 ? "" : "s")}";
+            else
+                label = $"#{_orderRank + 1} of {_orderTotal}  (1 = front)";
+
+            EditorGUILayout.LabelField("Draw Order", label);
+
+            // Deep-link into this popup's own layer — that canvas is the only place its order matters.
+            if (GUILayout.Button("Edit Order", GUILayout.Width(100), GUILayout.ExpandHeight(true)))
+                PopupSystemEditor.ShowOrder(CurrentLayerName());
+            EditorGUILayout.EndHorizontal();
+        }
+
+        /// <summary>The selected popup's layer as an Order-catalog tag: the enum member name (lowest bit for legacy masks), or empty for None / a mixed selection.</summary>
+        private string CurrentLayerName()
+        {
+            if (_popupLayerProperty == null || _popupLayerProperty.hasMultipleDifferentValues)
+                return PopupOrderConfigStore.UnassignedLayer;
+
+            int mask = _popupLayerProperty.intValue;
+            if (mask == 0) return PopupOrderConfigStore.UnassignedLayer;
+
+            int index = Array.IndexOf(_layerValues, LowestBit(mask));
+            return index >= 0 ? _layerNames[index] : PopupOrderConfigStore.UnassignedLayer;
+        }
+
+        /// <summary>
+        /// Records the selected popup type(s) → layer tag in the Order catalog, so the Order tab can group by layer with no
+        /// project scan. The prefab postprocessor is the other source; a scene-authored popup has only this one. Cold path:
+        /// with no catalog asset yet nothing happens — the inspector must never create it. Deferred out of the GUI pass
+        /// because it writes and saves an asset.
+        /// </summary>
+        private void RecordOrderLayer(string layerName)
+        {
+            var typeNames = new List<string>(targets.Length);
+            for (int i = 0; i < targets.Length; i++)
+                if (targets[i] != null)
+                    typeNames.Add(targets[i].GetType().FullName);
+            if (typeNames.Count == 0) return;
+
+            EditorApplication.delayCall += () =>
+            {
+                PopupOrderConfig config = PopupOrderConfigStore.Load();
+                if (config == null) return;
+
+                bool changed = false;
+                for (int i = 0; i < typeNames.Count; i++)
+                    changed |= PopupOrderConfigStore.SetLayer(config, typeNames[i], layerName);
+                if (changed)
+                    PopupOrderConfigStore.Save(config);
+            };
+        }
 
         /// <summary>
         /// Edit-mode Preview: plays the cached show animation, holds ~1s, plays hide, then restores the exact
@@ -239,14 +348,6 @@ namespace AdvancedPS.Editor
             while (property.NextVisible(false));
         }
         
-        private void DrawDeepPopupsProperty()
-        {
-            if (_deepPopupsProperty != null)
-            {
-                EditorGUILayout.PropertyField(_deepPopupsProperty, true);
-            }
-        }
-        
         private void DrawBoolPropertiesInGrid()
         {
             // Addressable popups always initialize hidden (see IAdvancedPopup.Init) — the flag does nothing for them,
@@ -287,9 +388,14 @@ namespace AdvancedPS.Editor
         }
 
         #region Modules
+        /// <summary>Lines up extra controls with the fields inside a foldout (GUILayout buttons/labels ignore indentLevel).</summary>
+        private const float FoldoutIndent = 15f;
+
         /// <summary>
         /// Draws the interactive-modules box: a feature flag enum, plus a config block revealed only for each enabled
-        /// feature (mirrors how the key-binding block reveals its hot keys). Resize also gets a "Generate Grips" button.
+        /// feature (mirrors how the key-binding block reveals its hot keys). Extras that belong to a config — Resize's
+        /// "Generate Grips" button, Focus's explanation — live <b>inside</b> that config's foldout, so a collapsed
+        /// feature stays a single row.
         /// </summary>
         private void DrawModules()
         {
@@ -318,16 +424,39 @@ namespace AdvancedPS.Editor
                 EditorGUILayoutExtensions.DrawHorizontalLine();
                 EditorGUILayout.PropertyField(_resizeProperty, new GUIContent("Resize"), true);
 
-                EditorGUI.BeginDisabledGroup(targets.Length != 1);
-                if (GUILayout.Button("Generate Grips"))
-                    GenerateGrips();
-                EditorGUI.EndDisabledGroup();
+                // Inside the Resize foldout: it belongs to that config, and a collapsed block should stay one line.
+                if (_resizeProperty.isExpanded)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    GUILayout.Space(FoldoutIndent);
+                    EditorGUI.BeginDisabledGroup(targets.Length != 1);
+                    if (GUILayout.Button("Generate Grips"))
+                        GenerateGrips();
+                    EditorGUI.EndDisabledGroup();
+                    EditorGUILayout.EndHorizontal();
+                }
             }
 
             if ((features & PopupFeatureEnum.Closable) != 0 && _closeProperty != null)
             {
                 EditorGUILayoutExtensions.DrawHorizontalLine();
                 EditorGUILayout.PropertyField(_closeProperty, new GUIContent("Close"), true);
+            }
+
+            if ((features & PopupFeatureEnum.Focusable) != 0 && _focusProperty != null)
+            {
+                EditorGUILayoutExtensions.DrawHorizontalLine();
+                EditorGUILayout.PropertyField(_focusProperty, new GUIContent("Focus"), true);
+
+                // Same rule as Generate Grips: the explanation lives inside the foldout it explains.
+                if (_focusProperty.isExpanded)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    GUILayout.Space(FoldoutIndent);
+                    GUILayout.Label("Pressing the popup raises it above the popups it shares a position with in APS ▸ Order.",
+                        APSEditorStyles.WarpedTextStyle);
+                    EditorGUILayout.EndHorizontal();
+                }
             }
 
             EditorGUILayout.EndVertical();

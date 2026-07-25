@@ -106,6 +106,48 @@ namespace AdvancedPS.Core.Utils
             }
         }
 
+        /// <summary>
+        /// Tightens a resize max size so the grabbed edge stops <b>at</b> the bounds instead of growing past them and
+        /// having <see cref="ClampToBounds"/> shove the whole popup inward. The edge opposite the grip stays fixed, so
+        /// the room the popup may take is the gap between that edge and the bounds edge on the grabbed side. Only the
+        /// axes named by <paramref name="dir"/> are limited; the others keep their configured limit. Never returns less
+        /// than <paramref name="minSize"/> — a popup that no longer fits keeps its minimum and is pushed in instead.
+        /// </summary>
+        /// <param name="maxSize"> Configured max size (px); &lt;= 0 on an axis = unlimited. </param>
+        /// <param name="minSize"> Configured min size (px). </param>
+        /// <param name="initialAABB"> Popup AABB in canvas-local space at grab (see <see cref="GetLocalAABB"/>). </param>
+        /// <param name="initialSize"> Rect size at grab; with the AABB it gives each axis' rect → canvas scale. </param>
+        /// <param name="dir"> Grabbed edge/corner. </param>
+        /// <param name="boundsLocal"> Clamp rectangle in canvas-local space. </param>
+        /// <returns> <paramref name="maxSize"/> with the grabbed axes limited to what fits inside the bounds. </returns>
+        public static Vector2 LimitMaxSizeToBounds(Vector2 maxSize, Vector2 minSize, Rect initialAABB,
+            Vector2 initialSize, ResizeDirection dir, Rect boundsLocal)
+        {
+            if ((dir & ResizeDirection.Left) != 0)
+                maxSize.x = TightenLimit(maxSize.x, minSize.x, initialAABB.xMax - boundsLocal.xMin, initialAABB.width, initialSize.x);
+            else if ((dir & ResizeDirection.Right) != 0)
+                maxSize.x = TightenLimit(maxSize.x, minSize.x, boundsLocal.xMax - initialAABB.xMin, initialAABB.width, initialSize.x);
+
+            if ((dir & ResizeDirection.Bottom) != 0)
+                maxSize.y = TightenLimit(maxSize.y, minSize.y, initialAABB.yMax - boundsLocal.yMin, initialAABB.height, initialSize.y);
+            else if ((dir & ResizeDirection.Top) != 0)
+                maxSize.y = TightenLimit(maxSize.y, minSize.y, boundsLocal.yMax - initialAABB.yMin, initialAABB.height, initialSize.y);
+
+            return maxSize;
+        }
+
+        /// <summary> Converts the canvas-space room into rect units (AABB ÷ size ratio) and keeps the stricter limit. </summary>
+        private static float TightenLimit(float configured, float min, float roomCanvas, float aabbExtent, float sizeAtGrab)
+        {
+            if (aabbExtent <= 0f || sizeAtGrab <= 0f) return configured;
+
+            float limit = roomCanvas * (sizeAtGrab / aabbExtent);
+            if (limit < min) limit = min;
+            if (limit <= 0f) return configured;
+
+            return configured > 0f && configured < limit ? configured : limit;
+        }
+
         private static float ClampAxis(float value, float min, float max)
         {
             if (value < min) value = min;

@@ -22,7 +22,7 @@ or behavior changes, and **never bump `package.json` version without asking the 
 | Any (always) | [[Invariants]], [[Code Style]] |
 | Orientation: paths, assemblies, `folder → namespace`, defines (`HAS_NEWINPUT`/`DOTWEEN`) | [[Project Map]] |
 | The static manager, registries, lookup, layer batches, scene/play-mode cleanup | [[Core System]] |
-| Create/change a popup: `Init`/`Subscribe`/`Show`/`Hide`/`DeepPopups`/`Cmd_`/`Switch` | [[Popup Lifecycle]] |
+| Create/change a popup: `Init`/`Subscribe`/`Show`/`Hide`/`Cmd_`/`Switch`, relationships between popups | [[Popup Lifecycle]] |
 | Animations, `IDisplay`/`DisplayBase`, settings, `DisplayRegistry`, cached vs per-call | [[Displays & Animations]] |
 | A built-in display — fade | [[Display — Fade]] |
 | A built-in display — scale (the default) | [[Display — Scale]] |
@@ -32,6 +32,7 @@ or behavior changes, and **never bump `package.json` version without asking the 
 | Drag/resize a popup, `Modules`/`PopupFeatureEnum`, pointer system, grips, bounds/anchors, new interactive feature | [[Interaction Modules]] |
 | `Operation`, `OnComplete`/`Cancel`, `CancellationToken` flow, `APSStats` | [[Operations & Cancellation]] |
 | Layers, `PopupLayerEnum`, `ActiveLayer`, autohide | [[Layers]] |
+| Who is drawn above whom inside a canvas: the Order catalog, `ApplyOrder`/`BringToFront`, `Focusable` | [[Hierarchy Order]] |
 | On-demand loading: Addressables, lazy/preload, `SpawnAsync`/pool, the resolver seam & index asset | [[Addressables]] |
 | Input backends (New vs Old), pointer polling, input-module switch, why APS reads no keys | [[Input Backends]] |
 | Settings, `AP_Settings.json`, log levels / `APLogger` | [[Settings & Logging]] |

@@ -49,7 +49,7 @@ The rules behind the table — they keep lazy loading working:
 - **Don't bulk-preload layers to make sync access work.** Preload is a per-popup startup-UX hint, not a way to avoid
   the async path ([§9.3](#93-preload--unload-per-scene)).
 
-For which calls load and which don't, see the cheat sheet in [§9.6](#96-what-loads-and-what-doesnt--cheat-sheet).
+For which calls load and which don't, see the cheat sheet in [§9.7](#97-what-loads-and-what-doesnt--cheat-sheet).
 
 ---
 
@@ -95,7 +95,7 @@ For which calls load and which don't, see the cheat sheet in [§9.6](#96-what-lo
 Fastest path: **`GameObject ▸ UI ▸ Advanced Popup`** — creates a stretched popup under a `Canvas` (making the Canvas if
 needed) with an `AdvancedPopup` already attached. Manually: under your UI `Canvas`, add an empty GameObject (e.g.
 `SettingsPopup`), then your visuals and buttons as children. To add a close button, link it under **Modules ▸ Close**
-(tick `Closable`) — see [§6.4](#64-modules-drag-resize--close).
+(tick `Closable`) — see [§6.4](#64-modules-drag-resize-close--focus).
 
 > [!NOTE]
 > `RectTransform` and `CanvasGroup` are required, but APS **adds them automatically** during `Init()` if missing.
@@ -146,12 +146,12 @@ the default **Scale** transition ([§4](#4-animations--custom-transitions) to pi
 | Field | Meaning |
 | :--- | :--- |
 | **Popup Layer** | The single layer this popup belongs to (used by `LayerShow` / `LayerHide`; each layer routes to its own canvas — [§9.5](#95-where-loaded-popups-live--canvas-per-layer)). `None` keeps it out of layer control. |
-| **Modules** | Optional per-popup features — **Draggable**, **Resizable**, **Closable** ([§6.4](#64-modules-drag-resize--close)). |
+| **Modules** | Optional per-popup features — **Draggable**, **Resizable**, **Closable**, **Focusable** ([§6.4](#64-modules-drag-resize-close--focus)). |
+| **Draw Order** | Read-only: where this popup type sits among the popups sharing its canvas. Edit it in `APS ▸ Order` ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)). |
 | **Auto Hide On Init** | Keep `true` so the popup starts hidden. Set `false` only for UI shown immediately on scene start. |
 | **Manual Init** | Keep `false` for scene popups. Set `true` to instantiate at runtime and call `Init()` yourself. Ignored for **Addressable** popups (they always auto-init). |
 | **Inactive** | `true` prevents the popup from ever showing (a hard gate on `Show`). |
 | **Escape Policy** | How the popup takes part in the escape close stack: `Hide`, `Ignore`, or `Block` ([§6.2](#62-escape-close-stack)). |
-| **Deep Popups** | Child/dependent popups that mirror this popup's show/hide ([§6.1](#61-deep-popups)). |
 
 The **Preview** button at the top of the inspector plays the popup's show animation, holds it visible for a second,
 plays the hide animation, and then restores the exact pre-preview state — all without entering play mode and without
@@ -536,7 +536,7 @@ public override void Init()
 
 ## 5. The APS Editor Window
 
-Open from the top **`APS`** menu — one window, three tabs:
+Open from the top **`APS`** menu — one window, four tabs:
 
 - **`APS ▸ Layers`** — add / rename / delete `PopupLayerEnum` flags, and set each layer's canvas + sort order
   ([§9.5](#95-where-loaded-popups-live--canvas-per-layer)). Editing is behind a **Customization** toggle (locked by
@@ -547,23 +547,41 @@ Open from the top **`APS`** menu — one window, three tabs:
   turning on Customization offers to **embed** the package first. Don't hand-edit the generated file — edits are
   overwritten. (If your own code is in a separate assembly definition, reference `AdvancedPS.Generated.Layers` to see
   `PopupLayerEnum`.)
+- **`APS ▸ Order`** — drag popup types up and down to decide **which one is drawn in front** when several share a canvas
+  ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)). Filtered by layer, since that is the canvas boundary —
+  each layer row in the Layers tab has an **Order** button that jumps straight to its list; the one at the top wins.
 - **`APS ▸ Displays`** — add a display: APS generates `<Name>Display/<Name>Display.generated.cs` +
   `<Name>Settings.generated.cs` with ready-to-fill stubs into `Assets/AdvancedPopupSystem/Generated/Displays/` (built-in
   displays are listed read-only). Generation never overwrites an existing display; delete removes the pair. The
   `Display` / `Settings` suffixes and folder name are required by the tooling — keep them.
-- **`APS ▸ Settings`** — see [§7](#7-settings--logging).
+- **`APS ▸ Settings`** — see [§7](#7-settings--logging). With the Addressables integration installed it also holds
+  **Regenerate Addressable Index**, which rescans the project and rebuilds the popup group + index (prefab saves keep it
+  in sync on their own — use it after a bulk import or if the index ever looks stale).
 
-Both Layers and Displays have an **Auto-Save** toggle; with it off, use the **Save** button to apply changes.
+Layers, Order and Displays share an **Auto-Save** toggle; with it off, use the **Save** button to apply changes.
 
 ---
 
 ## 6. Advanced Configuration
 
-### 6.1 Deep popups
+### 6.1 Screens made of several popups
 
-Add child/dependent popups to a parent's **Deep Popups** list. When the parent shows or hides, the operation propagates
-to each deep popup, all animations run **in parallel**, and the parent's `ShowAsync` / `HideAsync` resolves only after
-**all** child animations complete. Cycles are safe — APS traverses with a visited-set DFS (`ContainsDeepPopup`).
+A screen is a **layer**, not a parent popup with children: give the pieces the same **Popup Layer** and one
+`LayerShow(layer)` shows them all, each with its own animation, resolving when the last one finishes. They share that
+layer's canvas and sort order ([§9.5](#95-where-loaded-popups-live--canvas-per-layer)), their front-to-back order comes
+from `APS ▸ Order` ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)), and one **back** can close the whole
+screen ([§6.2](#62-escape-close-stack)).
+
+For a popup that must not outlive another one — a detail pane bound to a screen — one line does it, and it stays correct
+when the dependent popup is lazy-loaded (`Hide<T>` never loads and no-ops when it isn't resident):
+
+```csharp
+inventory.OnHided += () => AdvancedPopupSystem.Hide<ItemDetailsPopup>();
+```
+
+> **Removed in 2.2.0:** the **Deep Popups** list. It bundled three unrelated things — composing a screen (that's a layer),
+> lifetime dependency (the line above) and escape grouping (now a layer setting) — and, being a list of hard references,
+> it could not point at a lazily loaded popup at all.
 
 ### 6.2 Escape close stack
 
@@ -588,7 +606,7 @@ inspector field on every popup, freely settable from code at runtime):
 
 | Escape Policy | Behavior |
 | :--- | :--- |
-| `Hide` | The popup closes (with its deep popups) and the step is consumed. |
+| `Hide` | The popup closes — or its whole layer, if that layer is set to close as one — and the step is consumed. |
 | `Ignore` (default) | The popup is transparent — the step falls through to the popup shown before it. |
 | `Block` | The step is consumed but nothing closes — for modal dialogs that must not be escaped. |
 
@@ -603,7 +621,7 @@ stops at it:
 | :--- | :--- |
 | `AddToEscapeStack(popup)` | Makes the popup participate — `Hide` by default, pass `EscapePolicyEnum.Block` for a modal. Does **not** show it. |
 | `RemoveFromEscapeStack(popup)` | Makes the popup transparent again (`Ignore`). Does **not** hide it. |
-| `IsInEscapeStack(popup)` | Whether it is in the stack right now (visible, not cascaded, not `Ignore`). |
+| `IsInEscapeStack(popup)` | Whether it is in the stack right now (visible and not `Ignore`). |
 | `PeekEscapeStack()` | The popup the next `EscapeStep()` would reach, or `null` when the stack is empty. |
 | `GetEscapeStack(buffer)` | Fills your `List<IAdvancedPopup>` top-first and returns the count — reuse one list to stay allocation-free. |
 
@@ -615,9 +633,12 @@ AdvancedPopupSystem.AddToEscapeStack(confirm, EscapePolicyEnum.Block);  // modal
 _backButton.gameObject.SetActive(AdvancedPopupSystem.PeekEscapeStack() != null);
 ```
 
-**Grouping.** Popups shown by their parent's cascade (via **Deep Popups**) don't get their own step — closing the parent
-hides the whole group at once. A deep popup you later show **individually** (a nested dialog on top of its parent) gets
-its own step: it closes first, then its parent.
+**Closing a whole screen with one back.** A screen built from several popups would otherwise need one press per popup.
+Tick **Back closes all popups** on that layer in `APS ▸ Layers`: when a step reaches any of its popups, the entire layer
+closes at once (and the layer stops counting as active). The grouping is a property of the layer, so a popup always
+behaves the same way no matter what opened it. Leave the toggle off for layers whose popups should close one at a time.
+Like every layer call, this closes the layer's own popups — copies made with `SpawnAsync` are yours to `Despawn`
+([§9.4](#94-spawn-many-copies-toasts-list-rows)). A `Block` popup above still stops the step, grouping or not.
 
 Notes:
 
@@ -639,11 +660,11 @@ This applies only to popups you instantiate yourself. For loading popups from **
 pooled copies, see [§9](#9-on-demand-loading-with-addressables) — those auto-initialize on load, so **Manual Init** does
 not apply to them.
 
-### 6.4 Modules (drag, resize & close)
+### 6.4 Modules (drag, resize, close & focus)
 
 A popup's inspector has a **Modules** box with a `Features` flag field: tick a feature and its config block appears
-below. Features are **data on the popup**, not extra components. Three are built in — **Draggable**, **Resizable**,
-**Closable**.
+below. Features are **data on the popup**, not extra components. Four are built in — **Draggable**, **Resizable**,
+**Closable**, **Focusable**.
 
 **Draggable** and **Resizable** are runtime **pointer interactions**: a single central pointer system drives every
 popup (nothing is added to the scene at runtime), works with both input backends, and both **clamp the popup to a bounds
@@ -663,7 +684,10 @@ simpler — a button that hides the popup.
   8-handle set under a dedicated `[Grips]` child (added last so it sits on top); then move/scale them to taste. Grips are
   plain RectTransforms — add your own `Image` to make them visible in play mode.
 - **Min Size / Max Size** — size limits in px (0 on an axis = unlimited).
-- **Bounds / Custom Bounds / Padding** — same clamping options as drag.
+- **Bounds / Custom Bounds / Padding** — same clamping options as drag. The bounds limit the **size**, not just the
+  final position: the grabbed edge stops right at the bounds edge, so a resize can never grow the popup off-screen or
+  shove its opposite edge inward. **Min Size** wins over the bounds — a popup that no longer fits keeps its minimum and
+  is pushed inside instead.
 - **Change Cursor** — while the pointer is over a grip, the OS cursor switches to a directional arrow (↔ / ↕ for edges,
   ╲ / ╱ for corners). Untick to turn the feedback off for this popup.
 - **Cursors** — leave empty for the built-in arrows, or assign a `ResizeCursorSet` to re-skin them (create one via
@@ -679,6 +703,15 @@ Resizing keeps the edge opposite the grabbed grip fixed and honors the pivot; it
 
 - **Close Button** — a `Button` that hides the popup when clicked (APS calls `Hide()` for you). Wired only while the
   popup is shown and unwired on hide, so it never fires on a hidden popup. Leave empty for none.
+
+**Focusable** (`Modules ▸ Focus`) — click-to-front, like a desktop window:
+
+- **Focus Zone** — the RectTransform a press must land in to raise the popup (e.g. a title bar). Leave empty to raise it
+  by pressing anywhere on the popup.
+- The press is **never consumed** — buttons, drag and resize still get it, so Focusable combines freely with the others.
+- The popup rises **within its slot** in `APS ▸ Order`, never above a popup you ordered in front of it
+  ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)), and becomes the topmost popup for **back** and for
+  pointer input too.
 
 **Extending.** The pointer features (drag/resize) are each a stateless `IPopupFeatureHandler` resolved by flag from
 `PopupFeatureRegistry`. Register your own to add or override behavior:
@@ -732,6 +765,12 @@ drawn on top; the topmost popup under the pointer wins.
   - Check each popup's **Popup Layer** in the Inspector — one layer per popup.
   - `LayerShow(..., autohide: true)` hides all other layers; use `autohide: false` to overlay.
   - Mixing manual `Show()/Hide()` with layer calls can desync `ActiveLayer` from what's actually visible.
+
+- **A popup opens behind another one**
+  - Same canvas? Drag it above the other in **`APS ▸ Order`** ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)) —
+    unordered popups only follow show order.
+  - Different layers? Then their canvases decide: raise that layer's **Sorting Order** in `APS ▸ Layers`.
+  - Placed in a scene by hand? APS leaves your scene hierarchy alone — move the popup down among its siblings yourself.
 
 - **DOTween display missing** — `DoTweenDisplay` compiles only when DOTween is installed (behind the `DOTWEEN` define).
 
@@ -899,7 +938,53 @@ AdvancedPopupSystem.UnregisterLayerCanvas(PopupLayerEnum.MENU); // back to the t
 > The manual `Instantiate` + `Init()` pattern in [§6.3](#63-instantiating-popups-at-runtime) still works for popups you
 > load yourself without Addressables.
 
-### 9.6 What loads and what doesn't — cheat sheet
+### 9.6 Which popup is in front — order inside a canvas
+
+The Layers tab decides **which canvas** a popup lands on and that canvas's sorting order, so popups of different layers
+never fight. Inside one canvas the order is Unity's hierarchy order — and APS assigns it from a catalog you author in
+**`APS ▸ Order`**: drag a popup type up to draw it in front of the others, down to put it behind them.
+
+- **One layer at a time.** Popups only compete on their own layer's canvas, so the list is filtered by layer — and every
+  row in **`APS ▸ Layers`** has a small **Order** button that opens exactly that layer's list (the popup inspector's
+  **Edit Order** button does the same for its own layer). The grouping keeps itself current: APS tags a popup's layer when
+  you set it in the inspector and when its prefab is saved, and opening the tab re-reads the project's popup prefabs
+  whenever any prefab changed since the last look — nothing to press.
+- **The catalog is per popup *type*, not per instance.** Every popup type in the project is listed; the position is
+  stored in `Assets/Resources/APS_PopupOrderConfig.asset` (your project, not the package — updates never clobber it).
+  Arranging one layer never disturbs another: a drag rearranges those popups within the slots they already hold.
+- **Popups you don't order keep show order** — the last one shown is on top, which is what you usually want. New popup
+  types join at the bottom of the list, so adding a popup never pushes it in front of what you already arranged.
+- **Order is (re)applied on every show**, not once at load: reopening a popup lifts it to its place instead of leaving it
+  wherever it happened to be created. That's the fix for "the popup that loaded first is stuck behind the one that loaded
+  later, even though I opened it last".
+- **Same position = show order.** Two popups sharing a slot (or both unordered) stack in the order they were shown.
+
+Typical use: pin a loading overlay and a confirm dialog above everything on their canvas, and leave the rest unordered.
+
+**In code.** The order also has a runtime side, for window-like UI:
+
+```csharp
+AdvancedPopupSystem.BringToFront(popup);   // top of its slot in the catalog, and top of the escape/pointer stack
+AdvancedPopupSystem.SendToBack(popup);     // behind its equals, and last to receive "back"
+AdvancedPopupSystem.ApplyOrder(popup);     // re-apply the catalog order — only needed after re-parenting by hand
+```
+
+`BringToFront` / `SendToBack` move the popup **within** its catalog slot: a popup you ordered behind a loading overlay
+can never jump in front of it, however often it is clicked. Both also move the popup in the escape / pointer stack, so
+"topmost" means the same thing to your eyes, to **back**, and to drag & resize.
+
+**Raise on click.** Tick **Focusable** in the popup's Modules box and APS calls `BringToFront` for you when the popup is
+pressed — window-manager behavior for draggable panels ([§6.4](#64-modules-drag-resize-close--focus)).
+
+**Scope.** Only canvases APS parents popups to are ordered: `Root`, the per-layer canvases, and any canvas you map with
+`RegisterLayerCanvas`. A popup you placed in a scene keeps the hierarchy you gave it — APS never rearranges your scene.
+Ordering a canvas sorts all of its popups at once, so the result never depends on which popup happened to be created
+first — even for a scene canvas you handed to `RegisterLayerCanvas` with popups already under it. (Route two layers to
+one canvas and their lists are independent: popups sharing a position there fall back to show order.)
+Non-popup children of an APS canvas (decorations authored into a canvas prefab) count as "behind everything", so popups
+draw above them; put decoration that must stay on top on a canvas with a higher **Sorting Order**.
+
+### 9.7 What loads and what doesn't — cheat sheet
 
 The whole lazy model hangs on knowing which calls load:
 
@@ -939,7 +1024,7 @@ if (AdvancedPopupSystem.TryGetPopup<ShopPopup>(out var shop))
 
 **Symptom:** the popup **never opens**, and there are no errors — the `if` just silently falls through.
 
-`TryGetPopup` never loads ([§9.6](#96-what-loads-and-what-doesnt--cheat-sheet)). For a lazy popup that hasn't been loaded,
+`TryGetPopup` never loads ([§9.7](#97-what-loads-and-what-doesnt--cheat-sheet)). For a lazy popup that hasn't been loaded,
 the miss is the *expected* state — so an open path built on `TryGetPopup` works only if something else happened to load
 the popup earlier. Primary opens go through `Show<T>()` (or `GetPopupAsync<T>`); `TryGetPopup` is for **secondary**
 operations on a popup that is already there ([§0](#0-the-consumer-contract-start-here)).

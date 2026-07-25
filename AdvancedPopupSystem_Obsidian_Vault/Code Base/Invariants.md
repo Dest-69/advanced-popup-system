@@ -105,7 +105,8 @@ Do not break these. Deviation only after explicit agreement in the current task.
 ## Packaging & non-destructive updates
 
 - **Consumer state lives outside the package** so an update (UPM or `.unitypackage`) never clobbers it: settings in
-  `Assets/Resources/AP_Settings.json`, layer store in `ProjectSettings/APS_Layers.json`, canvas config + Addressable
+  `Assets/Resources/AP_Settings.json`, layer store in `ProjectSettings/APS_Layers.json`, canvas config + popup order
+  catalog ([[Hierarchy Order]]) + Addressable
   index in `Assets/Resources/`, the **default canvas prefab** `Assets/AdvancedPopupSystem/APS_DefaultCanvas.prefab`, and
   **custom displays** under `Assets/AdvancedPopupSystem/Generated/Displays/`. Do not
   move any of these into the package; new consumer-editable state must follow the same rule. (The layer **enum** is the

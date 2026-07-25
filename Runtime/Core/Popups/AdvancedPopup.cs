@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AdvancedPS.Core.System;
@@ -63,7 +62,6 @@ namespace AdvancedPS.Core
             if (closeButton) closeButton.onClick.RemoveListener(OnCloseButtonPress);
             OnHided?.Invoke();
 
-            ShownByCascade = false;
             AdvancedPopupSystem.ActivePopups.Remove(this);
         }
         #endregion
@@ -149,20 +147,14 @@ namespace AdvancedPS.Core
             {
                 gameObject.SetActive(true);
 
+                // Claim the sibling slot the Order catalog gives this popup inside its canvas — a show, not the load
+                // that happened at some point in the past, is what decides who is in front (see
+                // AdvancedPopupSystem.ApplyOrder). No-op outside an APS-routed canvas.
+                AdvancedPopupSystem.ApplyOrder(this);
+
                 Subscribe();
 
-                List<Task> tasks = new List<Task>
-                {
-                    cachedShowDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings, token)
-                };
-                foreach (IAdvancedPopup deepPopup in DeepPopups)
-                {
-                    MarkCascadeShow(deepPopup);
-                    tasks.Add(deepPopup.ShowAsync(token));
-                }
-
-                if (tasks.Count > 0)
-                    await Task.WhenAll(tasks);
+                await cachedShowDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings, token);
             }
             finally
             {
@@ -208,21 +200,13 @@ namespace AdvancedPS.Core
             {
                 gameObject.SetActive(true);
 
+                // Same as the cached-display path: the show claims this popup's ordered slot in its canvas.
+                AdvancedPopupSystem.ApplyOrder(this);
+
                 Subscribe();
 
-                List<Task> tasks = new List<Task>();
-
                 IDisplay popupDisplay = DisplayRegistry.Get<T>();
-                tasks.Add(popupDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings as IDisplaySettings<T>, token));
-
-                foreach (IAdvancedPopup deepPopup in DeepPopups)
-                {
-                    MarkCascadeShow(deepPopup);
-                    tasks.Add(deepPopup.ShowAsync<T>(token));
-                }
-
-                if (tasks.Count > 0)
-                    await Task.WhenAll(tasks);
+                await popupDisplay.ShowMethod(RootTransform, settings ??= CachedShowSettings as IDisplaySettings<T>, token);
             }
             finally
             {
@@ -236,17 +220,6 @@ namespace AdvancedPS.Core
             }
 
             IsVisible = true;
-        }
-
-        /// <summary>
-        /// Marks a deep popup whose show is about to start as part of this popup's cascade, so the escape
-        /// stack treats the group as one step (see AdvancedPopupSystem.EscapeStep). Popups already visible
-        /// (shown independently before) keep their own stack entry.
-        /// </summary>
-        private static void MarkCascadeShow(IAdvancedPopup deepPopup)
-        {
-            if (deepPopup != null && !deepPopup.Inactive && !deepPopup.IsBeVisible)
-                deepPopup.ShownByCascade = true;
         }
         #endregion
 
@@ -288,16 +261,7 @@ namespace AdvancedPS.Core
             {
                 Unsubscribe();
 
-                List<Task> tasks = new List<Task>
-                {
-                    cachedHideDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings, token)
-                };
-
-                foreach (IAdvancedPopup deepPopup in DeepPopups)
-                    tasks.Add(deepPopup.HideAsync(token));
-
-                if (tasks.Count > 0)
-                    await Task.WhenAll(tasks);
+                await cachedHideDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings, token);
             }
             finally
             {
@@ -351,16 +315,8 @@ namespace AdvancedPS.Core
             {
                 Unsubscribe();
 
-                List<Task> tasks = new List<Task>();
-
                 IDisplay popupDisplay = DisplayRegistry.Get<T>();
-                tasks.Add(popupDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings as IDisplaySettings<T>, token));
-
-                foreach (IAdvancedPopup deepPopup in DeepPopups)
-                    tasks.Add(deepPopup.HideAsync<T>(token));
-
-                if (tasks.Count > 0)
-                    await Task.WhenAll(tasks);
+                await popupDisplay.HideMethod(RootTransform, settings ??= CachedHideSettings as IDisplaySettings<T>, token);
             }
             finally
             {

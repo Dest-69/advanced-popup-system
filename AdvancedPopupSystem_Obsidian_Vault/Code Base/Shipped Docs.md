@@ -22,7 +22,7 @@ They are a **separate artifact** from this vault — no wiki-links, no `code_pat
   `AdvancedPopup<TData>`/`Bind` → configure callback → manual `Operation`), animations & custom displays, advanced
   config, troubleshooting, Addressables (§9, with the §9.6 what-loads cheat sheet), and pitfalls/anti-patterns with
   symptoms (§10 — from real consumer incidents).
-- **`CHANGELOG.md`** — versioned history (current `2.0.1`). **User-gated** — don't add entries or bump on your own.
+- **`CHANGELOG.md`** — versioned history (current `2.1.1`). **User-gated** — don't add entries or bump on your own.
 - **`package.json`** — UPM manifest: `version`, `unity` min, `dependencies` (Newtonsoft). **Never bump without
   asking** ([[Invariants]]).
 - **`LICENSE.md`**, `.github/FUNDING.yml` — legal/funding.

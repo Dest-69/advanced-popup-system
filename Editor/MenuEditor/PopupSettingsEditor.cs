@@ -70,6 +70,27 @@ namespace AdvancedPS.Editor
                 SaveSettings();
             }
             GUILayout.EndHorizontal();
+
+            DrawMaintenance();
+        }
+
+        /// <summary>
+        /// Actions that rebuild APS data on demand. Everything an optional integration contributes comes through the
+        /// <see cref="APSEditorTools"/> seam, so a project without that integration shows nothing here instead of a
+        /// button that can't work.
+        /// </summary>
+        private static void DrawMaintenance()
+        {
+            if (APSEditorTools.RegenerateAddressableIndex == null) return;
+
+            GUILayout.Space(10);
+            EditorGUILayoutExtensions.DrawHorizontalLine();
+            GUILayout.Label("Maintenance", EditorStyles.miniLabel);
+
+            if (GUILayout.Button(new GUIContent("Regenerate Addressable Index",
+                    "Rescans every prefab in the project and rebuilds the Addressable popup group + index. " +
+                    "Prefab saves keep it in sync on their own — use this after a bulk import or if the index looks stale.")))
+                APSEditorTools.RegenerateAddressableIndex.Invoke();
         }
 
         private static void SaveSettings()

@@ -152,14 +152,32 @@ destroys them on exit like `APS_Root`) and dead mappings are pruned on scene unl
   those popups take the tool config (or `Root`). Register in `BeforeSceneLoad` (or before `PreloadAll`) if a preloaded
   popup must start on a specific *runtime-registered* canvas.
 
+**Order inside the canvas** is the second axis, in region `HIERARCHY ORDER` (`ApplyOrder`/`BringToFront`/`SendToBack` over
+sibling index, gated to routed canvases by `IsRoutedCanvas`, plus the `ActivePopups` `Restack` that keeps "topmost"
+consistent for `EscapeStep` and the pointer walk) — see [[Hierarchy Order]].
+
 ## Escape stack step
 
 `EscapeStep()` — one step of escape-close. Walks `ActivePopups` **from the end**: the list is a recency stack for free
 (`Subscribe` appends at show-start, `Unsubscribe` removes at hide-start — self-cleaning; no separate static stack, so
-no new leak guards). `IsEscapeCandidate` skips `null`/`!IsBeVisible` (also shields the known cancel-rollback gap) and
-`ShownByCascade` popups (cascade groups are represented by their root — [[Popup Lifecycle]]). First relevant popup's
-`EscapePolicy`: `Hide` → `popup.Hide()` + consumed; `Block` → consumed without closing (modal); `Ignore` → keep walking.
-`LayerShow` batches get one step per popup (no layer grouping in v1 — group via DeepPopups instead).
+no new leak guards). `IsEscapeCandidate` skips `null`/`!IsBeVisible` (also shields the known cancel-rollback gap).
+First relevant popup's `EscapePolicy`: `Hide` → close + consumed; `Block` → consumed without closing (modal); `Ignore` →
+keep walking.
+
+**Layer grouping (2.2.0, replaces the DeepPopups cascade).** On a `Hide` step, `TryGetEscapeGroupLayer` reads the popup's
+layer entry in `LayerCanvasConfig` ([[Layers]]): with `EscapeClosesLayer` set the step runs `LayerHide(layer)` — one press
+closes the whole screen — otherwise just `popup.Hide()`. Three reasons it lives on the **layer** and not on a
+parent-authored list ([[Popup Lifecycle]] "Popup relationships"): it is a *stable* property (the old flag made the same
+popup behave differently depending on who opened it), it needs no references so it works with lazily loaded popups, and
+`LayerHide` also clears `ActiveLayer` — the cascade close never did, leaving the system thinking a closed screen was still
+active. Legacy multi-flag layer data resolves to the lowest bit, matching the canvas tie-break.
+
+- **Gotcha:** a grouped step inherits `LayerHide` semantics, so it closes **Lane-A** popups of the layer only — a Lane-B
+  `SpawnAsync` copy on that layer stays open (it is not in `AllPopups`; `HideAll` is the call that snapshots
+  `ActivePopups` and reaches both lanes — [[Addressables]]).
+- **Verification note:** the decision (`LayerHide` vs `popup.Hide()`) is testable in edit mode — `ActiveLayer` clears
+  synchronously — but the fan-out that follows is not: `HidePopupsAsync` opens with `TaskUtils.OperationCancelled(token)`,
+  which counts edit mode as cancelled. Judge the group close in play mode.
 
 **APS drives no input of its own (user call, 2026-07-25).** The consumer calls `EscapeStep()` from whatever means
 "back". The key-driven overload `EscapeStep(Predicate<KeyCode>)`, `MatchesCloseKey`, the per-popup `CloseKey` and the
@@ -167,7 +185,7 @@ no new leak guards). `IsEscapeCandidate` skips `null`/`!IsBeVisible` (also shiel
 drop, which existed only to stop a key bound to a background popup closing it from under the popup on screen (with no
 keys there is nothing to mismatch). History and the don't-reintroduce rule: [[Input Backends]].
 
-**The stack is derived, not stored** — membership is `visible ∧ ¬ShownByCascade ∧ EscapePolicy != Ignore`. Hence the
+**The stack is derived, not stored** — membership is `visible ∧ EscapePolicy != Ignore`. Hence the
 public API mutates the **policy** rather than a list: `AddToEscapeStack(popup, policy = Hide)` /
 `RemoveFromEscapeStack(popup)` — neither shows nor hides, because position is show order and belongs to the popup's
 visibility. Read side: `IsInEscapeStack`, `PeekEscapeStack` (who owns the next step — drives a Back button's

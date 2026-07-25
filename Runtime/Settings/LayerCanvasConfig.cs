@@ -5,13 +5,15 @@ using UnityEngine;
 namespace AdvancedPS.Core
 {
     /// <summary>
-    /// Per-layer canvas routing configured from the APS <b>Layers</b> tool. For every layer it holds a
+    /// Per-layer settings configured from the APS <b>Layers</b> tool. For every layer it holds a
     /// <see cref="Entry.SortingOrder"/> and a <see cref="Entry.CanvasPrefab"/> (kept set by the Layers panel, which
     /// seeds it with the consumer's default canvas — a cleared prefab still falls back to an auto-created overlay); at runtime
     /// <see cref="AdvancedPopupSystem.GetCanvasForLayer"/> uses this to give each layer its own canvas (the assigned
     /// prefab, or an auto-created default) at that sort order, so system-instantiated popups (Addressable loads /
     /// <see cref="AdvancedPopupSystem.SpawnAsync{T}"/>) of different layers land on independent canvases instead of the
-    /// shared <see cref="AdvancedPopupSystem.Root"/>.
+    /// shared <see cref="AdvancedPopupSystem.Root"/>. It also carries <see cref="Entry.EscapeClosesLayer"/>, which lets
+    /// <see cref="AdvancedPopupSystem.EscapeStep"/> treat the layer as one screen. (The type keeps its canvas-era name so
+    /// existing <c>APS_LayerCanvasConfig</c> assets in consumer projects keep resolving.)
     /// <para>
     /// The single asset lives in the consumer's <c>Assets/Resources/APS_LayerCanvasConfig.asset</c> — <b>outside</b> the
     /// package, so a <c>.unitypackage</c> update never clobbers it (the same rule as <c>AP_Settings.json</c>). It is
@@ -39,6 +41,10 @@ namespace AdvancedPS.Core
                      "set (seeded with APS_DefaultCanvas). If it is ever cleared, the system auto-creates a plain " +
                      "overlay canvas at SortingOrder as a fallback.")]
             public Canvas CanvasPrefab;
+
+            [Tooltip("Treat this layer as one screen for the escape stack: a single \"back\" closes every visible popup " +
+                     "of the layer instead of one popup per press. Leave off for layers whose popups close one by one.")]
+            public bool EscapeClosesLayer;
         }
 
         [Tooltip("One entry per layer. Managed by the APS Layers panel.")]

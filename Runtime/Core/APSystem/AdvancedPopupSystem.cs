@@ -101,9 +101,10 @@ namespace AdvancedPS.Core
                 // The runtime APS_Root GameObject is destroyed by Unity on play-mode exit; drop the reference so a
                 // fresh one is created next play (new static state → same leak-guard treatment, see Invariants).
                 _root = null;
-                // Drop the cached config assets so play-mode edits to APS_LayerCanvasConfig / the Addressable index
-                // are picked up next run.
+                // Drop the cached config assets so play-mode edits to APS_LayerCanvasConfig / APS_PopupOrderConfig /
+                // the Addressable index are picked up next run.
                 LayerCanvasConfig.ClearCache();
+                PopupOrderConfig.ClearCache();
                 AddressablePopupIndexAsset.ClearCache();
             }
         }
@@ -331,6 +332,154 @@ namespace AdvancedPS.Core
         }
         #endregion
 
+        #region HIERARCHY ORDER
+        /// <summary>
+        /// Order <paramref name="popup"/>'s canvas by the <see cref="PopupOrderConfig"/> catalog, so the popups listed
+        /// front-most in the APS <b>Order</b> tool are drawn above the rest of that canvas (this popup taking the front of
+        /// its own band). Called automatically when APS shows a popup and when it loads / spawns / re-parents one — call it
+        /// yourself only after re-parenting a popup by hand.
+        /// <para>
+        /// Popups of the same rank (and every type the catalog does not list) keep <b>show order</b> — the one shown last
+        /// is on top. Between layers nothing changes: each layer has its own canvas and <c>sortingOrder</c>
+        /// (<see cref="GetCanvasForLayer"/>), and this only orders siblings within one of them.
+        /// </para>
+        /// </summary>
+        public static void ApplyOrder(IAdvancedPopup popup)
+        {
+            Place(popup, true);
+        }
+
+        /// <summary>
+        /// Raise <paramref name="popup"/> to the front of its rank band — above its equals, still below anything the
+        /// Order catalog ranks in front of it. It also becomes the top of the recency stack, so the pointer system and
+        /// <see cref="EscapeStep"/> agree with what is visually on top. No-op for a popup outside an APS-routed canvas.
+        /// </summary>
+        public static void BringToFront(IAdvancedPopup popup)
+        {
+            Place(popup, true);
+            Restack(popup, true);
+        }
+
+        /// <summary>
+        /// Push <paramref name="popup"/> behind its equals (still in front of lower-ranked popups) and to the bottom of
+        /// the recency stack, so escape / pointer input reach it last. No-op for a popup outside an APS-routed canvas.
+        /// </summary>
+        public static void SendToBack(IAdvancedPopup popup)
+        {
+            Place(popup, false);
+            Restack(popup, false);
+        }
+
+        /// <summary>
+        /// Re-sorts the whole canvas by order rank and gives <paramref name="popup"/> the front (<paramref name="front"/>)
+        /// or back edge of its own band. Ordering is applied only inside canvases APS routes popups to —
+        /// <see cref="Root"/>, the per-layer canvases and any canvas mapped through <see cref="RegisterLayerCanvas"/> —
+        /// so a scene-authored hierarchy is never rearranged behind the author's back.
+        /// </summary>
+        private static void Place(IAdvancedPopup popup, bool front)
+        {
+            if (popup == null) return;
+            Transform self = popup.transform;
+            Transform parent = self.parent;
+            if (parent == null || !IsRoutedCanvas(parent)) return;
+
+            // Sort the WHOLE canvas rather than inserting this one popup: a single insertion lands correctly only when
+            // the existing children are already ordered, which a canvas APS did not build itself can't be assumed to be
+            // (a scene canvas handed to RegisterLayerCanvas with popups already under it, a hand-made SetSiblingIndex).
+            // Sorting makes the outcome independent of the order the children arrived in — the point of the feature.
+            _orderScratch.Clear();
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                Transform child = parent.GetChild(i);
+                // The popup being placed claims the front/back edge of its band; the others keep show order.
+                int index = child == self ? (front ? int.MaxValue : int.MinValue) : i;
+                _orderScratch.Add(new OrderSortKey(child, RankOf(child), index));
+            }
+
+            _orderScratch.Sort(OrderComparison);
+
+            // Ascending target order: each SetSiblingIndex only shifts children after the slot just filled, so the
+            // already-placed prefix stays valid and an equal index means "already there" (no needless hierarchy event).
+            for (int i = 0; i < _orderScratch.Count; i++)
+            {
+                Transform child = _orderScratch[i].Child;
+                if (child.GetSiblingIndex() != i)
+                    child.SetSiblingIndex(i);
+            }
+
+            // Never hold Transform references between calls (static-state rule, see Invariants).
+            _orderScratch.Clear();
+        }
+
+        /// <summary> Scratch reused by <see cref="Place"/>, so ordering a canvas allocates nothing per show. </summary>
+        private static readonly List<OrderSortKey> _orderScratch = new List<OrderSortKey>();
+
+        /// <summary> Sort key for <see cref="Place"/>: order rank + the child's current index as the stability tiebreaker. </summary>
+        private readonly struct OrderSortKey
+        {
+            public readonly Transform Child;
+            public readonly int Rank;
+            public readonly int Index;
+
+            public OrderSortKey(Transform child, int rank, int index)
+            {
+                Child = child;
+                Rank = rank;
+                Index = index;
+            }
+        }
+
+        // Cached so Place doesn't allocate a delegate per call.
+        private static readonly Comparison<OrderSortKey> OrderComparison = (a, b) =>
+        {
+            // Higher rank = further back = earlier child. CompareTo, not subtraction: UnrankedRank is int.MaxValue and
+            // b.Rank - a.Rank would overflow into the wrong sign.
+            if (a.Rank != b.Rank) return b.Rank.CompareTo(a.Rank);
+            return a.Index.CompareTo(b.Index); // stable — keeps show order inside a band
+        };
+
+        /// <summary>
+        /// Moves <paramref name="popup"/> to the top / bottom of <see cref="ActivePopups"/> — the recency stack the
+        /// pointer system and the escape stack read as "topmost". Membership stays owned by the popup's
+        /// Subscribe/Unsubscribe (see Popup Lifecycle); this only reorders what is already there, and ignores a popup
+        /// that is not visible.
+        /// </summary>
+        private static void Restack(IAdvancedPopup popup, bool top)
+        {
+            int index = ActivePopups.IndexOf(popup);
+            if (index < 0) return;
+
+            ActivePopups.RemoveAt(index);
+            if (top) ActivePopups.Add(popup);
+            else ActivePopups.Insert(0, popup);
+        }
+
+        /// <summary> True when <paramref name="parent"/> is a canvas APS parents popups to (see <see cref="GetCanvasForLayer"/>). </summary>
+        private static bool IsRoutedCanvas(Transform parent)
+        {
+            // _root, not the Root property: a mere ordering check must never create the fallback canvas as a side effect.
+            if (_root != null && parent == _root) return true;
+            foreach (var kv in _layerCanvases)
+                if (kv.Value == parent) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Order rank of a canvas child: the popup's catalog rank, or <see cref="PopupOrderConfig.UnrankedRank"/> for a
+        /// child that is not a popup — decorations authored into a canvas prefab stay at the back.
+        /// </summary>
+        private static int RankOf(Transform child)
+        {
+            return child.TryGetComponent(out IAdvancedPopup popup) ? RankOf(popup) : PopupOrderConfig.UnrankedRank;
+        }
+
+        private static int RankOf(IAdvancedPopup popup)
+        {
+            PopupOrderConfig config = PopupOrderConfig.Loaded;
+            return config == null ? PopupOrderConfig.UnrankedRank : config.GetRank(popup.GetType().FullName);
+        }
+        #endregion
+
         #region GET POPUP
         /// <summary>
         /// Returns first popup of type P. False if not found.
@@ -427,6 +576,11 @@ namespace AdvancedPS.Core
                 APLogger.LogError($"<color=red>[AdvancedPopupSystem]</color> GetPopupAsync<{type.FullName}> load failed: {ex.Message}");
                 return default;
             }
+
+            // Order the fresh instance inside its canvas right away (the resolver appends it last), so a preloaded or
+            // just-loaded popup already sits where the Order catalog wants it — even before its first Show.
+            if (popup != null)
+                ApplyOrder(popup);
 
             if (token.IsCancellationRequested)
                 return default;
@@ -814,10 +968,13 @@ namespace AdvancedPS.Core
         #region ESCAPE
         /// <summary>
         /// One step of the escape close stack: walks visible popups from the most recently shown to the
-        /// oldest and applies the first relevant popup's EscapePolicy — Hide closes it (together with its
-        /// DeepPopups), Block consumes the step without closing (modal), Ignore passes it to the next popup.
-        /// Popups shown as part of a parent's cascade (DeepPopups) don't get their own step — the cascade
-        /// root represents the whole group.
+        /// oldest and applies the first relevant popup's EscapePolicy — Hide closes it, Block consumes the step
+        /// without closing (modal), Ignore passes it to the next popup.
+        /// <para>
+        /// A layer marked <b>Escape Closes Layer</b> in the Layers tool is treated as one screen: reaching any of its
+        /// popups closes the whole layer in a single step (<see cref="LayerHide(PopupLayerEnum)"/>, which also clears
+        /// <see cref="ActiveLayer"/>), instead of taking one press per popup.
+        /// </para>
         /// APS reads no input of its own — call this from whatever drives "back" in your game: an input action,
         /// the Android back button, a UI button.
         /// </summary>
@@ -833,7 +990,8 @@ namespace AdvancedPS.Core
                 switch (popup.EscapePolicy)
                 {
                     case EscapePolicyEnum.Hide:
-                        popup.Hide();
+                        if (TryGetEscapeGroupLayer(popup, out PopupLayerEnum layer)) LayerHide(layer);
+                        else popup.Hide();
                         return true;
                     case EscapePolicyEnum.Block:
                         return true;
@@ -841,6 +999,29 @@ namespace AdvancedPS.Core
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// The layer to close as one screen when <paramref name="popup"/> owns an escape step, or false when the popup
+        /// closes on its own. Reads the per-layer <see cref="LayerCanvasConfig.Entry.EscapeClosesLayer"/> flag — so the
+        /// grouping is a stable property of the layer rather than of who happened to open what, and the same popup always
+        /// behaves the same way. Legacy multi-flag data resolves to the lowest bit, matching the canvas tie-break.
+        /// </summary>
+        private static bool TryGetEscapeGroupLayer(IAdvancedPopup popup, out PopupLayerEnum layer)
+        {
+            layer = PopupLayerEnum.None;
+            int mask = (int)popup.PopupLayer;
+            if (mask == 0) return false;
+
+            LayerCanvasConfig config = LayerCanvasConfig.Loaded;
+            if (config == null) return false;
+
+            var flag = (PopupLayerEnum)(mask & -mask);
+            LayerCanvasConfig.Entry entry = config.GetEntry(flag);
+            if (entry == null || !entry.EscapeClosesLayer) return false;
+
+            layer = flag;
+            return true;
         }
 
         /// <summary>
@@ -860,9 +1041,8 @@ namespace AdvancedPS.Core
         }
 
         /// <summary>
-        /// Whether this popup is in the escape stack right now: visible, not part of a parent's cascade, and not
-        /// <see cref="EscapePolicyEnum.Ignore"/>. Being in it doesn't mean it owns the next step — that is
-        /// <see cref="PeekEscapeStack"/>.
+        /// Whether this popup is in the escape stack right now: visible and not <see cref="EscapePolicyEnum.Ignore"/>.
+        /// Being in it doesn't mean it owns the next step — that is <see cref="PeekEscapeStack"/>.
         /// </summary>
         public static bool IsInEscapeStack(IAdvancedPopup popup)
         {
@@ -914,13 +1094,12 @@ namespace AdvancedPS.Core
         }
 
         /// <summary>
-        /// Whether the walk reaches this popup at all: alive, not already hiding (which also shields the known
-        /// cancel-rollback gap), and not shown by a parent's cascade — a cascade group is represented by its root.
-        /// Says nothing about the popup's policy.
+        /// Whether the walk reaches this popup at all: alive and not already hiding (which also shields the known
+        /// cancel-rollback gap). Says nothing about the popup's policy.
         /// </summary>
         private static bool IsEscapeCandidate(IAdvancedPopup popup)
         {
-            return popup != null && popup.IsBeVisible && !popup.ShownByCascade;
+            return popup != null && popup.IsBeVisible;
         }
         #endregion
 
@@ -949,6 +1128,7 @@ namespace AdvancedPS.Core
                 if (single != null)
                 {
                     single.transform.SetParent(parent != null ? parent : GetCanvasForLayer(single.PopupLayer), false);
+                    ApplyOrder(single);
                     SpawnedPopups.Add(single);
                     return (T)single;
                 }
@@ -961,6 +1141,7 @@ namespace AdvancedPS.Core
                     bucket.RemoveAt(bucket.Count - 1);
                     if (reused == null) continue; // destroyed straggler
                     reused.transform.SetParent(parent != null ? parent : GetCanvasForLayer(reused.PopupLayer), false);
+                    ApplyOrder(reused);
                     SpawnedPopups.Add(reused);
                     return (T)reused;
                 }
@@ -976,6 +1157,8 @@ namespace AdvancedPS.Core
             IAdvancedPopup popup = await Resolver.LoadAsync(entry.Address, target, token);
             if (popup == null)
                 return null;
+
+            ApplyOrder(popup);
 
             // Lane B: pull it back out of the unique registries its Init() just joined — spawned copies are
             // user-managed and must not collide with the by-type cache or be swept up by LayerShow.
@@ -1201,7 +1384,9 @@ namespace AdvancedPS.Core
             if (IsLive(entry.TypeName)) return;
             try
             {
-                await Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), token);
+                IAdvancedPopup popup = await Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), token);
+                if (popup != null)
+                    ApplyOrder(popup);
             }
             catch (Exception ex)
             {

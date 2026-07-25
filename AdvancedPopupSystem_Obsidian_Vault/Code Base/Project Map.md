@@ -60,9 +60,9 @@ assemblies from core runtime.
 | `Core/Easing/` | `AdvancedPS.Core.System` | `EasingType`, `EasingFunctions` |
 | `Core/Input/` | `AdvancedPS.Core.Input` (New/Old) | `PointerEventSystemAPS` (per input backend) — the only input APS polls |
 | `Generated/` | `AdvancedPS.Core` | `PopupLayerEnum.generated.cs`; `Displays/<Name>Display/` (Fade/Scale/Slide/DoTween), `SlideEnum` |
-| `Settings/` | `AdvancedPS.Core.System` | `PopupSettings` + `InspectorEnum`, `SettingsManager` |
+| `Settings/` | `AdvancedPS.Core.System` (config SOs: `AdvancedPS.Core`) | `PopupSettings` + `InspectorEnum`, `SettingsManager`; the consumer-side config assets `LayerCanvasConfig` ([[Layers]]) and `PopupOrderConfig` ([[Hierarchy Order]]) |
 | `Utils/` | `AdvancedPS.Core.Utils` | `APLogger`, `FileSearcher`, `TaskUtils`, `TypeHelper` |
-| `Editor/` | `AdvancedPS.Editor` (+ `.Styles`) | APS window (`PopupSystemEditor` + Layer/Displays/Settings panels), inspectors, `CreateAdvancedPopup` |
+| `Editor/` | `AdvancedPS.Editor` (+ `.Styles`) | APS window (`PopupSystemEditor` + Layer/Order/Displays/Settings panels), inspectors, `CreateAdvancedPopup` |
 
 ## Depends on
 

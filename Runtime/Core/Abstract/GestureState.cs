@@ -25,6 +25,11 @@ namespace AdvancedPS.Core.System
         public Vector2 InitialAnchoredPos;
         /// <summary> Rect size captured at grab (resize only). </summary>
         public Vector2 InitialSize;
+        /// <summary>
+        /// Popup AABB in <see cref="Canvas"/> local space at grab (resize only). Holds the edge opposite the grip —
+        /// the one a resize keeps fixed — so the room left up to the bounds can be measured without re-deriving it.
+        /// </summary>
+        public Rect InitialCanvasAABB;
         /// <summary> Grabbed edge/corner (resize only). </summary>
         public ResizeDirection GripDir;
     }

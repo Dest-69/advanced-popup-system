@@ -32,10 +32,20 @@ namespace AdvancedPS.Editor
         private const string UnlockKey = "APS_LayersUnlocked";
         private const float OrderWidth = 44f;
         private const float DeleteWidth = 24f;
+        private const float OrderButtonWidth = 52f;
 
         private static GUIContent _deleteIcon;
         private static GUIContent DeleteIcon =>
             _deleteIcon ??= new GUIContent(EditorGUIUtility.IconContent("Toolbar Minus").image, "Delete this layer");
+
+        private static readonly GUIContent OrderLabel = new GUIContent(
+            "Order",
+            "Open APS ▸ Order filtered to this layer — which of its popups is drawn in front of which on this canvas.");
+
+        private static readonly GUIContent EscapeLabel = new GUIContent(
+            "Back closes all popups:",
+            "This layer is one screen: a single \"back\" (AdvancedPopupSystem.EscapeStep) closes every open popup of the " +
+            "layer at once.\nOff — \"back\" closes them one at a time, newest first.");
 
         private static readonly GUIContent CanvasLabel = new GUIContent(
             "Canvas",
@@ -199,7 +209,18 @@ namespace AdvancedPS.Editor
                 string newName = EditorGUILayout.DelayedTextField(name);
                 if (newName != name)
                     RenameLayer(i, newName);
+            }
 
+            // Straight into this layer's front-to-back order — popups only compete inside their own layer's canvas.
+            // Outside the Customization lock: it edits a consumer-side asset, like the canvas fields.
+            using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(name)))
+            {
+                if (GUILayout.Button(OrderLabel, GUILayout.Width(OrderButtonWidth), GUILayout.Height(18)))
+                    PopupSystemEditor.ShowOrder(name);
+            }
+
+            using (new EditorGUI.DisabledScope(!Unlocked))
+            {
                 if (GUILayout.Button(DeleteIcon, GUILayout.Width(DeleteWidth), GUILayout.Height(18)))
                     deleteRequested = true;
             }
@@ -214,6 +235,20 @@ namespace AdvancedPS.Editor
                 if (entry != null && newCanvas != entry.CanvasPrefab)
                 {
                     entry.CanvasPrefab = newCanvas != null ? newCanvas : LayerCanvasConfigStore.DefaultCanvas();
+                    _configChanged = true;
+                }
+
+                // Row 3: escape grouping — the layer is a screen, so one "back" closes all of its popups. Same
+                // label + [x]/[ ] idiom as the panel's other toggles (the plain toggle glyph is invisible in the pro skin).
+                bool shownEscape = entry?.EscapeClosesLayer ?? false;
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(EscapeLabel, GUILayout.ExpandWidth(false));
+                string escapeToggleLabel = EditorGUIUtility.isProSkin ? (shownEscape ? "[x]" : "[ ]") : "";
+                bool newEscape = GUILayout.Toggle(shownEscape, escapeToggleLabel, APSEditorStyles.ToggleStyle);
+                GUILayout.EndHorizontal();
+                if (entry != null && newEscape != entry.EscapeClosesLayer)
+                {
+                    entry.EscapeClosesLayer = newEscape;
                     _configChanged = true;
                 }
             }

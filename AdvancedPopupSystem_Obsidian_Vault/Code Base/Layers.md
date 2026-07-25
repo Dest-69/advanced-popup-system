@@ -43,6 +43,10 @@ instead of per-popup.
 - **Gotcha:** a manual `popup.Show()/Hide()` changes `ActivePopups` but **not** `ActiveLayer` — mixing manual and layer
   control desyncs "what layer is active" from "what's visible", and the layer calls' idempotency guards
   (`ActiveLayer == layer`) may then no-op unexpectedly.
+- **A layer is the unit of a "screen".** `LayerShow` opens its popups together and awaits them all, so a screen built from
+  several independently animated popups needs no parent→children list (that is what `DeepPopups` was for — deleted in
+  2.2.0, see [[Popup Lifecycle]]). Its per-layer **`EscapeClosesLayer`** flag makes one escape step close the whole screen
+  ([[Core System]] "Escape stack step"); stored beside the canvas fields in `LayerCanvasConfig`, edited in the Layers panel.
 - Layers also **select a canvas** for popups the system instantiates. Configured in the **Layers panel**
   ([[Editor & Codegen]]): each layer carries a **sorting order** + a **canvas prefab** (mandatory in the panel — seeded with the
   consumer-owned `APS_DefaultCanvas` you edit to control the default; a cleared prefab still falls back to an auto-created
@@ -53,8 +57,10 @@ instead of per-popup.
   overrides. Unmapped → `Root`; scene-authored popups unaffected; legacy multi-flag popups resolve to the lowest-bit mapped
   layer. The panel's **sorting order is display + canvas order only — it never reorders the name/bit store**, so
   serialized `PopupLayer` values stay valid. Mechanism in [[Core System]] ("Canvas routing"); parenting sites in
-  [[Addressables]].
+  [[Addressables]]. The layer/canvas `sortingOrder` is the **coarse** axis only — who is in front *within* one canvas is a
+  separate per-type catalog (see [[Hierarchy Order]]).
 
 ## Depends on
 
-- [[Core System]] (`ActiveLayer` and the layer batch APIs), [[Editor & Codegen]] (how the enum is generated)
+- [[Core System]] (`ActiveLayer` and the layer batch APIs), [[Editor & Codegen]] (how the enum is generated),
+  [[Hierarchy Order]] (the in-canvas order below this axis)

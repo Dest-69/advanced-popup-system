@@ -28,8 +28,8 @@ Features are **data on the popup**, not per-feature MonoBehaviours (explicit pro
 behaviours):
 
 - **`IAdvancedPopup.Modules`** — one serialized `PopupModules` field: `PopupFeatureEnum Features` (a `[Flags]` set:
-  `Draggable`, `Resizable`, `Closable`) + per-feature configs `DragConfig` / `ResizeConfig` / `CloseConfig`.
-  `HasAny` = any flag set. Not every flag is a pointer gesture — see "Non-gesture features (Closable)".
+  `Draggable`, `Resizable`, `Closable`, `Focusable`) + per-feature configs `DragConfig` / `ResizeConfig` / `CloseConfig` /
+  `FocusConfig`. `HasAny` = any flag set. Not every flag is a pointer gesture — see "Non-gesture features".
 - **Configs** hold references + tunables: `DragConfig` (`DragZone`, `Bounds`, `CustomBounds`, `Padding`);
   `ResizeConfig` (`Grips` list, `MinSize`, `MaxSize`, `Bounds`, `CustomBounds`, `Padding`). A `ResizeGrip` is just a
   `{ RectTransform Rect, ResizeDirection Direction }` pair — hit-tested by rect, **no Graphic/raycast target needed**.
@@ -59,8 +59,10 @@ only input APS polls at all ([[Input Backends]]):
   Holds no per-scene collection — only the single in-flight `GestureState`, `Reset()` on `ExitingPlayMode` (its own
   leak guard, [[Core System]]) which also reverts the cursor.
 - On press it walks **`AdvancedPopupSystem.ActivePopups` from the end** (recency stack = topmost first), skips
-  non-`IsVisible` / no-feature popups, resolves the popup's `Canvas`/camera, then tries each registered handler whose
-  flag is set. First `TryBegin` that returns true owns the gesture until release / hide / destroy.
+  non-`IsVisible` / no-feature popups, resolves the popup's `Canvas`/camera (shared helper `TryResolveCanvas`, also used by
+  the hover and focus passes), then tries each registered handler whose flag is set. First `TryBegin` that returns true
+  owns the gesture until release / hide / destroy. **Before** that walk runs the non-consuming `TryRaiseFocus` pass
+  (`Focusable`) — see below.
 
 ## Handlers & registry (the displays-like part)
 
@@ -72,7 +74,7 @@ only input APS polls at all ([[Input Backends]]):
   an edge must win over the drag zone beneath it). Built-ins registered in the static ctor; **`Register(flag, handler,
   prepend)`** is the open extension point (parallel to `DisplayRegistry`). Stateless handlers only → no leak guards.
 
-## Non-gesture features (Closable)
+## Non-gesture features (Closable, Focusable)
 
 Not every `PopupFeatureEnum` flag is a pointer gesture. **`Closable`** is a **data/lifecycle** feature: `CloseConfig`
 just holds a `Button CloseButton`, and the base popup wires `onClick → OnCloseButtonPress → Hide()` in
@@ -85,6 +87,14 @@ inspector reveal (`DrawModules`) — without the pointer pipeline. `PopupModules
 symmetrically in Subscribe/Unsubscribe. This is why the note's flag set now mixes gesture (`Draggable`/`Resizable`) and
 non-gesture (`Closable`) features under one enum: the enum is "features enabled on a popup", the *registry* is what's
 specifically pointer-driven.
+
+**`Focusable`** is the second one, and the reason the category earns its name twice: raising a pressed popup *must not*
+consume the press (the click still belongs to a button or a drag zone), while a registered handler by contract **owns** the
+press once its `TryBegin` returns true. So it runs as its own pass, `TryRaiseFocus`, on the press edge **before** the
+gesture walk — one popup per press, `return`ing right after `AdvancedPopupSystem.BringToFront` because that call reorders
+the very `ActivePopups` list the walk iterates. Config is `FocusConfig.FocusZone` (null → the popup rect) and there is
+**no** flag-gated accessor on `PopupModules` (null already means "whole rect"). Full mechanism, including how the raise is
+bounded by the order catalog: [[Hierarchy Order]].
 
 ## Hover cursors (resize)
 
@@ -130,6 +140,14 @@ Pure, allocation-free (`Utils`, one reused `Vector3[4]` buffer, main-thread only
   fixed (pivot-aware: `pos.x += pivot.x·ΔW` for a right grab, `-(1-pivot.x)·ΔW` for a left grab; same on Y), clamped to
   `[Min,Max]` (max ≤ 0 = unlimited). The handler applies it via `SetSizeWithCurrentAnchors` (correct for stretched
   anchors) then re-clamps to bounds.
+- **Bounds cap the *size*, not only the final position** (`LimitMaxSizeToBounds`, fed into `ResizeKeepingOppositeEdge`'s
+  `max` before the resize): with the opposite edge fixed, the room the popup may take is the gap from that edge to the
+  bounds edge on the grabbed side — so the grabbed edge **stops at** the bounds instead of growing past and having the
+  position clamp shove the whole popup (and its "fixed" edge) inward. The fixed edge + the rect→canvas scale both come
+  from **`GestureState.InitialCanvasAABB`**, captured once at grab: valid all gesture long because the position is
+  recomputed from `InitialAnchoredPos` each frame, so a clamp push never accumulates. `MinSize` outranks the cap (a
+  bounds-derived limit is floored at it), which is why `ClampToBounds` still runs afterwards — it covers the
+  min-size-doesn't-fit and started-outside cases.
 
 ## Gotchas / limits (v1)
 
@@ -137,8 +155,8 @@ Pure, allocation-free (`Utils`, one reused `Vector3[4]` buffer, main-thread only
 - **Pointer, not EventSystem:** hit-testing is `RectTransformUtility.RectangleContainsScreenPoint` on the zone/grip
   rect — it does **not** know about other UI on top (no raycast). Topmost = first visible feature-popup in the recency
   stack. This is the deliberate "APS input, optimize later" path — refine to a proper raycast if overlap matters.
-- **Resize doesn't clamp *size* to bounds**, only repositions after — growing a grip at a screen edge shoves the whole
-  popup inward. Fine for popups smaller than the bounds; revisit if needed.
+- **A popup that starts larger than the bounds** can't be made to fit: the size cap only limits *growth*, so
+  `ClampToBounds` still shoves it by one side. Shrinking it with a grip is the way out.
 - **Stretched anchors on a resized axis** are approximate (size maps to insets); drag/resize target fixed-anchor popups.
 - No settings toggle at all: `PointerEventSystemAPS.IsEnabled` (code-only) defaults true. Add a `PopupSettings` flag +
   panel toggle if a global off-switch is wanted ([[Settings & Logging]]).
@@ -147,4 +165,5 @@ Pure, allocation-free (`Utils`, one reused `Vector3[4]` buffer, main-thread only
 
 - [[Popup Lifecycle]] (`Modules` field lives on the base; `IsVisible`/`ActivePopups` gate interaction),
   [[Core System]] (`ActivePopups` recency stack, play-mode cleanup contract), [[Input Backends]] (the PlayerLoop-inject
-  + New/Old backend split that feeds this), [[Utilities]] (`PopupRectUtility` placement, `APLogger`).
+  + New/Old backend split that feeds this), [[Utilities]] (`PopupRectUtility` placement, `APLogger`),
+  [[Hierarchy Order]] (what the `Focusable` pass drives).

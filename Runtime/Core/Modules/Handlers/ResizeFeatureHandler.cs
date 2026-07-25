@@ -32,6 +32,7 @@ namespace AdvancedPS.Core
             state.PointerStartLocal = startLocal;
             state.InitialAnchoredPos = rect.anchoredPosition;
             state.InitialSize = rect.rect.size;
+            state.InitialCanvasAABB = PopupRectUtility.GetLocalAABB(rect, canvas.transform);
             state.GripDir = grip.Direction;
             return true;
         }
@@ -43,15 +44,27 @@ namespace AdvancedPS.Core
             ResizeConfig cfg = state.Popup.Modules.Resize;
             Vector2 delta = cur - state.PointerStartLocal;
 
+            // Bounds cap the SIZE, not just the final position: the grabbed edge stops at the bounds edge, so the
+            // popup never grows out of them (and the fixed edge never gets shoved inward by the clamp).
+            bool bounded = cfg.Bounds != BoundsMode.None;
+            Rect bounds = default;
+            Vector2 maxSize = cfg.MaxSize;
+            if (bounded)
+            {
+                bounds = PopupBounds.Resolve(state.Canvas, cfg.Bounds, cfg.CustomBounds, cfg.Padding);
+                maxSize = PopupRectUtility.LimitMaxSizeToBounds(maxSize, cfg.MinSize, state.InitialCanvasAABB,
+                    state.InitialSize, state.GripDir, bounds);
+            }
+
             PopupRectUtility.ResizeKeepingOppositeEdge(state.InitialSize, state.InitialAnchoredPos, state.Rect.pivot,
-                delta, state.GripDir, cfg.MinSize, cfg.MaxSize, out Vector2 size, out Vector2 pos);
+                delta, state.GripDir, cfg.MinSize, maxSize, out Vector2 size, out Vector2 pos);
 
             state.Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size.x);
             state.Rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size.y);
             state.Rect.anchoredPosition = pos;
 
-            if (cfg.Bounds == BoundsMode.None) return;
-            Rect bounds = PopupBounds.Resolve(state.Canvas, cfg.Bounds, cfg.CustomBounds, cfg.Padding);
+            if (!bounded) return;
+            // Still needed: MinSize wins over the bounds, and a popup that started outside them has to be pulled in.
             PopupRectUtility.ClampToBounds(state.Rect, state.Parent, state.Canvas, bounds);
         }
 

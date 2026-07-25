@@ -27,7 +27,27 @@ namespace AdvancedPS.Editor
         /// <summary> Guards against re-entrancy while the generator rewrites assets. </summary>
         internal static bool IsGenerating;
 
-        [MenuItem("Tools/Advanced Popup System/Regenerate Addressable Index")]
+        /// <summary>
+        /// Above this many changed prefabs in one batch, <see cref="SyncChanged"/> stops inspecting them one by one —
+        /// see the comment at its bulk check for why and what the fallback is.
+        /// </summary>
+        private const int BulkPrefabCap = 64;
+
+        /// <summary> Reused empty list so the bulk path skips the per-prefab loop without allocating. </summary>
+        private static readonly List<string> EmptyPaths = new List<string>();
+
+        /// <summary>
+        /// Publishes <see cref="Regenerate"/> to the APS window's Settings tab through the
+        /// <see cref="APSEditorTools"/> seam — the main editor assembly can't reference this optional one, so the
+        /// integration registers itself (same shape as the runtime resolver). No separate top-level menu item: every APS
+        /// tool lives in the APS window.
+        /// </summary>
+        [InitializeOnLoadMethod]
+        private static void RegisterEditorTool()
+        {
+            APSEditorTools.RegenerateAddressableIndex = Regenerate;
+        }
+
         public static void Regenerate()
         {
             if (IsGenerating) return;
@@ -112,7 +132,20 @@ namespace AdvancedPS.Editor
                 bool groupChanged = false;
                 bool popupTouched = false; // an Addressable popup's own data may have changed → the index needs a re-bake
 
-                foreach (string path in changedPrefabPaths)
+                // A batch this large is not someone editing a popup — it is a VCS checkout, a Library rebuild,
+                // "Reimport All" or an imported asset package. Inspecting it would turn "one component lookup per changed
+                // prefab" into loading every prefab in the project, so skip the per-prefab pass and only re-bake from the
+                // group's own (small) membership: the index still matches what is grouped, and a popup whose Addressable
+                // flag changed inside such a batch is picked up by its next save or the menu item's full rescan.
+                bool bulk = changedPrefabPaths.Count > BulkPrefabCap;
+                if (bulk && group != null)
+                {
+                    // Only worth saying when APS Addressables is actually in use — with no group there is nothing to skip.
+                    APLogger.Log($"<color=green>[APS Addressables]</color> {changedPrefabPaths.Count} prefabs changed at once — skipping the per-prefab index sync instead of loading them all. Use APS ▸ Settings ▸ Regenerate Addressable Index if a popup's Addressable flag changed in that batch.");
+                    popupTouched = group.entries.Count > 0;
+                }
+
+                foreach (string path in bulk ? EmptyPaths : changedPrefabPaths)
                 {
                     GameObject go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
                     IAdvancedPopup popup = go != null ? go.GetComponent<IAdvancedPopup>() : null;

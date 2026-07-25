@@ -25,6 +25,13 @@ namespace AdvancedPS.Core
         /// <summary> Close settings — used when <see cref="PopupFeatureEnum.Closable"/> is set. </summary>
         public CloseConfig Close = new CloseConfig();
 
+        /// <summary>
+        /// Focus (raise-on-press) settings — used when <see cref="PopupFeatureEnum.Focusable"/> is set. Read directly by
+        /// the pointer system after it checks the flag; there is no flag-gated accessor like <see cref="CloseButton"/>
+        /// because a null <see cref="FocusConfig.FocusZone"/> already means "the whole popup rect".
+        /// </summary>
+        public FocusConfig Focus = new FocusConfig();
+
         /// <summary> True if any interactive feature is enabled. </summary>
         public bool HasAny => Features != PopupFeatureEnum.None;
 

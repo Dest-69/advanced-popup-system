@@ -1,4 +1,20 @@
 # Changelog
+## [2.2.0] - 2026-07-25
+### Added
+- **Choose which popup is drawn in front** — arrange them per layer in the new **APS ▸ Order** tab; APS applies it on every show.
+- **Click-to-front windows** — the new **Focusable** module raises a popup when you press it, without swallowing the click.
+- **One "back" can close a whole screen** — tick **Back closes all popups** on a layer in **APS ▸ Layers**.
+### Changed
+- **Rebuilding the Addressable index moved to APS ▸ Settings** — no separate top-level menu.
+- **Big prefab imports stay snappy** — APS no longer looks inside every prefab of a bulk import.
+### Removed
+- **Deep Popups** — a screen is a layer (`LayerShow` opens its popups together), and closing them as one is now the layer setting above. *Upgrading: replace a Deep Popups list with a shared layer; for "close this popup with that one" use `parent.OnHided += () => AdvancedPopupSystem.Hide<Other>();`.*
+
+## [2.1.1] - 2026-07-25
+### Fixed
+- **Resizing can't push a popup off-screen** — the handle you drag now stops at the edge of the bounds.
+- **The opposite side stays put while you resize** — it no longer slides inward once you reach an edge.
+
 ## [2.1.0] - 2026-07-25
 ### Added
 - **Control the close stack from code** — put a popup in or out of the back stack at runtime, or ask what "back" would close next.

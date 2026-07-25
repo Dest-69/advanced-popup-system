@@ -64,17 +64,6 @@ namespace AdvancedPS.Core.System
         /// </summary>
         [HideInInspector] public bool IsVisible;
         /// <summary>
-        /// True while this popup is visible because a parent popup's Show cascaded into it via DeepPopups.
-        /// Managed by the system: set when a cascade show starts, cleared on hide. Cascaded popups don't get
-        /// their own escape-stack step — the cascade root represents the whole group (see AdvancedPopupSystem.EscapeStep).
-        /// </summary>
-        [NonSerialized] public bool ShownByCascade;
-        /// <summary>
-        /// Child or dependent popups of the current one, use if you need more control via Show/Hide.
-        /// </summary>
-        [Tooltip("Child or dependent popups of the current one, use if you need more control via Show/Hide.")] [Space]
-        public List<IAdvancedPopup> DeepPopups = new List<IAdvancedPopup>();
-        /// <summary>
         /// Data-driven interactive features (drag, resize, …) for this popup and their per-feature config.
         /// Enable features via the <see cref="PopupFeatureEnum"/> flags; the central PointerEventSystemAPS reads this —
         /// no extra components are added at runtime. Configure in the inspector's "Modules" box.
@@ -333,29 +322,6 @@ namespace AdvancedPS.Core.System
         /// <param name="settings"> The settings for the animation. If not provided, the default settings will be used. </param>
         public abstract Task HideAsync<T>(CancellationToken token = default, IDisplaySettings<T> settings = null)
             where T : IDisplay, new();
-        #endregion
-        
-        #region Other
-        /// <summary>
-        /// Check if popup exist in deep of this popup. (infinite loop safe by Dfs)
-        /// </summary>
-        /// <param name="popup"> popup what we are searching </param>
-        public virtual bool ContainsDeepPopup(IAdvancedPopup popup)
-        {
-            var visited = new HashSet<IAdvancedPopup>();
-            return Dfs(this);
-
-            bool Dfs(IAdvancedPopup n)
-            {
-                if (n == null || !visited.Add(n)) return false;
-                foreach (var d in n.DeepPopups)
-                {
-                    if (d == popup) return true;
-                    if (Dfs(d)) return true;
-                }
-                return false;
-            }
-        }
         #endregion
         
         #region Editor

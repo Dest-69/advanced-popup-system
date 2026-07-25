@@ -40,7 +40,7 @@ its own conventions that **differ from a typical game project** (it is a public 
 
 - **`Task`-based async/await** (System.Threading.Tasks) — **not** UniTask, to keep the runtime dependency-light.
 - Guard every animation/polling loop with `TaskUtils.OperationCancelled(token)`; yield with `await Task.Yield()` inside
-  per-frame loops. Fan-out (deep popups, layer batches) is `Task.WhenAll(...)`. See [[Operations & Cancellation]].
+  per-frame loops. Fan-out (layer batches) is `Task.WhenAll(...)`. See [[Operations & Cancellation]].
 - Do not manage `CancellationTokenSource` lifetime by hand — use `TaskUtils.UpdateCancellationTokenSource` (cancels +
   disposes the old source and returns a fresh, optionally linked one).
 

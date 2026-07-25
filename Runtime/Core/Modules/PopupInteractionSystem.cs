@@ -10,8 +10,10 @@ namespace AdvancedPS.Core
     /// <summary>
     /// Central, backend-agnostic gesture coordinator. Fed each frame by PointerEventSystemAPS (New/Old input) through
     /// <see cref="Tick"/>; runs at most one gesture at a time. Holds no per-scene collections — only the single
-    /// in-flight gesture, reset on play-mode exit. On the press edge it hit-tests to start a gesture; while idle it runs
-    /// a light hover pass so the OS cursor reflects the resize zone under the pointer (see <see cref="IPopupCursorHandler"/>).
+    /// in-flight gesture, reset on play-mode exit. On the press edge it raises the pressed
+    /// <see cref="PopupFeatureEnum.Focusable"/> popup (a non-consuming pass) and then hit-tests to start a gesture;
+    /// while idle it runs a light hover pass so the OS cursor reflects the resize zone under the pointer (see
+    /// <see cref="IPopupCursorHandler"/>).
     /// </summary>
     public static class PopupInteractionSystem
     {
@@ -82,6 +84,9 @@ namespace AdvancedPS.Core
 
             if (pressedThisFrame)
             {
+                // Raise before grabbing: the focus pass consumes nothing, and running it first means the gesture walk
+                // below sees the new recency order — so pressing a window behind another both raises AND grabs it.
+                TryRaiseFocus(pointerScreen);
                 TryBeginGesture(pointerScreen);
                 return;
             }
@@ -104,11 +109,7 @@ namespace AdvancedPS.Core
                 PopupModules modules = popup.Modules;
                 if (modules == null || !modules.HasAny) continue;
 
-                RectTransform root = popup.RootTransform;
-                if (root == null) continue;
-                Canvas canvas = root.GetComponentInParent<Canvas>();
-                if (canvas == null) continue;
-                Camera camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+                if (!TryResolveCanvas(popup, out Canvas canvas, out Camera camera)) continue;
 
                 for (int e = 0; e < entries.Count; e++)
                 {
@@ -129,6 +130,57 @@ namespace AdvancedPS.Core
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Press-edge pass for <see cref="PopupFeatureEnum.Focusable"/>: raises the topmost visible focusable popup whose
+        /// focus zone is under the pointer (<see cref="AdvancedPopupSystem.BringToFront"/> — hierarchy slot + recency
+        /// stack). Deliberately **not** a <see cref="IPopupFeatureHandler"/>: a handler owns the press, and focusing must
+        /// leave the press to whatever the user actually aimed at (a button, a drag zone). One popup per press — the
+        /// walk stops at the first hit because BringToFront reorders the list it iterates.
+        /// </summary>
+        private static void TryRaiseFocus(Vector2 pointerScreen)
+        {
+            var popups = AdvancedPopupSystem.ActivePopups;
+
+            for (int i = popups.Count - 1; i >= 0; i--)
+            {
+                IAdvancedPopup popup = popups[i];
+                if (popup == null || !popup.IsVisible) continue;
+
+                PopupModules modules = popup.Modules;
+                if (modules == null || (modules.Features & PopupFeatureEnum.Focusable) == 0) continue;
+
+                if (!TryResolveCanvas(popup, out Canvas _, out Camera camera)) continue;
+
+                // No zone configured → the popup's own rect is the focus area.
+                RectTransform zone = modules.Focus?.FocusZone != null ? modules.Focus.FocusZone : popup.RootTransform;
+                if (zone == null) continue;
+
+                if (!RectTransformUtility.RectangleContainsScreenPoint(zone, pointerScreen, camera)) continue;
+
+                AdvancedPopupSystem.BringToFront(popup);
+                return;
+            }
+        }
+
+        /// <summary>
+        /// The canvas a popup renders in plus the camera to hit-test against (null for a Screen Space - Overlay canvas,
+        /// as RectTransformUtility expects). False when the popup has no rect or no canvas above it.
+        /// </summary>
+        private static bool TryResolveCanvas(IAdvancedPopup popup, out Canvas canvas, out Camera camera)
+        {
+            canvas = null;
+            camera = null;
+
+            RectTransform root = popup.RootTransform;
+            if (root == null) return false;
+
+            canvas = root.GetComponentInParent<Canvas>();
+            if (canvas == null) return false;
+
+            camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+            return true;
         }
 
         private static void EndGesture()
@@ -167,11 +219,7 @@ namespace AdvancedPS.Core
                 PopupModules modules = popup.Modules;
                 if (modules == null || !modules.HasAny) continue;
 
-                RectTransform root = popup.RootTransform;
-                if (root == null) continue;
-                Canvas canvas = root.GetComponentInParent<Canvas>();
-                if (canvas == null) continue;
-                Camera camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+                if (!TryResolveCanvas(popup, out Canvas _, out Camera camera)) continue;
 
                 for (int e = 0; e < entries.Count; e++)
                 {

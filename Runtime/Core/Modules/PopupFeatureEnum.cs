@@ -24,5 +24,12 @@ namespace AdvancedPS.Core
         /// Subscribe/Unsubscribe, so it has no <see cref="System.IPopupFeatureHandler"/> in <see cref="PopupFeatureRegistry"/>.
         /// </summary>
         Closable = 1 << 2,
+        /// <summary>
+        /// Pressing the popup raises it to the front of its order band, window-manager style (see
+        /// <see cref="FocusConfig"/> and AdvancedPopupSystem.BringToFront). Like Closable this is not a gesture: the
+        /// press is not consumed (drag / buttons still get it), so it has no handler in
+        /// <see cref="PopupFeatureRegistry"/> — <see cref="PopupInteractionSystem"/> runs the focus pass itself.
+        /// </summary>
+        Focusable = 1 << 3,
     }
 }

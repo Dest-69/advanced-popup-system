@@ -20,14 +20,16 @@ Show/Hide/Switch overrides. **User popups extend `AdvancedPopup`.**
 `PopupLayer` (which layers can show this), `ManualInit`, `AutoHideOnInit` (default `true`), `Inactive` (blocks Show),
 `EscapePolicy` (`EscapePolicyEnum`: `Hide` / `Ignore` default / `Block` — escape-stack participation, and the field the
 `Add/RemoveFromEscapeStack` API writes at runtime, see [[Core System]]),
-`DeepPopups` (child/dependent popups); the **Addressable** box `Addressable` / `AddressableLoadMode` + the per-scene selection
+the **Addressable** box `Addressable` / `AddressableLoadMode` + the per-scene selection
 `PreloadSceneGuids` (empty = Everyone) / `UnloadSceneGuids` (empty = None), both scene **GUIDs**, and the **Pool** box
 `PoolCapacity` (unified on-hide + pool control: -1 unlimited / 0 despawn / N keep — all [[Addressables]]).
 Hidden: `RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**), `IsVisible` (set when it
-**ends**), `ShownByCascade` (`[NonSerialized]`, system-managed — see "Deep popups").
+**ends**).
 `AdvancedPopup` adds public `OnShowing`/`OnHided` actions. The optional **close button** is no longer a field here — it
 moved into `Modules` as the `Closable` feature (`Modules.Close.CloseButton`, revealed when the flag is set); the base
 still wires it in Subscribe/Unsubscribe (see below and [[Interaction Modules]]).
+**Draw order is deliberately not a field here** — it is authored per popup *type* in the Order tool, not per prefab
+([[Hierarchy Order]]); the inspector only shows it read-only.
 
 ## Init & cache
 
@@ -71,7 +73,8 @@ Four entry shapes, each in a cached-display and a typed (`<T>`) variant:
 
 `ShowAsync` flow: bail if `Inactive`/`IsBeVisible` → set `IsBeVisible=true` → refresh the linked CTS
 (`TaskUtils.UpdateCancellationTokenSource`, cancels any prior transition) → `APSStats.RegisterTask` → `SetActive(true)`
-→ `Subscribe()` → `Task.WhenAll` of the display's `ShowMethod` **plus** every `DeepPopups` `ShowAsync` (parallel) →
+→ `AdvancedPopupSystem.ApplyOrder(this)` (claim the ordered sibling slot — a show, not the load, decides who is in
+front; see [[Hierarchy Order]]) → `Subscribe()` → await the display's `ShowMethod` →
 **on cancel roll back `IsBeVisible=false` and return**, else `IsVisible=true`. The `RegisterTask`…`UnregisterTask` pair
 brackets the run in a **`try/finally`** (an exception from a display can't leak the `APSStats` task counter).
 `HideAsync` is the mirror: `Unsubscribe()`, animate, and on success `SetActive(false)` + `IsVisible=false` (cancel rolls
@@ -103,18 +106,22 @@ per-open-data base (2026-07-23). The contract:
 - Statics on the system: `Show<TPopup,TData>(data, settings)` and the popup-agnostic `Show<T>(Action<T> configure)`
   ([[Core System]] "Show / hide by type").
 
-## Deep popups
+## Popup relationships (why there is no `DeepPopups` any more)
 
-`DeepPopups` are children/dependents animated **in parallel** with the parent; the parent's `ShowAsync`/`HideAsync`
-awaits all of them (`Task.WhenAll`). `ContainsDeepPopup(popup)` is a **cycle-safe DFS** (visited `HashSet`) — use it
-before wiring nested popups to avoid loops.
+**Deleted in 2.2.0** (`DeepPopups`, `ContainsDeepPopup`, `ShownByCascade`, `MarkCascadeShow`, and the `Task.WhenAll`
+fan-out in all four show/hide methods). It bundled three unrelated responsibilities, each of which belongs elsewhere:
 
-**Cascade marking (escape grouping):** the parent's Show fan-out calls `MarkCascadeShow` on each deep popup and sets
-`ShownByCascade = true` **only** when it actually starts that child's show (skips `Inactive`/already-`IsBeVisible`);
-`Unsubscribe()` clears it at hide-start. The escape stack ([[Core System]]) skips flagged popups, so a cascade-shown
-group closes as **one step** via its root, while a deep popup shown *individually* later (no flag) keeps its own step —
-nested-dialog UX. The distinction is dynamic (who started the show), not static membership in `DeepPopups` — don't
-replace the flag with a `DeepPopups` lookup.
+- **composing a screen** → that is a **layer** ([[Layers]]): `LayerShow` opens its popups together, each with its own
+  display, and awaits them all;
+- **lifetime dependency** ("B must not outlive A") → one consumer line, and correct under lazy loading because
+  `Hide<T>` never loads: `a.OnHided += () => AdvancedPopupSystem.Hide<B>();`
+- **escape grouping** → the per-layer `EscapeClosesLayer` flag ([[Core System]] "Escape stack step").
+
+Two decisions worth keeping: the authoring direction was **inverted** (the parent's prefab listed its optional
+satellites, so a screen had to know about everything that might attach to it), and it was the **last hard-reference
+mechanism** in an otherwise type-keyed, lazily-loaded API — an Addressable popup could not be referenced at all, while
+dragging in a *prefab asset* silently made show/hide run against the asset. Don't reintroduce a reference list; if a
+grouping need appears, express it as data keyed by type or by layer, like the rest of 2.x.
 
 ## Spawning & pooling (was `AdvancedPopupInstantiate`)
 

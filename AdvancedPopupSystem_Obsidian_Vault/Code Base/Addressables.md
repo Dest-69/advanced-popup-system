@@ -69,7 +69,9 @@ shape lives in **one** place — the SO — with no kept-in-sync copies to break
   layer via `RegisterLayerCanvas`, else `AdvancedPopupSystem.Root` (auto persistent DontDestroyOnLoad overlay Canvas,
   overridable). This is the per-layer canvas routing (HUD vs dialogs vs … on independent sort orders — mechanism in
   [[Core System]] "Canvas routing", surfaced on [[Layers]]). `SpawnAsync` still takes an explicit `parent` that wins
-  when non-null. Scene-authored popups never touch any of this.
+  when non-null. Scene-authored popups never touch any of this. Every parenting site here (both pool re-parents, the fresh
+  Lane-B load, `GetPopupAsync`, `EnsureEntryLoadedAsync`) also calls `ApplyOrder` so the instance lands at its ordered
+  sibling index instead of last ([[Hierarchy Order]]).
 - **Per-scene preload/unload:** `ProcessScene(scenePath)` (`Core System`) runs for the boot scene and on every
   `SceneManager.sceneLoaded`, matched by **`Scene.path`** against the entries' baked paths (identity-based → reordering
   Build Settings never shifts it; no 31-scene cap). It **unloads then preloads** (a scene in both a popup's sets ends up
@@ -125,10 +127,16 @@ Both gated by `APS_ADDRESSABLES` (a `versionDefine` on `com.unity.addressables`,
 
 Two entry points, one catalog (**"Advanced Popup System"** group, address = type FullName; `AddressablePopupIndexAsset`
 written idempotently, entries **sorted by TypeName** so the paths never fight over order → no recompile, no domain
-reload). **Menu** `Tools/Advanced Popup System/…` → `AddressablePopupIndexGenerator.Regenerate()`: the full `t:Prefab`
+reload). **APS ▸ Settings ▸ Regenerate Addressable Index** → `AddressablePopupIndexGenerator.Regenerate()` (no top-level
+menu item — every APS tool lives in the APS window; this optional assembly can't be referenced by the main editor one, so
+it publishes the action through the `APSEditorTools` seam at `[InitializeOnLoadMethod]`, and the Settings tab draws the
+button only while the delegate is set — [[Editor & Codegen]]): the full `t:Prefab`
 rescan — the only path that loads every prefab. **Auto** — `AddressablePopupPostprocessor` collects changed paths
 (string checks only) → deferred `SyncChanged(paths, prefabsDeleted, scenesMoved)`: **incremental** — one `GetComponent`
-per imported/moved prefab; `EnsureEntry` dirties the Addressables settings only on a real add/move/re-address (no-op
+per imported/moved prefab, **capped**: above `BulkPrefabCap` (64) changed prefabs the per-prefab pass is skipped (logged)
+and the index re-bakes from the group's own membership instead — a checkout / Library rebuild / imported package must not
+turn "one lookup per changed prefab" into loading every prefab in the project; a flag flipped inside such a batch is
+picked up by that prefab's next save or the menu item ([[Hierarchy Order]] "Postprocessor budget"); `EnsureEntry` dirties the Addressables settings only on a real add/move/re-address (no-op
 pass = no dirty, no save); a prefab delete prunes dead-GUID entries; the index re-bakes **from the group's membership**
 (loads only the few Addressable popups) and only when the catalog could differ (membership changed / an Addressable
 popup saved / a scene path moved). Cold path never creates anything — `GetSettings(false)`, and settings/group/index

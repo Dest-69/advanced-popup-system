@@ -11,9 +11,9 @@ code_paths:
 
 ## APS window
 
-`PopupSystemEditor` (`AdvancedPS.Editor`) — one window, three tabs, opened from the top **`APS/`** menu
-(`APS/Layers`, `APS/Displays`, `APS/Settings`). Title shows the version from `PackageVersionHelper` (resolves via
-PackageManager or a walked `package.json`; `"Dev"` fallback).
+`PopupSystemEditor` (`AdvancedPS.Editor`) — one window, four tabs, opened from the top **`APS/`** menu
+(`APS/Layers`, `APS/Order`, `APS/Displays`, `APS/Settings`). Title shows the version from `PackageVersionHelper` (resolves
+via PackageManager or a walked `package.json`; `"Dev"` fallback).
 
 ## Layer generation (`PopupLayerEditorPanel` → `LayerCatalog`)
 
@@ -60,6 +60,16 @@ and break serialized `PopupLayer` masks ([[Invariants]]). Sorting/prefab edits s
 add/rename/delete go through the codegen path above and re-sync the SO. Runtime consumption in [[Core System]]
 ("Canvas routing").
 
+## Popup order panel (`PopupOrderEditorPanel` → `PopupOrderConfigStore`)
+
+The **Order** tab: a drag-sortable list of popup types (front → back), **filtered by layer** (the canvas boundary), persisted
+to the consumer's `PopupOrderConfig` asset. Store mirrors `LayerCanvasConfigStore` (`LoadOrCreate`/`Reconcile`/`Save` in
+`Assets/Resources/`); types come from `TypeCache` (no prefab load — the editor-perf rule), layer tags from the inspector /
+`PopupOrderPostprocessor` / a prefab scan the panel runs on open, gated by a `SessionState` flag so it fires after real
+prefab changes rather than on every recompile. Reached from the Layers tab's per-row **Order** button and
+the popup inspector's *Edit Order*. Panel/store specifics, the deferred-removal gotcha, the filtered-drag mapping and the
+postprocessor cost budget: [[Hierarchy Order]].
+
 ## Display generation (`PopupDisplaysEditorPanel`)
 
 Lists display subfolders (ending in `Display`) from **both** `FileSearcher.BuiltinDisplaysFolderPath` (the package's
@@ -90,12 +100,22 @@ entries, and writes the **`AddressablePopupIndexAsset`** ScriptableObject
 (`Assets/Resources/APS_AddressablePopupIndex.asset`, created on first run like `LayerCanvasConfigStore`) —
 **idempotently** (no write/reimport unless the catalog changed; entries sorted by TypeName so both paths below agree on
 order). Writing a **data asset** instead of C# is the point: flagging a popup Addressable no longer recompiles scripts
-or reloads the domain (the old cost of the generated `.cs` index). Two entry points: the **menu**
-`Tools/Advanced Popup System/Regenerate Addressable Index` → `Regenerate()` — the only full `t:Prefab` project scan —
+or reloads the domain (the old cost of the generated `.cs` index). Two entry points: the **Settings tab's**
+*Regenerate Addressable Index* button → `Regenerate()` — the only full `t:Prefab` project scan —
 and **auto** via `AddressablePopupPostprocessor` → `SyncChanged()` (deferred out of the import callback), which is
 **incremental**: it inspects just the changed prefabs and touches settings/group/index only when an Addressable popup
 is actually involved, so unrelated prefab saves and project open trigger no Addressables work (details in
 [[Addressables]] "Editor tooling"). The inspector's Addressable box lives in `IAdvancedPopupEditor`.
+
+### Optional-integration seam (`APSEditorTools`)
+
+`APS_ADDRESSABLES` assemblies can't be referenced by the main editor assembly (they may not exist), so an optional tool
+**registers itself**: `AddressablePopupIndexGenerator.RegisterEditorTool` (`[InitializeOnLoadMethod]`) assigns
+`APSEditorTools.RegenerateAddressableIndex`, and `PopupSettingsEditor.DrawMaintenance` draws the button only while the
+delegate is non-null. Same shape as the runtime `AdvancedPopupSystem.Resolver` seam ([[Addressables]]), and the reason no
+APS action lives in a top-level `Tools/` menu any more. The reference direction is optional → main
+(`dest-69.advanced-popup-system.addressables.editor` gained the main editor asmdef GUID); never the reverse, which would
+dangle when the integration is absent.
 
 ## Other editor pieces
 

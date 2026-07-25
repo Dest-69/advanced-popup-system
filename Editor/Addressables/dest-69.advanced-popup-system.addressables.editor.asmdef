@@ -3,6 +3,7 @@
     "rootNamespace": "AdvancedPS.Editor",
     "references": [
         "GUID:bcd6335d616709349968d9fbde39ead7",
+        "GUID:b69f914c5776cbc41a88f1d13dcf76a8",
         "AdvancedPS.Generated.Layers",
         "Unity.Addressables",
         "Unity.Addressables.Editor",

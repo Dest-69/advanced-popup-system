@@ -58,12 +58,13 @@ Newtonsoft.Json is pulled in automatically. Requires [Git](https://git-scm.com/)
 *   🎬 **DOTween Integration** *(optional)* — Drive show/hide with hand-built [DOTween](https://github.com/Demigiant/dotween) `Sequence`s. Lives behind a `DOTWEEN` define in its own assembly; the core compiles fine without it.
 *   ⚡ **Async-First** — Fully `Task`-based transitions with `CancellationToken` cancellation throughout.
 *   ⬅️ **Escape Close Stack** — One `EscapeStep()` call steps back through open popups like the Android back button, with a per-popup policy (`Hide` / `Ignore` / `Block`) for modals and pass-through popups. APS reads no input of its own — wire the step to your own key, back button or UI control, and add/remove popups from the stack at runtime.
+*   🔝 **Front-to-Back Order** — Decide which popup is drawn in front when several share a canvas: drag popup types into order in **`APS ▸ Order`** (per layer, one click from the layer row), and APS applies it every time a popup opens — no more "whichever loaded first ends up behind". Tick `Focusable` for click-to-front windows, or call `BringToFront` / `SendToBack` yourself.
 *   🖱️ **Drag & Resize Modules** — Tick `Draggable` / `Resizable` to move or resize a popup at runtime, clamped to the screen (or a safe-area / custom rect) for any anchors. Data-driven flags, no extra components; resize grips show a re-skinnable directional cursor.
 *   📦 **Addressables Loading** *(optional)* — Flag a popup **Addressable** to load its prefab on demand — lazily, preloaded on the scenes you choose, or as pooled copies — instead of placing it in every scene. Scene instances still win for effortless testing. Requires the Addressables package.
 *   🧩 **Typed Data Popups** — Declare a popup's data (`class RewardPopup : AdvancedPopup<RewardData>`), implement one `Bind(data)`, and open it with `Show<RewardPopup, RewardData>(data)` — the data binds **before** the popup is visible, with no empty-popup flash.
-*   🌲 **Nested Popups** — Deep child popups animate and manage their state together with their parent.
+*   🌲 **Screens From Several Popups** — Build a screen from independently animated popups on one layer: `LayerShow` opens them together and awaits them all, and one **back** can close the whole layer.
 *   ⏱️ **Cancellation-Aware Operations** — Every transition returns a self-starting `Operation` you can `.Cancel()`, chain with `.OnComplete()`, and inspect via `Status` / `Error`. Starting a new show/hide auto-cancels the previous one.
-*   🛠️ **Editor Tooling** — An **APS** window with **Layers**, **Displays** and **Settings** tabs, plus a live view of registered popups and running operations.
+*   🛠️ **Editor Tooling** — An **APS** window with **Layers**, **Order**, **Displays** and **Settings** tabs, plus a live view of registered popups and running operations.
 
 ---
 
@@ -71,7 +72,7 @@ Newtonsoft.Json is pulled in automatically. Requires [Git](https://git-scm.com/)
 
 ### 1. Build a popup — the right architecture
 
-Create the object with **`GameObject ▸ UI ▸ Advanced Popup`** (it makes a stretched popup under a `Canvas`, adding the Canvas if needed, with an `AdvancedPopup` already attached). Add your visuals as children, then set the **Popup Layer** and tick any **Modules** (Draggable / Resizable / Closable) in the inspector.
+Create the object with **`GameObject ▸ UI ▸ Advanced Popup`** (it makes a stretched popup under a `Canvas`, adding the Canvas if needed, with an `AdvancedPopup` already attached). Add your visuals as children, then set the **Popup Layer** and tick any **Modules** (Draggable / Resizable / Closable / Focusable) in the inspector.
 
 The script that goes on it is the whole architecture — transition, data, and UI wiring in one place:
 
@@ -187,6 +188,7 @@ Open the **APS** window from the top menu bar:
 | Menu | Purpose |
 | :--- | :--- |
 | **`APS ▸ Layers`** | Add / rename / delete `PopupLayerEnum` flags (the enum is code-generated for you) and set each layer's canvas + sort order. |
+| **`APS ▸ Order`** | Drag popup types front-to-back, one layer at a time — which popup is drawn above which on that layer's canvas. |
 | **`APS ▸ Displays`** | Scaffold a custom display — APS generates the display + settings scripts with ready-to-fill stubs. |
 | **`APS ▸ Settings`** | Toggle auto input-module switching, inspector view, and log verbosity. |
 
