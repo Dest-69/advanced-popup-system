@@ -56,7 +56,7 @@ popup ([[Popup Lifecycle]]).
 
 `SortPopups()` orders `AllPopups`: **active-scene popups first**, then background-scene popups; within each group by
 **hierarchy depth descending (deepest first)**. So nested/child popups are iterated before their parents — relevant to
-key-event resolution ([[Input & Hotkeys]]) and any "first match" lookup. Runs on **every registration**, so it is kept
+any "first match" lookup. Runs on **every registration**, so it is kept
 allocation-light on purpose: one scratch list, depth computed once per popup, `List.Sort` stabilized by original index
 (no LINQ `OrderBy`/`ToList`) — keep it that way.
 
@@ -156,24 +156,25 @@ destroys them on exit like `APS_Root`) and dead mappings are pruned on scene unl
 
 `EscapeStep()` — one step of escape-close. Walks `ActivePopups` **from the end**: the list is a recency stack for free
 (`Subscribe` appends at show-start, `Unsubscribe` removes at hide-start — self-cleaning; no separate static stack, so
-no new leak guards). Skips `null`/`!IsBeVisible` (also shields the known cancel-rollback gap) and `ShownByCascade`
-popups (cascade groups are represented by their root — [[Popup Lifecycle]]). First relevant popup's `EscapePolicy`:
-`Hide` → `popup.Hide()` + consumed; `Block` → consumed without closing (modal); `Ignore` → keep walking. `LayerShow`
-batches get one step per popup (no layer grouping in v1 — group via DeepPopups instead).
+no new leak guards). `IsEscapeCandidate` skips `null`/`!IsBeVisible` (also shields the known cancel-rollback gap) and
+`ShownByCascade` popups (cascade groups are represented by their root — [[Popup Lifecycle]]). First relevant popup's
+`EscapePolicy`: `Hide` → `popup.Hide()` + consumed; `Block` → consumed without closing (modal); `Ignore` → keep walking.
+`LayerShow` batches get one step per popup (no layer grouping in v1 — group via DeepPopups instead).
 
-**Two overloads, one walk.** `EscapeStep(Predicate<KeyCode>)` is the key-driven form the input backends call
-([[Input & Hotkeys]]); the parameterless `EscapeStep()` delegates to it with `null` and is the UI "back" button path —
-independent of the key and of the settings toggle. The predicate is only consulted on the `Hide` branch, via
-`MatchesCloseKey`: the popup's own `CloseKey` if it overrode one, else `Settings.EscapeCloseKey`. The fallback is
-resolved **here, per press** — never baked into the popup — so editing the setting still reaches every popup that left
-`CloseKey` at `None` ([[Input & Hotkeys]]).
+**APS drives no input of its own (user call, 2026-07-25).** The consumer calls `EscapeStep()` from whatever means
+"back". The key-driven overload `EscapeStep(Predicate<KeyCode>)`, `MatchesCloseKey`, the per-popup `CloseKey` and the
+`EscapeCloseEnabled`/`EscapeCloseKey` settings are **gone** — and with them the "topmost closable popup owns the press"
+drop, which existed only to stop a key bound to a background popup closing it from under the popup on screen (with no
+keys there is nothing to mismatch). History and the don't-reintroduce rule: [[Input Backends]].
 
-**Decision — the topmost closable popup owns the press.** On a `Hide` popup whose key *doesn't* match, the walk
-**returns false** instead of continuing. Falling through would let a key bound to a background popup close it from under
-the popup on screen. `Block`/`Ignore` deliberately never consult the key at all (a modal swallows everything; a
-transparent popup passes everything). With no `CloseKey` overrides anywhere this reproduces the pre-v2.1 behavior exactly.
+**The stack is derived, not stored** — membership is `visible ∧ ¬ShownByCascade ∧ EscapePolicy != Ignore`. Hence the
+public API mutates the **policy** rather than a list: `AddToEscapeStack(popup, policy = Hide)` /
+`RemoveFromEscapeStack(popup)` — neither shows nor hides, because position is show order and belongs to the popup's
+visibility. Read side: `IsInEscapeStack`, `PeekEscapeStack` (who owns the next step — drives a Back button's
+visibility) and `GetEscapeStack(buffer)` (caller-owned list, top-first, snapshot). Keeping it derived is the decision: a
+second collection would need its own leak guards ([[Invariants]]) and could desync from what is actually on screen.
 
-Runs on the input hot path — index loop, no LINQ, no per-call delegate allocation (backends cache theirs).
+Runs on the input hot path — index loop, no LINQ, no allocation.
 
 ## Depends on
 

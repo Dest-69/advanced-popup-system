@@ -36,6 +36,7 @@ call by what you want, and let APS do the loading:
 | **Toggle a popup** | `AdvancedPopupSystem.SwitchShowHide<MyPopup>()` | Shown → hides, hidden → shows, not-loaded → loads & shows. |
 | **Feed it data *before* it appears** | `AdvancedPopupSystem.Show<MyPopup, MyData>(data)` | Declare `AdvancedPopup<MyData>` + a `Bind` override; the data binds before the popup is visible. One-off setup instead: `Show<MyPopup>(p => …)` — both in [§3.2](#32-showing--hiding). |
 | **Act only if it is shown** | `TryGetPopup<MyPopup>(out var p, activeOnly: true)` | The one legitimate *synchronous* case — a **secondary** op on an already-visible popup (refresh, read state). |
+| **Step "back" one popup** | `AdvancedPopupSystem.EscapeStep()` | Closes the top popup of the escape stack. APS reads no input of its own — call this from your own back key or button ([§6.2](#62-escape-close-stack)). |
 
 The rules behind the table — they keep lazy loading working:
 
@@ -80,7 +81,8 @@ For which calls load and which don't, see the cheat sheet in [§9.6](#96-what-lo
 ### 1.2 Global collections (on `AdvancedPopupSystem`)
 
 - **`AllPopups`** — every popup present in loaded scenes (visible or not).
-- **`ActivePopups`** — only the popups currently visible.
+- **`ActivePopups`** — only the popups currently visible, in show order. It doubles as the **escape stack**: the last
+  entry is the top ([§6.2](#62-escape-close-stack)).
 - **`ActiveLayer`** — a bitmask of the layers currently shown. **Changed only by the `Layer*` / `HideAll` APIs** — a
   manual `popup.Show()` / `Hide()` updates `ActivePopups` but not `ActiveLayer`.
 
@@ -148,8 +150,7 @@ the default **Scale** transition ([§4](#4-animations--custom-transitions) to pi
 | **Auto Hide On Init** | Keep `true` so the popup starts hidden. Set `false` only for UI shown immediately on scene start. |
 | **Manual Init** | Keep `false` for scene popups. Set `true` to instantiate at runtime and call `Init()` yourself. Ignored for **Addressable** popups (they always auto-init). |
 | **Inactive** | `true` prevents the popup from ever showing (a hard gate on `Show`). |
-| **Escape Policy** | Reaction to the escape close key: `Hide`, `Ignore`, or `Block` ([§6.2](#62-escape-close-stack)). |
-| **Close Key** | The key that closes *this* popup, overriding the project-wide escape key. Shown for the `Hide` policy; defaults to the project-wide key ([§6.2](#62-escape-close-stack)). |
+| **Escape Policy** | How the popup takes part in the escape close stack: `Hide`, `Ignore`, or `Block` ([§6.2](#62-escape-close-stack)). |
 | **Deep Popups** | Child/dependent popups that mirror this popup's show/hide ([§6.1](#61-deep-popups)). |
 
 The **Preview** button at the top of the inspector plays the popup's show animation, holds it visible for a second,
@@ -566,47 +567,62 @@ to each deep popup, all animations run **in parallel**, and the parent's `ShowAs
 
 ### 6.2 Escape close stack
 
-One key (default `Escape`) steps back through open popups — each press closes the **most recently shown** popup, like
-the Android back button. Opt in via `APS ▸ Settings ▸ Escape Close Stack` ([§7](#7-settings--logging)); that toggle is
-the whole keyboard path, so with it off APS never installs its key-polling update at all.
+`AdvancedPopupSystem.EscapeStep()` steps back through open popups — each call closes the **most recently shown** popup,
+like the Android back button. It returns `true` when the step was consumed (a popup closed or blocked it) and `false`
+when the stack was empty.
 
-APS works with **both** the legacy Input Manager and the new Input System (auto-selected). With the new Input System,
-enable **Auto Switch Input Module** ([§7](#7-settings--logging)) to have APS replace `StandaloneInputModule` with
-`InputSystemUIInputModule` automatically.
+**APS reads no input of its own.** There is no key setting and no per-popup key: you decide what a "back" gesture is and
+call one method. Wire it to a `KeyCode`, an Input System action, the Android back button, a UI button — anything:
 
-On a key press APS walks the visible popups newest-to-oldest and applies the first relevant popup's **Escape Policy** (an
-inspector field on every popup):
+```csharp
+// Legacy Input Manager (Android's hardware Back also arrives as Escape)
+if (Input.GetKeyDown(KeyCode.Escape))
+    AdvancedPopupSystem.EscapeStep();
+
+// …or a UI "Back" button
+_backButton.onClick.AddListener(() => AdvancedPopupSystem.EscapeStep());
+```
+
+Each call walks the visible popups newest-to-oldest and applies the first relevant popup's **Escape Policy** (an
+inspector field on every popup, freely settable from code at runtime):
 
 | Escape Policy | Behavior |
 | :--- | :--- |
-| `Hide` | The popup closes (with its deep popups) and the press is consumed. |
-| `Ignore` (default) | The popup is transparent — the press falls through to the popup shown before it. |
-| `Block` | The press is consumed but nothing closes — for modal dialogs that must not be escaped. |
+| `Hide` | The popup closes (with its deep popups) and the step is consumed. |
+| `Ignore` (default) | The popup is transparent — the step falls through to the popup shown before it. |
+| `Block` | The step is consumed but nothing closes — for modal dialogs that must not be escaped. |
 
-Popups are **transparent by default** (`Ignore`): the stack is opt-in per popup — set the ones you want the key to close
-to `Hide`, and modal ones to `Block`.
+Popups are **transparent by default** (`Ignore`): the stack is opt-in per popup — set the ones you want closed to
+`Hide`, and modal ones to `Block`.
 
-**Per-popup key.** A `Hide` popup gets a **Close Key** field in the inspector. It starts out showing the project-wide
-**Escape Close Key** and keeps following it — change the setting and every popup that never overrode it follows along.
-Pick a different key and *that* one closes this popup instead, so one screen can close on `Tab` and another on `Q`
-without touching the global setting.
+**Managing the stack from code.** The stack isn't a separate list you maintain — it *is* the visible popups in show
+order, so a popup joins at the top when it becomes visible and leaves when it hides. What you control is whether a step
+stops at it:
 
-The topmost closable popup **owns** the press: if the key you pressed isn't its key, the step is dropped rather than
-reaching past it — a key bound to a background popup can never close it from under the popup on screen. `Block` and
-`Ignore` don't read the key at all (a modal swallows every key, a transparent popup passes every key through).
+| Call | Does |
+| :--- | :--- |
+| `AddToEscapeStack(popup)` | Makes the popup participate — `Hide` by default, pass `EscapePolicyEnum.Block` for a modal. Does **not** show it. |
+| `RemoveFromEscapeStack(popup)` | Makes the popup transparent again (`Ignore`). Does **not** hide it. |
+| `IsInEscapeStack(popup)` | Whether it is in the stack right now (visible, not cascaded, not `Ignore`). |
+| `PeekEscapeStack()` | The popup the next `EscapeStep()` would reach, or `null` when the stack is empty. |
+| `GetEscapeStack(buffer)` | Fills your `List<IAdvancedPopup>` top-first and returns the count — reuse one list to stay allocation-free. |
+
+```csharp
+var settings = await AdvancedPopupSystem.GetPopupAsync<SettingsPopup>();
+AdvancedPopupSystem.AddToEscapeStack(settings);              // back closes it
+AdvancedPopupSystem.AddToEscapeStack(confirm, EscapePolicyEnum.Block);  // modal: back does nothing
+
+_backButton.gameObject.SetActive(AdvancedPopupSystem.PeekEscapeStack() != null);
+```
 
 **Grouping.** Popups shown by their parent's cascade (via **Deep Popups**) don't get their own step — closing the parent
 hides the whole group at once. A deep popup you later show **individually** (a nested dialog on top of its parent) gets
-its own step: the key closes it first, then its parent.
+its own step: it closes first, then its parent.
 
 Notes:
 
-- The walk skips popups that are already hiding, so pressing repeatedly during animations steps on responsively.
-- `AdvancedPopupSystem.EscapeStep()` runs one step programmatically (returns `false` if nothing consumed it) — wire it
-  to a UI "Back" button for the same behavior without the keyboard. It ignores Close Key (any closable popup answers)
-  and works even with the toggle off.
-- With the legacy Input Manager on Android the hardware Back button arrives as `Escape`, so the stack doubles as
-  back-button navigation.
+- The walk skips popups that are already hiding, so calling repeatedly during animations steps on responsively.
+- A step never reaches past a `Block` popup — that is the point of a modal.
 
 ### 6.3 Instantiating popups at runtime
 
@@ -682,10 +698,6 @@ drawn on top; the topmost popup under the pointer wins.
 `APS ▸ Settings` (persisted to `Assets/Resources/AP_Settings.json` in your project):
 
 - **Auto Switch Input Module** — (new Input System) auto-swap the EventSystem's input module at startup.
-- **Escape Close Stack** — one key steps back through open popups ([§6.2](#62-escape-close-stack)). Off by default.
-  It is the master switch for APS's keyboard handling: off, and no key-polling update is installed at all.
-- **Escape Close Key** — the project-wide key driving the escape close stack (default `Escape`). Any popup can override
-  it with its own **Close Key**.
 - **Inspector View** — `APSInspector` (full custom), `APSOptimized` (lighter), or `UnityInspector` (default Unity view).
 - **Log Type** — verbosity filter for APS logs, routed through `APLogger`:
 
@@ -723,12 +735,12 @@ drawn on top; the topmost popup under the pointer wins.
 
 - **DOTween display missing** — `DoTweenDisplay` compiles only when DOTween is installed (behind the `DOTWEEN` define).
 
-- **Escape key / clicks not registering (new Input System)** — enable **Auto Switch Input Module**, or make sure your
-  EventSystem uses `InputSystemUIInputModule`.
+- **Clicks not registering (new Input System)** — enable **Auto Switch Input Module**, or make sure your EventSystem
+  uses `InputSystemUIInputModule`.
 
-- **A popup's key doesn't close it** — its **Escape Policy** must be `Hide` (`Ignore` is the default and passes keys
-  through), **Escape Close Stack** must be on, and no popup above it may be open — the topmost closable popup owns the
-  press.
+- **A popup doesn't close on "back"** — its **Escape Policy** must be `Hide` (`Ignore` is the default and passes steps
+  through), something must actually call `AdvancedPopupSystem.EscapeStep()` (APS reads no input itself), and no `Block`
+  popup may be open above it.
 
 ---
 
@@ -825,7 +837,7 @@ await AdvancedPopupSystem.PreloadLayer(PopupLayerEnum.MENU);   // just one scree
 ### 9.4 Spawn many copies (toasts, list rows)
 
 For popups you need in multiple instances, spawn and manage them yourself. Spawned popups are pooled and **not** part of
-layer batches, but a visible one still closes on Escape / `HideAll`:
+layer batches, but a visible one is still reached by `EscapeStep()` / `HideAll`:
 
 ```csharp
 var toast = await AdvancedPopupSystem.SpawnAsync<ToastPopup>();

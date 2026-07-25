@@ -37,25 +37,16 @@ namespace AdvancedPS.Core.System
         [Tooltip("Set 'true' to prevent showing this popup.")]
         public bool Inactive;
         /// <summary>
-        /// How this popup reacts to the escape close key (see AdvancedPopupSystem.EscapeStep):
-        /// Hide — closes and consumes the press; Ignore (default) — the press falls through to the popup below;
-        /// Block — consumes the press without closing (modal).
+        /// How this popup takes part in the escape close stack (see AdvancedPopupSystem.EscapeStep):
+        /// Hide — closes and consumes the step; Ignore (default) — the step falls through to the popup below;
+        /// Block — consumes the step without closing (modal). Settable at runtime — that is how a popup joins or
+        /// leaves the stack (see AdvancedPopupSystem.AddToEscapeStack / RemoveFromEscapeStack).
         /// </summary>
-        [Tooltip("How this popup reacts to the escape close key:\n" +
-                 "Hide — closes and consumes the press.\n" +
-                 "Ignore (default) — the press falls through to the popup below.\n" +
-                 "Block — consumes the press without closing (modal).")]
+        [Tooltip("How this popup takes part in the escape close stack:\n" +
+                 "Hide — closes and consumes the step.\n" +
+                 "Ignore (default) — the step falls through to the popup below.\n" +
+                 "Block — consumes the step without closing (modal).")]
         public EscapePolicyEnum EscapePolicy = EscapePolicyEnum.Ignore;
-        /// <summary>
-        /// The key that closes THIS popup, overriding the project-wide escape close key
-        /// (see PopupSettings.EscapeCloseKey). <see cref="KeyCode.None"/> (the default) — the popup answers to the
-        /// project-wide key, so changing it in the settings still reaches every popup that never overrode it.
-        /// Only read for <see cref="EscapePolicyEnum.Hide"/>: a Block popup swallows every key and an Ignore popup is
-        /// transparent, so neither consults it (see AdvancedPopupSystem.EscapeStep).
-        /// </summary>
-        [Tooltip("The key that closes this popup, overriding the project-wide Escape Close Key.\n" +
-                 "None — the popup answers to the project-wide key.")]
-        public KeyCode CloseKey = KeyCode.None;
         /// <summary>
         /// Root transform.
         /// </summary>

@@ -1,4 +1,5 @@
 using System;
+using AdvancedPS.Core.System;
 using AdvancedPS.Core.Utils;
 using UnityEngine;
 using UnityEngine.LowLevel;
@@ -12,10 +13,11 @@ using UnityEditor;
 namespace AdvancedPS.Core.Input
 {
     /// <summary>
-    /// Pointer driver (New Input System). Injects a <see cref="PlayerLoopSystem"/> into the Update loop — exactly like
-    /// <see cref="KeyEventSystemAPS"/> — reads the current pointer each frame and forwards it to the backend-agnostic
-    /// <see cref="PopupInteractionSystem"/>. No MonoBehaviours are spawned. <see cref="Pointer.current"/> covers mouse,
-    /// pen and touch.
+    /// Pointer driver (New Input System). Injects a <see cref="PlayerLoopSystem"/> into the Update loop, reads the
+    /// current pointer each frame and forwards it to the backend-agnostic <see cref="PopupInteractionSystem"/>. No
+    /// MonoBehaviours are spawned. <see cref="Pointer.current"/> covers mouse, pen and touch.
+    /// It also owns <c>AutoSwitchInputModule</c> — the only other startup job APS has under the New Input System,
+    /// and this is the only APS system that compiles exclusively against it.
     /// </summary>
     public static class PointerEventSystemAPS
     {
@@ -39,6 +41,10 @@ namespace AdvancedPS.Core.Input
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void Initialize()
         {
+            // Runs before the player-loop wiring below (and regardless of its outcome) — swapping the EventSystem's
+            // module is about UI input as a whole, not about popup gestures.
+            AutoSwitchInputModule();
+
             var playerLoop = PlayerLoop.GetCurrentPlayerLoop();
             var updateSubsystemIndex = Array.FindIndex(playerLoop.subSystemList, subSystem => subSystem.type == typeof(Update));
 
@@ -83,6 +89,25 @@ namespace AdvancedPS.Core.Input
             Vector2 position = pointer.position.ReadValue();
             bool pressed = pointer.press.isPressed;
             PopupInteractionSystem.Tick(position, pressed);
+        }
+
+        /// <summary>
+        /// Auto-switches EventSystem input module from StandaloneInputModule to InputSystemUIInputModule
+        /// if the setting is enabled.
+        /// </summary>
+        private static void AutoSwitchInputModule()
+        {
+            if (!SettingsManager.Settings.AutoSwitchInputModule) return;
+
+            var eventSystem = UnityEngine.EventSystems.EventSystem.current;
+            if (eventSystem == null) return;
+
+            var oldModule = eventSystem.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            if (oldModule != null)
+                UnityEngine.Object.Destroy(oldModule);
+
+            if (eventSystem.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>() == null)
+                eventSystem.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
         }
     }
 }

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
 namespace AdvancedPS.Core.Examples
@@ -27,6 +27,8 @@ namespace AdvancedPS.Core.Examples
             ShowcaseUI.Button(bar, "Show GUI (preloaded)", () => AdvancedPopupSystem.LayerShow(PopupLayerEnum.GUI, autohide: false));
             ShowcaseUI.Button(bar, "Toggle SCENE popup", ToggleScene);
             ShowcaseUI.Button(bar, "Spawn toast", SpawnToast);
+            // The same escape step the key below triggers — works on any input backend, like a UI "Back" button.
+            ShowcaseUI.Button(bar, "Back (escape step)", () => AdvancedPopupSystem.EscapeStep());
             ShowcaseUI.Button(bar, "Hide all", () => AdvancedPopupSystem.HideAll());
 
             _status = ShowcaseUI.Label(bar, string.Empty, 13, TextAnchor.UpperLeft, Color.white);
@@ -35,6 +37,10 @@ namespace AdvancedPS.Core.Examples
 
         private void Update()
         {
+            // APS reads no input of its own — the game decides what "back" means and steps the stack itself.
+            // See documentation §6.2 "Escape close stack".
+            if (EscapePressed()) AdvancedPopupSystem.EscapeStep();
+
             if (_status == null) return;
             string resolver = AdvancedPopupSystem.Resolver != null ? "Addressables" : "none (install package)";
             _status.text = $"Active popups: {AdvancedPopupSystem.ActivePopups.Count}\n" +
@@ -47,6 +53,21 @@ namespace AdvancedPS.Core.Examples
         {
             if (AdvancedPopupSystem.TryGetPopup<ScenePopupDemo>(out ScenePopupDemo scene))
                 scene.SwitchShowHide();
+        }
+
+        /// <summary>
+        /// Escape pressed this frame. Legacy Input Manager only: this sample assembly deliberately doesn't reference
+        /// the Input System package (it must compile without it). On the new backend, call EscapeStep() from your own
+        /// action instead — the popup side is identical either way.
+        /// </summary>
+        private static bool EscapePressed()
+        {
+#if ENABLE_LEGACY_INPUT_MANAGER
+            // Fully qualified: the enclosing AdvancedPS.Core.Input namespace shadows the bare name.
+            return UnityEngine.Input.GetKeyDown(KeyCode.Escape);
+#else
+            return false;
+#endif
         }
 
         /// <summary> Spawn a pooled toast at a random spot. Returns null (and does nothing) without the Addressables package. </summary>

@@ -35,7 +35,6 @@ namespace AdvancedPS.Editor
         private SerializedProperty _preloadSceneGuidsProperty;
         private SerializedProperty _unloadSceneGuidsProperty;
         private SerializedProperty _poolCapacityProperty;
-        private SerializedProperty _closeKeyProperty;
 
         // Single-select options for the Popup Layer row. Rebuilt every OnEnable — the Layers panel regenerates
         // PopupLayerEnum, so the set must never be cached statically across domain reloads.
@@ -51,7 +50,7 @@ namespace AdvancedPS.Editor
             "PopupLayer", "m_Script", "DeepPopups", "inspectorShowDisplay", "inspectorHideDisplay",
             "cachedShowSettings", "cachedHideSettings", "AutoHideOnInit", "ManualInit",
             "Modules", "Addressable", "AddressableLoadMode", "PoolCapacity",
-            "PreloadSceneGuids", "UnloadSceneGuids", "Inactive", "EscapePolicy", "CloseKey"
+            "PreloadSceneGuids", "UnloadSceneGuids", "Inactive", "EscapePolicy"
         };
         
         private void OnEnable()
@@ -73,7 +72,6 @@ namespace AdvancedPS.Editor
                 _layerValues[i] = (int)layerValues[i];
             _inactiveProperty = serializedObject.FindProperty("Inactive");
             _escapePolicyProperty = serializedObject.FindProperty("EscapePolicy");
-            _closeKeyProperty = serializedObject.FindProperty("CloseKey");
             _autoHideOnInitProperty = serializedObject.FindProperty("AutoHideOnInit");
             _manualInitProperty = serializedObject.FindProperty("ManualInit");
             _deepPopupsProperty = serializedObject.FindProperty("DeepPopups");
@@ -217,45 +215,14 @@ namespace AdvancedPS.Editor
         }
 
         /// <summary>
-        /// Escape close block: the policy, plus this popup's own Close Key revealed only for <c>Hide</c> — the other
-        /// two policies never consult it (Block swallows any key, Ignore is transparent), so drawing it there would
-        /// promise behavior that doesn't exist. Warns when the whole keyboard path is switched off.
+        /// Escape stack participation — the policy field alone. APS drives no input of its own: the stack is stepped
+        /// from code (<c>AdvancedPopupSystem.EscapeStep</c>), so there is no key to configure here.
         /// </summary>
         private void DrawEscapeClose()
         {
             if (_escapePolicyProperty == null) return;
 
             EditorGUILayout.PropertyField(_escapePolicyProperty, new GUIContent("Escape Policy"));
-
-            bool hidePolicy = !_escapePolicyProperty.hasMultipleDifferentValues &&
-                              _escapePolicyProperty.enumValueIndex == (int)EscapePolicyEnum.Hide;
-            if (!hidePolicy || _closeKeyProperty == null) return;
-
-            // "None" is drawn as the settings key itself, so the row always reads as the key that actually closes this
-            // popup — while the stored value stays None and keeps following the setting.
-            EditorGUI.indentLevel++;
-            var stored = (KeyCode)_closeKeyProperty.intValue;
-            bool inherited = stored == KeyCode.None;
-
-            EditorGUI.showMixedValue = _closeKeyProperty.hasMultipleDifferentValues;
-            EditorGUI.BeginChangeCheck();
-            var picked = (KeyCode)EditorGUILayout.EnumPopup(new GUIContent("Close Key",
-                    "The key that closes this popup. Defaults to the project-wide Escape Close Key; pick another to override it here."),
-                inherited ? _settings.EscapeCloseKey : stored);
-            if (EditorGUI.EndChangeCheck())
-                _closeKeyProperty.intValue = (int)(picked == _settings.EscapeCloseKey ? KeyCode.None : picked);
-            EditorGUI.showMixedValue = false;
-
-            if (inherited && !_closeKeyProperty.hasMultipleDifferentValues)
-                GUILayout.Label("Follows the project-wide Escape Close Key.", APSEditorStyles.WarpedTextStyle);
-            EditorGUI.indentLevel--;
-
-            if (!_settings.EscapeCloseEnabled)
-            {
-                GUILayout.Label("Escape Close Stack is off — no key closes popups.", APSEditorStyles.WarningTextStyle);
-                if (GUILayout.Button("APS settings"))
-                    PopupSystemEditor.ShowSettings();
-            }
         }
 
         private void DrawDefaultInspectorExcept(string[] propertyNamesToExclude)

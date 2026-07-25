@@ -13,21 +13,19 @@ code_paths:
 
 `PopupSettings` (`AdvancedPS.Core.System`) is the serialized config: `InspectorView` (`InspectorEnum` —
 `APSInspector`/`APSOptimized`/`UnityInspector`, drives which custom inspector renders),
-`AutoSwitchInputModule`, `LogType` (`string`: `Error`/`Warning`/`Info`/`None`), `EscapeCloseEnabled` (default
-**false** — upgrade-safe for existing consumers) + `EscapeCloseKey` (`KeyCode`, default `Escape` via **property
-initializer** so old JSON without the key keeps the default — don't move the default into `LoadSettings` only). Edited
-via the APS **Settings** panel ([[Editor & Codegen]]).
+`AutoSwitchInputModule`, `LogType` (`string`: `Error`/`Warning`/`Info`/`None`). Edited via the APS **Settings** panel
+([[Editor & Codegen]]).
 
-`EscapeCloseEnabled` is the **single** switch for APS's keyboard handling: it now also gates whether
-`KeyEventSystemAPS` installs its player-loop update at all ([[Input & Hotkeys]]). The separate `KeyEventSystemEnabled`
-("Key Event Tracking") field was **removed** with the show/hide key bindings — the two toggles described one behavior
-and one disabled the other. Removing a property is safe for existing `AP_Settings.json`: Newtonsoft ignores unknown
-keys, so a stale `KeyEventSystemEnabled` entry is simply dropped on the next save.
+**No keyboard settings left.** `EscapeCloseEnabled` + `EscapeCloseKey` were removed with the key tracking itself (user
+call, 2026-07-25) — the escape stack is now stepped from consumer code, so there is nothing project-wide to configure
+([[Core System]], [[Input Backends]]). They followed `KeyEventSystemEnabled` ("Key Event Tracking"), dropped earlier
+with the show/hide key bindings. Removing a property is safe for existing `AP_Settings.json`: Newtonsoft ignores unknown
+keys, so stale entries are simply dropped on the next save.
 
 ## SettingsManager
 
 Static, loaded lazily on first access. `LoadSettings()` reads `Resources.Load<TextAsset>("AP_Settings")` (Newtonsoft
-deserialize); if absent, it creates defaults (`APSInspector`, `LogType="Warning"`, `EscapeCloseEnabled=true`) and
+deserialize); if absent, it creates defaults (`APSInspector`, `LogType="Warning"`) and
 **saves**. `SaveSettings()` writes JSON to **`Application.dataPath/Resources/AP_Settings.json`** — i.e. the **consumer
 project's** `Assets/Resources`, not the package ([[Project Map]]) — then `AssetDatabase.Refresh()` in editor.
 
@@ -43,4 +41,4 @@ All runtime logging goes through `APLogger` (`Utils`) so `LogType` gates verbosi
 
 ## Depends on
 
-- [[Editor & Codegen]] (the Settings panel that writes these), [[Input & Hotkeys]] (consumers of the input toggles)
+- [[Editor & Codegen]] (the Settings panel that writes these), [[Input Backends]] (consumer of `AutoSwitchInputModule`)

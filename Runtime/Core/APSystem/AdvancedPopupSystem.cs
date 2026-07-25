@@ -818,39 +818,21 @@ namespace AdvancedPS.Core
         /// DeepPopups), Block consumes the step without closing (modal), Ignore passes it to the next popup.
         /// Popups shown as part of a parent's cascade (DeepPopups) don't get their own step — the cascade
         /// root represents the whole group.
-        /// This keyless overload matches every popup regardless of its close keys — call it to drive the same
-        /// behavior from a UI "back" button.
+        /// APS reads no input of its own — call this from whatever drives "back" in your game: an input action,
+        /// the Android back button, a UI button.
         /// </summary>
         /// <returns> True if the step was consumed — a popup was hidden or blocked it. </returns>
         public static bool EscapeStep()
         {
-            return EscapeStep(null);
-        }
-
-        /// <summary>
-        /// <see cref="EscapeStep()"/> driven by a key press: the popup the walk reaches closes only if the pressed key
-        /// is ITS close key — <see cref="IAdvancedPopup.CloseKey"/>, or the project-wide
-        /// <see cref="PopupSettings.EscapeCloseKey"/> when the popup didn't override it. Otherwise the step is dropped
-        /// rather than reaching past it: the topmost closable popup owns the press, so a key bound to a background popup
-        /// can't close it from under the one on screen. Block still consumes any key (modal) and Ignore is still
-        /// transparent — neither consults the key.
-        /// Invoked per frame by KeyEventSystemAPS.
-        /// </summary>
-        /// <param name="isKeyPressed">Backend probe "was this KeyCode pressed this frame"; null matches any key.</param>
-        /// <returns> True if the step was consumed — a popup was hidden or blocked it. </returns>
-        public static bool EscapeStep(Predicate<KeyCode> isKeyPressed)
-        {
             for (int i = ActivePopups.Count - 1; i >= 0; i--)
             {
                 IAdvancedPopup popup = ActivePopups[i];
-                if (popup == null || !popup.IsBeVisible || popup.ShownByCascade)
+                if (!IsEscapeCandidate(popup))
                     continue;
 
                 switch (popup.EscapePolicy)
                 {
                     case EscapePolicyEnum.Hide:
-                        if (!MatchesCloseKey(popup, isKeyPressed))
-                            return false;
                         popup.Hide();
                         return true;
                     case EscapePolicyEnum.Block:
@@ -862,16 +844,83 @@ namespace AdvancedPS.Core
         }
 
         /// <summary>
-        /// Whether the frame's key press addresses this popup: its own CloseKey when it overrode one, else the
-        /// project-wide escape close key. The fallback is resolved here rather than baked into the popup so changing
-        /// the setting still reaches every popup that never overrode it.
+        /// The popup the next <see cref="EscapeStep"/> would reach — the top of the escape stack — or null when the
+        /// stack is empty (a step would then be a no-op). Drives a "Back" button's visibility without stepping.
         /// </summary>
-        private static bool MatchesCloseKey(IAdvancedPopup popup, Predicate<KeyCode> isKeyPressed)
+        public static IAdvancedPopup PeekEscapeStack()
         {
-            if (isKeyPressed == null) return true;
+            for (int i = ActivePopups.Count - 1; i >= 0; i--)
+            {
+                IAdvancedPopup popup = ActivePopups[i];
+                if (IsInEscapeStack(popup))
+                    return popup;
+            }
 
-            KeyCode key = popup.CloseKey != KeyCode.None ? popup.CloseKey : SettingsManager.Settings.EscapeCloseKey;
-            return isKeyPressed(key);
+            return null;
+        }
+
+        /// <summary>
+        /// Whether this popup is in the escape stack right now: visible, not part of a parent's cascade, and not
+        /// <see cref="EscapePolicyEnum.Ignore"/>. Being in it doesn't mean it owns the next step — that is
+        /// <see cref="PeekEscapeStack"/>.
+        /// </summary>
+        public static bool IsInEscapeStack(IAdvancedPopup popup)
+        {
+            return IsEscapeCandidate(popup) && popup.EscapePolicy != EscapePolicyEnum.Ignore;
+        }
+
+        /// <summary>
+        /// Fills <paramref name="buffer"/> with the escape stack, top (most recently shown) first, and returns the
+        /// count. The buffer is cleared first and stays caller-owned, so reusing one list keeps this allocation-free.
+        /// A snapshot — showing or hiding afterwards doesn't update it.
+        /// </summary>
+        public static int GetEscapeStack(List<IAdvancedPopup> buffer)
+        {
+            if (buffer == null) return 0;
+
+            buffer.Clear();
+            for (int i = ActivePopups.Count - 1; i >= 0; i--)
+            {
+                IAdvancedPopup popup = ActivePopups[i];
+                if (IsInEscapeStack(popup))
+                    buffer.Add(popup);
+            }
+
+            return buffer.Count;
+        }
+
+        /// <summary>
+        /// Puts this popup into the escape stack by giving it a participating policy — <see cref="EscapePolicyEnum.Hide"/>
+        /// by default, <see cref="EscapePolicyEnum.Block"/> for a modal. It does NOT show the popup: the stack is the
+        /// visible popups in show order, so a popup joins at the top the moment it becomes visible and leaves when it
+        /// hides. Membership only decides whether a step stops at it.
+        /// </summary>
+        public static void AddToEscapeStack(IAdvancedPopup popup, EscapePolicyEnum policy = EscapePolicyEnum.Hide)
+        {
+            if (popup == null) return;
+
+            popup.EscapePolicy = policy;
+        }
+
+        /// <summary>
+        /// Takes this popup out of the escape stack (<see cref="EscapePolicyEnum.Ignore"/>) — steps pass through it to
+        /// the popup below. It does NOT hide the popup; ordering rules are in <see cref="AddToEscapeStack"/>.
+        /// </summary>
+        public static void RemoveFromEscapeStack(IAdvancedPopup popup)
+        {
+            if (popup == null) return;
+
+            popup.EscapePolicy = EscapePolicyEnum.Ignore;
+        }
+
+        /// <summary>
+        /// Whether the walk reaches this popup at all: alive, not already hiding (which also shields the known
+        /// cancel-rollback gap), and not shown by a parent's cascade — a cascade group is represented by its root.
+        /// Says nothing about the popup's policy.
+        /// </summary>
+        private static bool IsEscapeCandidate(IAdvancedPopup popup)
+        {
+            return popup != null && popup.IsBeVisible && !popup.ShownByCascade;
         }
         #endregion
 

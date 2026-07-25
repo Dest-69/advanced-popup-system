@@ -33,7 +33,7 @@ its own conventions that **differ from a typical game project** (it is a public 
 - **Route runtime logs through `APLogger`** (`Utils/APLogger.cs`), not raw `Debug.Log*` — it honors the Settings
   `LogType` filter (`Error` < `Warning` < `Info`, plus `None`). Direct `Debug.LogError` is used only in low-level
   `SettingsManager`/`InputSwitcher` where settings may not be loaded yet.
-- Messages are **English**, usually tagged and colored: `APLogger.Log("<color=green>[KeyEventSystemAPS]</color> …")`.
+- Messages are **English**, usually tagged and colored: `APLogger.Log("<color=green>[PointerEventSystemAPS]</color> …")`.
   See [[Settings & Logging]].
 
 ## Async

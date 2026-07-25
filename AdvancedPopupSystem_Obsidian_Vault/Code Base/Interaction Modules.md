@@ -44,10 +44,11 @@ an APS panel exactly like `PopupLayerEnum` is generated ([[Editor & Codegen]]).
 
 ## Runtime pipeline (no MonoBehaviours)
 
-Mirrors [[Input & Hotkeys]] — a **static system injected into the PlayerLoop `Update`**, not a scene object:
+A **static system injected into the PlayerLoop `Update`**, not a scene object — and since the key tracking was cut, the
+only input APS polls at all ([[Input Backends]]):
 
-- **`PointerEventSystemAPS`** (one per input backend, `Input/New` + `Input/Old`, chosen by `HAS_NEWINPUT` like
-  `KeyEventSystemAPS`) injects a `PlayerLoopSystem` (double-insert guarded; restores the default loop on
+- **`PointerEventSystemAPS`** (one per input backend, `Input/New` + `Input/Old`, chosen by `HAS_NEWINPUT`)
+  injects a `PlayerLoopSystem` (double-insert guarded; restores the default loop on
   `ExitingPlayMode`). Each frame it reads **only** the pointer position + primary-button state — New: `Pointer.current`
   (covers mouse/pen/touch); Old: `UnityEngine.Input` mouse with a primary-touch fallback — and calls
   `PopupInteractionSystem.Tick(pos, pressed)`. All real logic is backend-agnostic in core; the backend files are thin.
@@ -139,11 +140,11 @@ Pure, allocation-free (`Utils`, one reused `Vector3[4]` buffer, main-thread only
 - **Resize doesn't clamp *size* to bounds**, only repositions after — growing a grip at a screen edge shoves the whole
   popup inward. Fine for popups smaller than the bounds; revisit if needed.
 - **Stretched anchors on a resized axis** are approximate (size maps to insets); drag/resize target fixed-anchor popups.
-- No settings toggle (unlike the keyboard side's `EscapeCloseEnabled`): `PointerEventSystemAPS.IsEnabled` defaults true.
-  Add a `PopupSettings` flag + panel toggle if a global off-switch is wanted ([[Settings & Logging]]).
+- No settings toggle at all: `PointerEventSystemAPS.IsEnabled` (code-only) defaults true. Add a `PopupSettings` flag +
+  panel toggle if a global off-switch is wanted ([[Settings & Logging]]).
 
 ## Depends on
 
 - [[Popup Lifecycle]] (`Modules` field lives on the base; `IsVisible`/`ActivePopups` gate interaction),
-  [[Core System]] (`ActivePopups` recency stack, play-mode cleanup contract), [[Input & Hotkeys]] (the PlayerLoop-inject
-  + New/Old backend pattern this copies), [[Utilities]] (`PopupRectUtility` placement, `APLogger`).
+  [[Core System]] (`ActivePopups` recency stack, play-mode cleanup contract), [[Input Backends]] (the PlayerLoop-inject
+  + New/Old backend split that feeds this), [[Utilities]] (`PopupRectUtility` placement, `APLogger`).

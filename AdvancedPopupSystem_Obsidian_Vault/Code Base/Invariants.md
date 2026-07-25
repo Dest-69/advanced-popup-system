@@ -82,7 +82,7 @@ Do not break these. Deviation only after explicit agreement in the current task.
 - **The only global state is in `AdvancedPopupSystem`**: `AllPopups`, `ActivePopups`, `PopupCacheByType`,
   `ActiveLayer`. There is **no `.Instance`/singleton** — the manager is a static coordinator. Any new static collection
   must be **cleared on scene unload and on editor play-mode exit** (existing leak guards in `AdvancedPopupSystem` and
-  both `KeyEventSystemAPS`). See [[Core System]].
+  both `PointerEventSystemAPS`). See [[Core System]].
 - **`ActiveLayer` is mutated only by `AdvancedPopupSystem` `Layer*`/`HideAll` APIs.** A manual `popup.Show()/Hide()`
   updates only `ActivePopups`, never `ActiveLayer` — don't couple manual calls to layer state (see [[Layers]]).
 

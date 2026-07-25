@@ -35,7 +35,7 @@ action buttons stay disabled until spawning finishes.
   toasts, driven by a code-built button bar; all draggable. The demo popups build their own visuals in `Init`, so the
   prefabs are bare (one distinct `AdvancedPopup` subclass per type — the index is type-keyed).
 - **InputSwitcher** (`Samples/Utils`) — auto-swaps the EventSystem input module under `ENABLE_INPUT_SYSTEM` when
-  `AutoSwitchInputModule` is on ([[Input & Hotkeys]]); `[RuntimeInitializeOnLoadMethod]`, no scene placement needed.
+  `AutoSwitchInputModule` is on ([[Input Backends]]); `[RuntimeInitializeOnLoadMethod]`, no scene placement needed.
 
 **Gotcha:** flagging a prefab Addressable only takes effect once the editor postprocessor regenerates the index asset +
 Addressables group ([[Addressables]] "Editor tooling"). After a fresh checkout or a **hand-edited** `Addressable` flag,

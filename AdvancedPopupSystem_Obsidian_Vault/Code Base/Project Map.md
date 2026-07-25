@@ -54,11 +54,11 @@ assemblies from core runtime.
 
 | Folder | Namespace | Contents |
 |--------|-----------|----------|
-| `Core/APSystem/` | `AdvancedPS.Core` (+ `.System`) | `AdvancedPopupSystem`, `DisplayRegistry`; `.System`: `Operation`, `APSStats`, `DisplaySettingsFactory` |
+| `Core/APSystem/` | `AdvancedPS.Core` (+ `.System`) | `AdvancedPopupSystem`, `EscapePolicyEnum`, `DisplayRegistry`; `.System`: `Operation`, `APSStats`, `DisplaySettingsFactory` |
 | `Core/Abstract/` | `AdvancedPS.Core.System` | `IAdvancedPopup` (abstract base), `IDisplay`/`IDisplay<T>`/`DisplayBase<T>`, `IDisplaySettings`/`BaseSettings<T>` |
 | `Core/Popups/` | `AdvancedPS.Core` | `AdvancedPopup`, `AdvancedPopupInstantiate` (stub) |
 | `Core/Easing/` | `AdvancedPS.Core.System` | `EasingType`, `EasingFunctions` |
-| `Core/Input/` | `AdvancedPS.Core` (`EscapePolicyEnum`); `AdvancedPS.Core.Input` (New/Old) | `KeyEventSystemAPS`, `PointerEventSystemAPS` (per input backend) |
+| `Core/Input/` | `AdvancedPS.Core.Input` (New/Old) | `PointerEventSystemAPS` (per input backend) — the only input APS polls |
 | `Generated/` | `AdvancedPS.Core` | `PopupLayerEnum.generated.cs`; `Displays/<Name>Display/` (Fade/Scale/Slide/DoTween), `SlideEnum` |
 | `Settings/` | `AdvancedPS.Core.System` | `PopupSettings` + `InspectorEnum`, `SettingsManager` |
 | `Utils/` | `AdvancedPS.Core.Utils` | `APLogger`, `FileSearcher`, `TaskUtils`, `TypeHelper` |

@@ -11,9 +11,9 @@ using UnityEditor;
 namespace AdvancedPS.Core.Input
 {
     /// <summary>
-    /// Pointer driver (legacy Input Manager). Injects a <see cref="PlayerLoopSystem"/> into the Update loop — exactly
-    /// like <see cref="KeyEventSystemAPS"/> — reads the mouse (with a primary-touch fallback for devices) each frame and
-    /// forwards it to the backend-agnostic <see cref="PopupInteractionSystem"/>. No MonoBehaviours are spawned.
+    /// Pointer driver (legacy Input Manager). Injects a <see cref="PlayerLoopSystem"/> into the Update loop, reads the
+    /// mouse (with a primary-touch fallback for devices) each frame and forwards it to the backend-agnostic
+    /// <see cref="PopupInteractionSystem"/>. No MonoBehaviours are spawned.
     /// </summary>
     public static class PointerEventSystemAPS
     {

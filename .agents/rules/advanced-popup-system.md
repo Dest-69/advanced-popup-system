@@ -33,7 +33,7 @@ or behavior changes, and **never bump `package.json` version without asking the 
 | `Operation`, `OnComplete`/`Cancel`, `CancellationToken` flow, `APSStats` | [[Operations & Cancellation]] |
 | Layers, `PopupLayerEnum`, `ActiveLayer`, autohide | [[Layers]] |
 | On-demand loading: Addressables, lazy/preload, `SpawnAsync`/pool, the resolver seam & index asset | [[Addressables]] |
-| Hotkeys, key-triggered show/hide, New vs Old input, input-module switch | [[Input & Hotkeys]] |
+| Input backends (New vs Old), pointer polling, input-module switch, why APS reads no keys | [[Input Backends]] |
 | Settings, `AP_Settings.json`, log levels / `APLogger` | [[Settings & Logging]] |
 | APS editor window, generating layers/displays, inspectors, create-popup menu | [[Editor & Codegen]] |
 | Shared helpers (`APLogger`/`FileSearcher`/`TaskUtils`/`TypeHelper`) | [[Utilities]] |

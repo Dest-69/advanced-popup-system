@@ -1,4 +1,12 @@
 # Changelog
+## [2.1.0] - 2026-07-25
+### Added
+- **Control the close stack from code** — put a popup in or out of the back stack at runtime, or ask what "back" would close next.
+### Changed
+- **"Back" is now yours to trigger** — one call closes the top popup, from whatever key or button you like. *Upgrading: add `AdvancedPopupSystem.EscapeStep()` to your own input handling; each popup's **Escape Policy** keeps working as before.*
+### Removed
+- **The escape key settings and the per-popup Close Key** — APS no longer reads the keyboard at all. *Upgrading: pick the key in your own input code.*
+
 ## [2.0.3] - 2026-07-24
 ### Added
 - **Each popup can have its own close key** — a popup set to close on the escape key now has a **Close Key** field right in its inspector. It starts on the project-wide key and keeps following it, so changing that one setting still reaches every popup you left alone; pick another key and only this popup changes. The popup on top always owns the key press, so a key you gave a background popup can never close it from underneath.

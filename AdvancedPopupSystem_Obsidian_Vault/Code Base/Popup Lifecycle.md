@@ -18,9 +18,9 @@ Show/Hide/Switch overrides. **User popups extend `AdvancedPopup`.**
 ## Inspector fields (on the base)
 
 `PopupLayer` (which layers can show this), `ManualInit`, `AutoHideOnInit` (default `true`), `Inactive` (blocks Show),
-`EscapePolicy` (`EscapePolicyEnum`: `Hide` / `Ignore` default / `Block` — escape-stack participation, see
-[[Core System]]), `CloseKey` (single `KeyCode`, `None` = inherit the project-wide escape key; `Hide` policy only —
-[[Input & Hotkeys]]), `DeepPopups` (child/dependent popups); the **Addressable** box `Addressable` / `AddressableLoadMode` + the per-scene selection
+`EscapePolicy` (`EscapePolicyEnum`: `Hide` / `Ignore` default / `Block` — escape-stack participation, and the field the
+`Add/RemoveFromEscapeStack` API writes at runtime, see [[Core System]]),
+`DeepPopups` (child/dependent popups); the **Addressable** box `Addressable` / `AddressableLoadMode` + the per-scene selection
 `PreloadSceneGuids` (empty = Everyone) / `UnloadSceneGuids` (empty = None), both scene **GUIDs**, and the **Pool** box
 `PoolCapacity` (unified on-hide + pool control: -1 unlimited / 0 despawn / N keep — all [[Addressables]]).
 Hidden: `RootTransform`, `canvasGroup`, `IsBeVisible` (set when animation **starts**), `IsVisible` (set when it
@@ -126,4 +126,4 @@ lanes. See [[Addressables]].
 ## Depends on
 
 - [[Displays & Animations]] (the display/settings driving animation), [[Operations & Cancellation]] (CTS, `Operation`,
-  `APSStats`), [[Core System]] (registration), [[Input & Hotkeys]] (the close key)
+  `APSStats`), [[Core System]] (registration, the escape stack `EscapePolicy` feeds)
