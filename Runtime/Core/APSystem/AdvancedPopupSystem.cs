@@ -62,13 +62,17 @@ namespace AdvancedPS.Core
         /// <summary> Scratch reused by <see cref="OnSceneUnloaded"/> to prune dead single-slot entries without allocating. </summary>
         private static readonly List<string> _deadPoolKeys = new();
         /// <summary>
-        /// Loads currently in flight for a Lane-A unique type, keyed by popup <see cref="Type"/>. Lets concurrent
-        /// <see cref="GetPopupAsync{T}"/> / <see cref="Show{T}"/> calls for the same not-yet-loaded type share one load
-        /// instead of each instantiating a duplicate. An entry lives only for its load — <see cref="RemoveInFlightWhenComplete"/>
-        /// drops it on completion. Cleared on play-mode exit; needs no scene-unload prune (entries are self-removing and
-        /// hold a Task, never a destroyable Unity reference — unlike the instance pools).
+        /// Loads currently in flight for a Lane-A unique type, keyed by popup <c>Type.FullName</c> — the same currency
+        /// the index and <see cref="IsLive"/> speak, which is what lets the by-type and the preload paths share one map
+        /// (the preload side only ever has the index entry's name, never a <see cref="Type"/>). Every Lane-A load goes
+        /// through <see cref="SharedLoadAsync"/>, so concurrent <see cref="GetPopupAsync{T}"/> / <see cref="Show{T}"/>
+        /// calls and the preload passes (<see cref="PreloadAll"/>, <see cref="EnsureLayerLoadedAsync"/>, the per-scene
+        /// pass) for the same not-yet-loaded type share one load instead of each instantiating a duplicate. An entry
+        /// lives only for its load — <see cref="RemoveInFlightWhenComplete"/> drops it on completion. Cleared on
+        /// play-mode exit; needs no scene-unload prune (entries are self-removing and hold a Task, never a destroyable
+        /// Unity reference — unlike the instance pools).
         /// </summary>
-        private static readonly Dictionary<Type, Task<IAdvancedPopup>> _inFlightLoads = new();
+        private static readonly Dictionary<string, Task<IAdvancedPopup>> _inFlightLoads = new();
         #endregion
 
         #region INIT
@@ -532,8 +536,9 @@ namespace AdvancedPS.Core
         /// preloaded, or loaded earlier) is returned right away — so the scene-wins / dedup rule is honored — otherwise
         /// the type is resolved in the Addressable index and instantiated via <see cref="Resolver"/> under its layer
         /// canvas, awaiting the load. The new instance self-registers as the unique instance (unlike
-        /// <see cref="SpawnAsync{T}"/>, which pulls its copy back out of the registries). Concurrent calls for the same
-        /// not-yet-loaded type <b>share one load</b>, so no duplicate instance is created. Returns null when the popup is
+        /// <see cref="SpawnAsync{T}"/>, which pulls its copy back out of the registries). Concurrent requests for the
+        /// same not-yet-loaded type <b>share one load</b> — including a preload pass that got there first
+        /// (<see cref="SharedLoadAsync"/>) — so no duplicate instance is created. Returns null when the popup is
         /// neither in a loaded scene nor flagged Addressable, the Addressables integration is absent (logged), or
         /// <paramref name="token"/> was cancelled by the time the load finished.
         /// </summary>
@@ -545,25 +550,24 @@ namespace AdvancedPS.Core
             if (TryGetPopup<T>(out T resident))
                 return resident;
 
-            Type type = typeof(T);
-            // Reuse a load already in flight for this type instead of starting a second one (which would create a
-            // duplicate instance). The entry is published synchronously below, before the first await, so a concurrent
-            // caller that runs while this one is suspended finds it here.
-            if (!_inFlightLoads.TryGetValue(type, out Task<IAdvancedPopup> load))
+            string typeName = typeof(T).FullName;
+            // Reuse a load already in flight for this type — started by another get, a layer show, or a preload pass —
+            // instead of starting a second one (which would create a duplicate instance). Entries are published
+            // synchronously, before the first await, so a concurrent caller running while this one is suspended finds
+            // it here. Null FullName can't be a dictionary key; it fails the index lookup below anyway.
+            Task<IAdvancedPopup> load = null;
+            if (typeName != null)
+                _inFlightLoads.TryGetValue(typeName, out load);
+
+            if (load == null)
             {
-                string typeName = type.FullName;
                 if (Resolver == null || typeName == null || !AddressablePopupIndex.TryGetByTypeName(typeName, out var entry))
                 {
                     APLogger.LogError($"<color=red>[AdvancedPopupSystem]</color> GetPopupAsync<{typeName}> needs the popup present in a loaded scene, or flagged Addressable with the Addressables integration present.");
                     return default;
                 }
 
-                // CancellationToken.None on purpose, not this caller's token: a unique popup is a singleton, so one
-                // caller cancelling must not release the shared instance out from under the others. Each caller honors
-                // its own token after the await instead. The instance's Init() self-registers it as the unique instance.
-                load = Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), CancellationToken.None);
-                _inFlightLoads[type] = load;
-                RemoveInFlightWhenComplete(type, load);
+                load = SharedLoadAsync(entry);
             }
 
             IAdvancedPopup popup;
@@ -573,14 +577,9 @@ namespace AdvancedPS.Core
             }
             catch (Exception ex)
             {
-                APLogger.LogError($"<color=red>[AdvancedPopupSystem]</color> GetPopupAsync<{type.FullName}> load failed: {ex.Message}");
+                APLogger.LogError($"<color=red>[AdvancedPopupSystem]</color> GetPopupAsync<{typeName}> load failed: {ex.Message}");
                 return default;
             }
-
-            // Order the fresh instance inside its canvas right away (the resolver appends it last), so a preloaded or
-            // just-loaded popup already sits where the Order catalog wants it — even before its first Show.
-            if (popup != null)
-                ApplyOrder(popup);
 
             if (token.IsCancellationRequested)
                 return default;
@@ -588,18 +587,57 @@ namespace AdvancedPS.Core
         }
 
         /// <summary>
-        /// Drops the <see cref="_inFlightLoads"/> entry for <paramref name="type"/> once its shared load finishes
-        /// (success or failure), so the type can load again later and a failed load never poisons the map. The reference
-        /// check avoids evicting a newer entry re-registered meanwhile. The awaiting caller in <see cref="GetPopupAsync{T}"/>
-        /// observes the result/exception; this fire-and-forget cleanup only swallows it (mirrors <see cref="PreloadEntryAsync"/>).
+        /// The one gate every Lane-A load passes through: returns the load already in flight for <paramref name="entry"/>'s
+        /// type, or starts one and publishes it in <see cref="_inFlightLoads"/> <b>before the first await</b>, so whoever
+        /// asks next — a by-type get (<see cref="GetPopupAsync{T}"/> / <see cref="Show{T}"/>), a layer show, or a preload
+        /// pass (<see cref="EnsureEntryLoadedAsync"/>) — awaits the same instance instead of instantiating a second one.
+        /// It exists because the residency guards those paths run first (<see cref="TryGetPopup{T}"/> /
+        /// <see cref="IsLive"/>) cannot see a load in flight: a popup registers itself from its <c>Awake</c>, i.e. only
+        /// once <c>InstantiateAsync</c> has finished, so between two calls in the same frame both guards read "not
+        /// present" and each would start its own load.
         /// </summary>
-        private static async void RemoveInFlightWhenComplete(Type type, Task<IAdvancedPopup> load)
+        private static Task<IAdvancedPopup> SharedLoadAsync(AddressablePopupIndexAsset.Entry entry)
+        {
+            if (_inFlightLoads.TryGetValue(entry.TypeName, out Task<IAdvancedPopup> load))
+                return load;
+
+            load = LoadAndOrderAsync(entry);
+            _inFlightLoads[entry.TypeName] = load;
+            RemoveInFlightWhenComplete(entry.TypeName, load);
+            return load;
+        }
+
+        /// <summary>
+        /// The shared load itself: materialize the entry under its layer canvas and order it. Runs on
+        /// <see cref="CancellationToken.None"/> on purpose, never a caller's token — a unique popup is a singleton, so
+        /// one caller cancelling (a superseded <see cref="LayerShow(PopupLayerEnum, bool)"/>, an abandoned
+        /// <see cref="PreloadAll"/>) must not release the shared instance out from under the others; each caller honors
+        /// its own token after the await instead. The instance's <c>Init()</c> self-registers it as the unique instance.
+        /// <see cref="ApplyOrder"/> lands here — once per load rather than once per caller — so a preloaded or
+        /// just-loaded popup already sits where the Order catalog wants it (the resolver appends it last), even before
+        /// its first Show.
+        /// </summary>
+        private static async Task<IAdvancedPopup> LoadAndOrderAsync(AddressablePopupIndexAsset.Entry entry)
+        {
+            IAdvancedPopup popup = await Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), CancellationToken.None);
+            if (popup != null)
+                ApplyOrder(popup);
+            return popup;
+        }
+
+        /// <summary>
+        /// Drops the <see cref="_inFlightLoads"/> entry for <paramref name="typeName"/> once its shared load finishes
+        /// (success or failure), so the type can load again later and a failed load never poisons the map. The reference
+        /// check avoids evicting a newer entry re-registered meanwhile. The awaiting callers observe the
+        /// result/exception; this fire-and-forget cleanup only swallows it (mirrors <see cref="PreloadEntryAsync"/>).
+        /// </summary>
+        private static async void RemoveInFlightWhenComplete(string typeName, Task<IAdvancedPopup> load)
         {
             try { await load; }
-            catch { /* outcome handled by the awaiting caller; here we only clean up the map */ }
+            catch { /* outcome handled by the awaiting callers; here we only clean up the map */ }
 
-            if (_inFlightLoads.TryGetValue(type, out Task<IAdvancedPopup> current) && ReferenceEquals(current, load))
-                _inFlightLoads.Remove(type);
+            if (_inFlightLoads.TryGetValue(typeName, out Task<IAdvancedPopup> current) && ReferenceEquals(current, load))
+                _inFlightLoads.Remove(typeName);
         }
         #endregion
 
@@ -1294,7 +1332,7 @@ namespace AdvancedPS.Core
         /// Per-scene preload/unload driver — run for the boot scene and on every <see cref="SceneManager.sceneLoaded"/>.
         /// Releases Addressable popups whose <see cref="IAdvancedPopup.UnloadSceneGuids"/> contains this scene, then
         /// eagerly loads Preload popups that want it (all-scenes, or <see cref="IAdvancedPopup.PreloadSceneGuids"/>) and
-        /// are not already live. Unload runs first so a scene listed in both sets ends up loaded. Matched by
+        /// are not already live or loading. Unload runs first so a scene listed in both sets ends up loaded. Matched by
         /// <see cref="Scene.path"/> against the baked scene paths in the index — identity-based, so reordering Build
         /// Settings never shifts it. No-op without the Addressables resolver.
         /// </summary>
@@ -1305,8 +1343,10 @@ namespace AdvancedPS.Core
             foreach (var entry in AddressablePopupIndex.UnloadsForScene(scenePath))
                 UnloadType(entry.TypeName);
 
+            // Skip what is already resident or has a load in flight (a Show<T> in the same frame, an additive scene that
+            // preloads the same popup) — SharedLoadAsync would dedup it anyway, this just avoids the wasted state machine.
             foreach (var entry in AddressablePopupIndex.PreloadsForScene(scenePath))
-                if (!IsLive(entry.TypeName))
+                if (!IsLive(entry.TypeName) && !_inFlightLoads.ContainsKey(entry.TypeName))
                     PreloadEntryAsync(entry);
         }
 
@@ -1357,7 +1397,9 @@ namespace AdvancedPS.Core
         #region Helpers
         /// <summary>
         /// True when a popup of <paramref name="typeName"/> (Type.FullName) is already present in AllPopups — a live
-        /// scene instance or one loaded earlier. Drives the "scene wins the index" rule and prevents double-loads.
+        /// scene instance or one loaded earlier. Drives the "scene wins the index" rule. It sees only <b>finished</b>
+        /// loads (a popup registers itself from its Awake), so it is not on its own a double-load guard — that is
+        /// <see cref="SharedLoadAsync"/>'s job.
         /// </summary>
         private static bool IsLive(string typeName)
         {
@@ -1378,15 +1420,20 @@ namespace AdvancedPS.Core
         /// per-scene pass) continue with their remaining entries — one popup whose load or Awake throws must not
         /// silently block every popup after it. Cancellation is not treated as a failure: the loops' own
         /// cancellation checks exit instead.
+        /// <para>
+        /// The load goes through <see cref="SharedLoadAsync"/>, not straight to the resolver: a preload and a
+        /// <see cref="Show{T}"/> of the same popup in the same frame must end up awaiting <b>one</b> instance
+        /// (<c>IsLive</c> alone cannot see a load in flight). One consequence of that sharing: cancelling the batch no
+        /// longer aborts the entry already in flight — it runs to completion and stays resident, because another caller
+        /// may be waiting on it. The loop simply stops before the next entry.
+        /// </para>
         /// </summary>
         private static async Task EnsureEntryLoadedAsync(AddressablePopupIndexAsset.Entry entry, CancellationToken token)
         {
             if (IsLive(entry.TypeName)) return;
             try
             {
-                IAdvancedPopup popup = await Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer), token);
-                if (popup != null)
-                    ApplyOrder(popup);
+                await SharedLoadAsync(entry);
             }
             catch (Exception ex)
             {

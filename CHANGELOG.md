@@ -1,4 +1,10 @@
 # Changelog
+## [2.2.1] - 2026-07-25
+### Changed
+- **Cancelling a preload stops it at the next popup** — the one already loading finishes and stays in memory, since another call may be waiting for it.
+### Fixed
+- **A preloaded popup no longer opens twice** — showing a popup on the same frame its scene preloads it now waits for the copy already loading instead of quietly making a second one. Before, closing or "back" could act on the invisible twin and leave the visible popup on screen.
+
 ## [2.2.0] - 2026-07-25
 ### Added
 - **Choose which popup is drawn in front** — arrange them per layer in the new **APS ▸ Order** tab; APS applies it on every show.

@@ -992,7 +992,7 @@ The whole lazy model hangs on knowing which calls load:
 | :--- | :--- | :--- |
 | `Show<T>()` / `Show<T, TDisplay>()` | **Yes** | Fetches via `GetPopupAsync` under the hood, then shows. |
 | `SwitchShowHide<T>()` | **Yes** | Toggles a resident popup; a not-loaded popup is loaded **and shown**. |
-| `GetPopupAsync<T>(token)` | **Yes** | Resident popup returns instantly. **Concurrent calls for the same not-yet-loaded type share one in-flight load** — no duplicate instance. |
+| `GetPopupAsync<T>(token)` | **Yes** | Resident popup returns instantly. **Everything asking for the same not-yet-loaded type shares one load** — no duplicate instance. |
 | `LayerShow(layer, …)` | **Yes** | Materializes the layer's Addressable popups (sequentially) before showing. |
 | `SpawnAsync<T>(parent)` | **Yes** | The many-copies lane; reuses the pool first. |
 | `PreloadAll()` / `PreloadLayer(layer)` | **Yes** | Eager and **sequential** — a long list takes the sum of its load times. Await them to gate a loading screen. |
@@ -1003,9 +1003,13 @@ On every sequential batch path (`PreloadAll`, `PreloadLayer`, per-scene preload,
 **fails** to load is logged by type and skipped ([§9.3](#93-preload--unload-per-scene)).
 
 > [!NOTE]
-> The shared in-flight load is detached from any single caller: cancelling **your** `GetPopupAsync` call abandons *your
-> wait* (you get `null`), but the load still completes and the popup stays resident for everyone else — a unique popup is
-> never released because one caller changed its mind.
+> **One load per unique popup, no matter who asks first.** By-type calls (`Show<T>`, `GetPopupAsync<T>`), `LayerShow`
+> and the preload passes all join the same in-flight load for a given type — so a popup set to **Preload** that you also
+> `Show<T>()` on the same frame is loaded **once**, not twice, whichever call happens to run first.
+>
+> That shared load is detached from any single caller: cancelling **your** `GetPopupAsync` abandons *your wait* (you get
+> `null`), and cancelling a `PreloadAll`/`PreloadLayer` stops the batch before its next popup — but the load already
+> running finishes and its popup stays resident. A unique popup is never released because one caller changed its mind.
 
 ---
 

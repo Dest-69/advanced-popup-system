@@ -50,12 +50,15 @@ shape lives in **one** place — the SO — with no kept-in-sync copies to break
   lives in `AllPopups`/`PopupCacheByType`, participates in layers + escape. `LayerShow` calls `EnsureLayerLoadedAsync`
   before showing → materializes the layer's Addressable popups not already live. `GetPopupAsync<T>` is the **by-type**
   equivalent: same `Resolver.LoadAsync(entry.Address, GetCanvasForLayer(entry.Layer))` load, but for one type, returning
-  the **unique** instance (its `Init()` self-registers it — no `DeactivateAdvancedPopup`, unlike Lane B). Concurrent gets of
-  the same not-yet-loaded type **share one in-flight load** (`_inFlightLoads`) so no duplicate is made — details in
-  [[Core System]] "Lookups". `Show<T>` is a thin `Operation` over it; `Hide<T>` never loads ([[Core System]] "Show / hide by type"). **Scene wins the index:** a
+  the **unique** instance (its `Init()` self-registers it — no `DeactivateAdvancedPopup`, unlike Lane B). **Every Lane-A
+  load — by-type, layer, and preload alike — goes through the single gate `SharedLoadAsync(entry)`**, so concurrent
+  requests for the same not-yet-loaded type share **one** in-flight load (`_inFlightLoads`, keyed by type name) and no
+  duplicate is made — details in [[Core System]] "Lookups".
+  `Show<T>` is a thin `Operation` over it; `Hide<T>` never loads ([[Core System]] "Show / hide by type"). **Scene wins the index:** a
   scene-authored popup of the same type suppresses the load (dedup by type name — the `TryGetPopup`/`IsLive` check every
   Lane-A entry point runs first), so testing one screen = drop its prefab in a scene and press Play — no Addressables
-  round-trip.
+  round-trip. Those residency checks handle the *already loaded* case only; the concurrent case is the gate's job (see
+  "Gotchas").
 - **Lane B — many copies.** `SpawnAsync<T>(parent)` / `Despawn(popup, release)`. For toasts / list rows. Reuses a
   pooled instance or loads a fresh one, then **pulls it out of the unique registries** its `Init()` joined
   (`DeactivateAdvancedPopup`) and tracks it in `SpawnedPopups` — so `LayerShow` ignores it, but it is still in
@@ -70,8 +73,9 @@ shape lives in **one** place — the SO — with no kept-in-sync copies to break
   overridable). This is the per-layer canvas routing (HUD vs dialogs vs … on independent sort orders — mechanism in
   [[Core System]] "Canvas routing", surfaced on [[Layers]]). `SpawnAsync` still takes an explicit `parent` that wins
   when non-null. Scene-authored popups never touch any of this. Every parenting site here (both pool re-parents, the fresh
-  Lane-B load, `GetPopupAsync`, `EnsureEntryLoadedAsync`) also calls `ApplyOrder` so the instance lands at its ordered
-  sibling index instead of last ([[Hierarchy Order]]).
+  Lane-B load, and the shared Lane-A load `LoadAndOrderAsync` — which covers `GetPopupAsync` *and*
+  `EnsureEntryLoadedAsync`, one `ApplyOrder` per load rather than per caller) also calls `ApplyOrder` so the instance
+  lands at its ordered sibling index instead of last ([[Hierarchy Order]]).
 - **Per-scene preload/unload:** `ProcessScene(scenePath)` (`Core System`) runs for the boot scene and on every
   `SceneManager.sceneLoaded`, matched by **`Scene.path`** against the entries' baked paths (identity-based → reordering
   Build Settings never shifts it; no 31-scene cap). It **unloads then preloads** (a scene in both a popup's sets ends up
@@ -94,7 +98,11 @@ shape lives in **one** place — the SO — with no kept-in-sync copies to break
   so every sequential batch above it (`PreloadAll`, `EnsureLayerLoadedAsync` → `LayerShow`/`PreloadLayer`, the
   per-scene pass) continues with its remaining entries instead of silently dropping everything after the broken popup.
   Isolation lives in that **one** method on purpose — don't re-add per-loop catches. Cancellation is not a failure:
-  the catch re-checks `OperationCancelled` and returns, and each loop's own check exits.
+  the catch re-checks `OperationCancelled` and returns, and each loop's own check exits. Since 2026-07-25 it loads via
+  `SharedLoadAsync` instead of calling `Resolver.LoadAsync` itself, so it **joins a load already in flight** — which also
+  means the caller's token no longer reaches the resolver: cancelling a batch stops it before the *next* entry, but the
+  one in flight completes and stays resident (other callers may be awaiting it). `ProcessScene` skips entries that are
+  `IsLive` **or** already in `_inFlightLoads` — a cheap early-out; the gate dedups them either way.
 - **`UnloadType(typeName)`** (`Core System`): releases the resident unique (Lane-A) instance via `Resolver.Release`
   (its `OnDestroy` prunes the registries) + drains `_pool`/`_singlePool` of that type; **skips a visible
   (`IsBeVisible`) instance** and user-owned `SpawnedPopups`. Releasing a scene-authored popup is a no-op (the resolver
@@ -155,6 +163,16 @@ removable). **Single-object edit only** — multi-select shows a note (per-objec
 
 ## Gotchas
 
+- **Residency checks cannot see a load in flight — every Lane-A load must go through `SharedLoadAsync`.** A popup
+  registers itself (`InitAdvancedPopup`) from its **`Awake`**, i.e. only once `InstantiateAsync` has finished, so while a
+  load is running `IsLive`/`TryGetPopup` both answer "not present". A path that gates on those alone will happily start a
+  second load. That was a real bug (fixed 2026-07-25): `EnsureEntryLoadedAsync` — the preload path (`ProcessScene` →
+  `PreloadEntryAsync`, and `PreloadAll`/`PreloadLayer`) — wrote to and read from **neither** `_inFlightLoads`, so a popup
+  set `LoadMode.Preload` and also opened with `Show<T>()` in the same frame (e.g. a Boot-scene `Start()`) loaded
+  **twice**: two instances in `AllPopups`, `PopupCacheByType` keeping whichever registered last (possibly the invisible
+  one, so `Hide<T>`/the escape stack acted on the wrong object), and a spare Addressables handle alive for the session.
+  Symmetric — either call order duplicated. The gate is now the *only* Lane-A entry to `Resolver.LoadAsync`; **Lane B's
+  `SpawnAsync` is the one deliberate bypass** (it exists to make copies).
 - **`ManualInit` is ignored for Addressable popups** — they always auto-init on `Awake` (`!ManualInit || Addressable`),
   because the resolver instantiates them and never calls `Init()`; `SpawnAsync`/preload/lazy all assume `Init()` ran. The
   flag applies to scene popups only; the inspector greys it with a note (mirrors `AutoHideOnInit`) — see [[Popup Lifecycle]].

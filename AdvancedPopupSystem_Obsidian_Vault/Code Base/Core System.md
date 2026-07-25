@@ -22,7 +22,8 @@ popup ([[Popup Lifecycle]]).
   ([[Layers]]).
 - **Addressables surface** (optional, [[Addressables]]): `Resolver` (`IPopupResolver`, null default → scene-only),
   `SpawnedPopups` (Lane B, kept out of `AllPopups`), the reuse pool, `_inFlightLoads` (Lane-A concurrent-load dedup, keyed
-  by `Type`), and `Root` (default parent for loaded/spawned popups — auto persistent Canvas, overridable). All follow the
+  by `Type.FullName` — the string is what lets the by-type *and* the preload paths share one map, the preload side never
+  has a `Type`), and `Root` (default parent for loaded/spawned popups — auto persistent Canvas, overridable). All follow the
   leak-guard rule — `_inFlightLoads` is cleared on play-mode exit but needs **no** scene-unload prune (self-removing, holds
   a Task not a Unity ref).
 - **`_layerCanvases`** (`Dictionary<PopupLayerEnum, Transform>`, keyed by **single** flag) — per-layer canvas routing
@@ -71,11 +72,22 @@ allocation-light on purpose: one scratch list, depth computed once per popup, `L
   guard); on a miss it resolves the type in the Addressable index and instantiates via `Resolver` under the layer canvas,
   returning the **unique** instance (contrast `SpawnAsync`, which detaches its copy from the registries — [[Addressables]]).
   Null when not in a scene and not Addressable / no integration. No-op-cheap on the scene-only path (the `TryGetPopup` hit).
-  **Concurrent-load dedup:** simultaneous calls for the same not-yet-loaded type **share one in-flight load**
-  (`_inFlightLoads`, keyed by `Type`, published synchronously *before* the first await so a suspended-then-resumed caller
-  finds it) — no duplicate instance. That load runs under `CancellationToken.None` (a singleton must not be released
-  because one caller cancelled); each caller honors its own `token` after the await. `RemoveInFlightWhenComplete` clears
-  the entry on completion (success/failure) so a failed load can't poison the type.
+  **Concurrent-load dedup:** every Lane-A load goes through **one gate**, `SharedLoadAsync(entry)` — it returns the load
+  already in flight for that type or starts one, publishing it in `_inFlightLoads` (keyed by `Type.FullName`)
+  *synchronously, before the first await*, so a suspended-then-resumed caller finds it. `RemoveInFlightWhenComplete`
+  clears the entry on completion (success/failure) so a failed load can't poison the type.
+  - **Why a gate and not just the residency checks:** `TryGetPopup`/`IsLive` only see **finished** loads — a popup
+    registers itself from its `Awake`, i.e. after `InstantiateAsync` returns — so during a load both read "not present".
+    Anything gating on them alone races: the preload path did exactly that and a per-scene preload + a `Show<T>()` in the
+    same frame produced **two instances** of a unique popup (fixed 2026-07-25; symptom: `PopupCacheByType` kept whoever
+    registered last, so `Hide<T>`/escape acted on the invisible copy, plus a leaked Addressables handle). The race is
+    symmetric — either call order duplicated. **Never add a Lane-A load site that talks to `Resolver.LoadAsync` directly**;
+    route it through `SharedLoadAsync` (Lane B's `SpawnAsync` is the deliberate exception — it *wants* copies).
+  - The shared load (`LoadAndOrderAsync`) runs under `CancellationToken.None` — a singleton must not be released because
+    one of several callers cancelled; each caller honors its own `token` after the await. **Consequence:** cancelling a
+    `PreloadAll`/`PreloadLayer`/`LayerShow` no longer aborts the entry already in flight (it used to pass the caller's
+    token straight to the resolver) — that popup finishes loading and stays resident; the loop just stops before the next
+    entry. `ApplyOrder` also lives in this method — once per load, not once per caller.
 - `GetPopupByLayer(layer, activeOnly=true)` — first popup whose layer is in the query (any-of bitwise; the query may
   be a mask — [[Layers]] "one layer per popup").
 - `GetPopupByName(name, activeOnly=true)` — by `GameObject.name`, **case-sensitive**.
