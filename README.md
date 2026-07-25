@@ -205,12 +205,12 @@ See the [full documentation](documentation.md) for the complete API, custom-disp
 The **APS Editor Window** lists every registered popup and traces active operations and tasks at runtime.
 
 <p align="center">
-  <img width="35%" alt="Editor View 1" src="https://github.com/user-attachments/assets/ca7d97e6-f350-4b6f-9b05-4b6f5d35c24f" />
-  <img width="35%" alt="Editor View 2" src="https://github.com/user-attachments/assets/953321c6-cd75-456b-b399-544f75002f57" />
+  <img width="35%" alt="Editor View 1" src="https://github.com/user-attachments/assets/dee4ee8f-4b7c-4438-b341-b01bb404086e" />
+  <img width="35%" alt="Editor View 2" src="https://github.com/user-attachments/assets/a9aec676-4dbc-4795-a73b-ec21d9f0dcb5" />
 </p>
 <p align="center">
-  <img width="35%" alt="Editor View 3" src="https://github.com/user-attachments/assets/249263ad-4366-49a4-bd71-4446540fb2f0" />
-  <img width="35%" alt="Editor View 3" src="https://github.com/user-attachments/assets/1a390aac-646e-4c92-a8f9-b05e36e81766" />
+  <img width="35%" alt="Editor View 3" src="https://github.com/user-attachments/assets/eae9d6fc-0a60-4992-aedf-2d95f1193c45" />
+  <img width="35%" alt="Editor View 3" src="https://github.com/user-attachments/assets/d23fa8be-93f7-4316-8920-ffc72c745261" />
 </p>
 
 ### Popup Inspector
