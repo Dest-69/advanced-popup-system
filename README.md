@@ -203,9 +203,12 @@ See the [full documentation](documentation.md) for the complete API, custom-disp
 The **APS Editor Window** lists every registered popup and traces active operations and tasks at runtime.
 
 <p align="center">
-  <img width="32%" alt="Editor View 1" src="https://github.com/user-attachments/assets/897b5471-2a7a-4c0a-8b07-b762a8ac9026" />
-  <img width="32%" alt="Editor View 2" src="https://github.com/user-attachments/assets/6af2907b-7347-4381-9f8f-f50e44021ece" />
-  <img width="32%" alt="Editor View 3" src="https://github.com/user-attachments/assets/619ea2f3-07c4-4d03-8d47-7895321e4d5e" />
+  <img width="35%" alt="Editor View 1" src="https://github.com/user-attachments/assets/ca7d97e6-f350-4b6f-9b05-4b6f5d35c24f" />
+  <img width="35%" alt="Editor View 2" src="https://github.com/user-attachments/assets/953321c6-cd75-456b-b399-544f75002f57" />
+</p>
+<p align="center">
+  <img width="35%" alt="Editor View 3" src="https://github.com/user-attachments/assets/249263ad-4366-49a4-bd71-4446540fb2f0" />
+  <img width="35%" alt="Editor View 3" src="https://github.com/user-attachments/assets/1a390aac-646e-4c92-a8f9-b05e36e81766" />
 </p>
 
 ### Popup Inspector
@@ -214,8 +217,7 @@ Configure animations, escape policy, child popups, and the popup's layer directl
 show → hide cycle right in edit mode (no play mode needed) and restores the popup's state afterwards:
 
 <p align="center">
-  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/86c266fd-5ee4-449c-9adf-96875c761967" />
-  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/74f790eb-2b85-490d-a217-2fc0b87e4d3e" />
+  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/3d76631f-d9cd-4545-8722-0c72d8031216" />
 </p>
 
 ### Showcases
