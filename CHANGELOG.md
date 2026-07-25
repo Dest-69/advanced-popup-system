@@ -1,4 +1,8 @@
 # Changelog
+## [2.2.4] - 2026-07-25
+### Fixed
+- **Update and Remove embedded copy now work on a customized copy** — both stopped with *"package is already embedded and cannot be updated"*. APS moves the copy aside before reinstalling now, and puts it straight back if anything goes wrong.
+
 ## [2.2.3] - 2026-07-25
 ### Added
 - **APS tells you when a new version is out** — the top of the editor window shows your version with *(latest)* in green or *(new x.y.z)* in amber, and an **Update** button appears beside it.

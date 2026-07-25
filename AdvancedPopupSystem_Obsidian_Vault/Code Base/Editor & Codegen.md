@@ -61,12 +61,19 @@ the way back out.
   permanent *"Embedding… once Unity finishes recompiling"* — an embed that was never coming. `SyncLockWithPackage`
   relocks whenever the package reads read-only and no embed is actually in flight (`EmbedInProgress` = a `Client.Embed`
   fired this session, or a running run). `BeginEmbed` is the only embed entry point, so "we asked" is always recorded.
-- **One state machine, three intents** (`UpdateGit`, `UpdateEmbedded`, `Detach`) over `Client.Add`/`Add`/`Embed`. Only
-  the ends differ: a Git install skips the prime step (no folder in the way), `Detach` stops before the re-embed.
-  **Ordering is load-bearing** for the other two: the first Add runs *while still embedded* — the embedded folder
-  shadows it, so nothing on disk changes — purely to validate the URL and pull the revision into Unity's global cache.
-  Only then is the folder deleted. Delete-first would leave the project without APS, taking this class, the run, and the
-  consumer's compile down together — the same deadlock that killed the consumer-side enum ([[Build & Packaging]]).
+- **One state machine, three intents** (`UpdateGit`, `UpdateEmbedded`, `Detach`) over `Client.Add`/`Embed`. A Git
+  install is a plain re-add; `Detach` stops before the re-embed. The other two must first get the embedded copy out of
+  the way, and that is the whole difficulty:
+- **UPM refuses to add a package that is currently embedded** — *"is already embedded and cannot be updated, it must
+  first be manually removed from the `Packages` folder of the project"*. An add-first design (prime the cache while
+  still embedded, then swap) was written and **proven wrong by that error — do not re-attempt**. So the folder goes
+  first, and for the length of that request the project has **no APS at all**: a failure there takes `PackageUpdater`,
+  the run, and the consumer's compile down together — the same deadlock shape that killed the consumer-side enum
+  ([[Build & Packaging]]). It is fenced, not avoided: the copy is **moved, not deleted** (renamed into
+  `Library/APS_EmbedBackup/`, so undoing it is a rename back), and **`LockReloadAssemblies` is held for the whole
+  request** so this class cannot be unloaded mid-flight — released only once the Add reports success, or the backup is
+  back in place. A timeout bounds it, because a lock that never lifts freezes the editor, and the backup path is logged
+  *before* the move so even an editor crash mid-run leaves a hand-recoverable trail.
 - **Every request recompiles**, so the step is parked in `SessionState`: `Poll` finishes a request that outlived its
   step, `Resume` picks up the ones a domain reload swallowed. Post-reload there is no request object, so project state
   is the only evidence — after the prime step the **manifest entry** is the gate (`Client.Add` writes it only on

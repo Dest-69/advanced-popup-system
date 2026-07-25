@@ -26,12 +26,16 @@ namespace AdvancedPS.Editor
     /// from "the embedded copy is gone".</item>
     /// </list>
     ///
-    /// <b>Ordering is load-bearing.</b> A run that replaces the embedded copy adds the Git URL <i>before</i> deleting
-    /// anything: the first Add validates the URL and pulls the revision into Unity's global cache, so the delete can
-    /// never leave the project without APS — which would take this class, the rest of the run, and the consumer's
-    /// compile down with it. Every UPM request recompiles, so the step is parked in <see cref="SessionState"/> and
-    /// picked up by <see cref="Resume"/> on the next load. Session lifetime is deliberate: a run that did not finish
-    /// before the editor closed is abandoned, never replayed against a project state it no longer knows.
+    /// <b>The dangerous move is unavoidable, so it is fenced instead.</b> UPM refuses to add a package that is
+    /// currently embedded — <i>"is already embedded and cannot be updated, it must first be manually removed from the
+    /// `Packages` folder"</i> — so the folder has to go first, and for the length of the request the project has no APS
+    /// at all: a failure there would take this class, the rest of the run, and the consumer's compile down together.
+    /// <see cref="ReplaceEmbeddedCopy"/> fences it with a move-aside backup and a held assembly-reload lock; the details
+    /// are on that method, and changing the order there is how this breaks.
+    ///
+    /// Every UPM request recompiles, so the step is parked in <see cref="SessionState"/> and picked up by
+    /// <see cref="Resume"/> on the next load. Session lifetime is deliberate: a run that did not finish before the
+    /// editor closed is abandoned, never replayed against a project state it no longer knows.
     /// </summary>
     [InitializeOnLoad]
     internal static class PackageUpdater
@@ -54,9 +58,9 @@ namespace AdvancedPS.Editor
         private enum Step
         {
             None = 0,
-            /// <summary>Add while still embedded: validates the URL and fills Unity's cache, changing nothing on disk.</summary>
-            Priming = 1,
-            /// <summary>The Add that actually installs the Git copy (the embedded folder, if any, is gone by now).</summary>
+            /// <summary>The embedded copy is parked in <c>Library/</c> and the Git copy is being installed in its place.</summary>
+            Replacing = 1,
+            /// <summary>Plain Add over a non-embedded install — nothing had to move out of the way.</summary>
             Reinstalling = 2,
             /// <summary>Make the fresh copy writable again so layer editing keeps working.</summary>
             Embedding = 3
@@ -73,7 +77,15 @@ namespace AdvancedPS.Editor
             Detach = 2
         }
 
+        /// <summary>Where the embedded copy is parked while its replacement installs. Under <c>Library/</c>: never scanned by UPM or the AssetDatabase, same volume as <c>Packages/</c> so the move is a rename.</summary>
+        private const string BackupRoot = "Library/APS_EmbedBackup";
+
+        /// <summary>Seconds before a stalled UPM request gives up — it runs with assembly reload locked, so it can't be left hanging.</summary>
+        private const double RequestTimeout = 180d;
+
         private static Request _request;
+        private static double _deadline;
+        private static bool _reloadLocked;
         private static UnityWebRequest _versionRequest;
 
         private static PackageInfo _pkg;
@@ -312,7 +324,7 @@ namespace AdvancedPS.Editor
             }
 
             if (!EditorUtility.DisplayDialog("Remove embedded copy",
-                    $"Packages/{pkg.name} is deleted and APS is reinstalled read-only from:\n\n{url}\n\n" +
+                    $"Packages/{pkg.name} is replaced by a read-only install from:\n\n{url}\n\n" +
                     "Layer editing turns off. Your layer list is safe in ProjectSettings/APS_Layers.json, but a " +
                     "read-only package cannot regenerate the enum, so PopupLayerEnum falls back to the layers APS " +
                     "ships with — popups tagged with a custom layer keep their value but lose its name until you " +
@@ -331,8 +343,99 @@ namespace AdvancedPS.Editor
             SessionState.SetString(FromVersionKey, pkg.version ?? "?");
             SessionState.SetInt(RetryKey, 0);
 
-            // A Git install has no embedded folder in the way, so it skips straight to the Add that does the work.
-            Send(intent == Intent.UpdateGit ? Step.Reinstalling : Step.Priming, Client.Add(url));
+            if (intent == Intent.UpdateGit)
+                Send(Step.Reinstalling, Client.Add(url)); // Nothing in the way — a plain re-add moves it to the newest revision.
+            else
+                ReplaceEmbeddedCopy(pkg, url);
+        }
+
+        /// <summary>
+        /// Swaps the embedded copy for the Git one. UPM <b>refuses</b> to add a package that is currently embedded
+        /// ("…is already embedded and cannot be updated, it must first be manually removed from the `Packages` folder"),
+        /// so the folder has to go first — which is the dangerous order: for the length of the request the project has
+        /// no APS, and if the Add fails, the code that would put it back is gone with it.
+        ///
+        /// Two guards make it safe. The copy is <b>moved, not deleted</b> — a rename into <see cref="BackupRoot"/>, so
+        /// undoing it is a rename back. And <b>assembly reload stays locked</b> for the whole request, so this class
+        /// cannot be unloaded mid-flight; the lock is released only once the Add has reported success (or the backup is
+        /// back in place). <see cref="RequestTimeout"/> bounds it, because a lock that never lifts freezes the editor.
+        /// </summary>
+        private static void ReplaceEmbeddedCopy(PackageInfo pkg, string url)
+        {
+            string root = pkg.resolvedPath?.Replace('\\', '/').TrimEnd('/');
+            string relative = "Packages/" + pkg.name;
+
+            // Never hand a move anything but <…>/Packages/<package name>.
+            if (string.IsNullOrEmpty(root) || (root != relative && !root.EndsWith("/" + relative, StringComparison.Ordinal)))
+            {
+                Fail($"refusing to move an unexpected path: {root}");
+                return;
+            }
+
+            string backup = BackupRoot + "/" + pkg.name;
+            try
+            {
+                if (Directory.Exists(backup)) Directory.Delete(backup, true);
+                Directory.CreateDirectory(BackupRoot);
+                Directory.Move(root, backup);
+            }
+            catch (Exception ex)
+            {
+                Fail($"could not move {root} aside: {ex.Message}");
+                return;
+            }
+
+            // The path goes in the log before anything can go wrong with it — if the editor dies mid-run, this line is
+            // how the copy gets found again.
+            APLogger.Log($"<color=green>[APS]</color> Embedded copy parked at {backup} while {url} installs. " +
+                         "If this run is interrupted, move that folder back to Packages/ to restore it.");
+
+            LockReload();
+            Send(Step.Replacing, Client.Add(url));
+        }
+
+        private static void LockReload()
+        {
+            if (_reloadLocked) return;
+            _reloadLocked = true;
+            EditorApplication.LockReloadAssemblies();
+        }
+
+        private static void UnlockReload()
+        {
+            if (!_reloadLocked) return;
+            _reloadLocked = false;
+            EditorApplication.UnlockReloadAssemblies();
+        }
+
+        /// <summary>Puts the parked copy back where it was. Best effort — the caller is already on a failure path.</summary>
+        private static void RestoreBackup(string packageName)
+        {
+            if (string.IsNullOrEmpty(packageName)) return;
+
+            string backup = BackupRoot + "/" + packageName;
+            string root = "Packages/" + packageName;
+            try
+            {
+                if (Directory.Exists(backup) && !Directory.Exists(root))
+                    Directory.Move(backup, root);
+            }
+            catch (Exception ex)
+            {
+                APLogger.LogError($"[APS] Could not restore the embedded copy from {backup}: {ex.Message}. " +
+                                  "Move that folder back to Packages/ by hand.");
+            }
+        }
+
+        private static void DiscardBackup(string packageName)
+        {
+            if (string.IsNullOrEmpty(packageName)) return;
+            try
+            {
+                string backup = BackupRoot + "/" + packageName;
+                if (Directory.Exists(backup)) Directory.Delete(backup, true);
+            }
+            catch { /* a stale folder under Library/ is harmless; it is not worth failing a finished run over */ }
         }
 
         #endregion
@@ -351,6 +454,7 @@ namespace AdvancedPS.Editor
         {
             CurrentStep = step;
             _request = request;
+            _deadline = EditorApplication.timeSinceStartup + RequestTimeout;
             EditorApplication.update -= Poll;
             EditorApplication.update += Poll;
         }
@@ -358,7 +462,14 @@ namespace AdvancedPS.Editor
         /// <summary>In-domain completion: the request object outlived the step, so its status is authoritative.</summary>
         private static void Poll()
         {
-            if (_request == null || !_request.IsCompleted) return;
+            if (_request == null) return;
+
+            if (!_request.IsCompleted)
+            {
+                if (EditorApplication.timeSinceStartup < _deadline) return;
+                Fail($"the Package Manager request did not answer within {RequestTimeout:0} seconds.");
+                return;
+            }
 
             Request done = _request;
             _request = null;
@@ -373,7 +484,12 @@ namespace AdvancedPS.Editor
             InvalidatePackage();
             switch (CurrentStep)
             {
-                case Step.Priming: ReplaceEmbeddedCopy(); break;
+                case Step.Replacing:
+                    // The Git copy is in, so the parked one is dead weight — and the lock can lift.
+                    DiscardBackup(SessionState.GetString(NameKey, null));
+                    UnlockReload();
+                    AfterReinstall();
+                    break;
                 case Step.Reinstalling: AfterReinstall(); break;
                 case Step.Embedding: Finish(); break;
             }
@@ -396,15 +512,19 @@ namespace AdvancedPS.Editor
 
             switch (step)
             {
-                case Step.Priming:
-                    // Add writes the manifest entry only on success, so the manifest is the "URL is good and the
-                    // revision is cached" gate that makes deleting the embedded folder safe. Nothing changed yet.
-                    if (!string.Equals(ReadManifestDependency(name), url, StringComparison.Ordinal))
+                // Reached only if something unlocked the domain behind our back — the replace step holds the reload
+                // lock precisely so it doesn't happen. Judge it by whether the Git copy actually landed.
+                case Step.Replacing:
+                    if (pkg != null && pkg.source != PackageSource.Embedded)
                     {
-                        Fail("the Git URL could not be added to Packages/manifest.json — nothing was changed.");
+                        DiscardBackup(name);
+                        UnlockReload();
+                        AfterReinstall();
                         return;
                     }
-                    ReplaceEmbeddedCopy();
+                    RestoreBackup(name);
+                    UnlockReload();
+                    Fail("the reinstall was interrupted; the embedded copy was put back. Nothing was lost — try again.");
                     return;
 
                 case Step.Reinstalling:
@@ -414,12 +534,6 @@ namespace AdvancedPS.Editor
                         else
                             Fail($"the Git copy did not resolve. Packages/manifest.json still points at {url} — " +
                                  "reopen the project (or Package Manager ▸ Refresh) once you are online.");
-                        return;
-                    }
-                    if (CurrentIntent != Intent.UpdateGit && pkg.source == PackageSource.Embedded)
-                    {
-                        Fail($"the embedded folder at {pkg.resolvedPath} is still there — delete it by hand, then let " +
-                             "Package Manager restore the Git copy.");
                         return;
                     }
                     AfterReinstall();
@@ -432,46 +546,6 @@ namespace AdvancedPS.Editor
                               "Customization again to retry.");
                     return;
             }
-        }
-
-        /// <summary>
-        /// Deletes the embedded folder and installs the Git copy in its place. Only reachable once the prime Add
-        /// succeeded, so the revision is already cached locally and the reinstall cannot strand the project.
-        /// </summary>
-        private static void ReplaceEmbeddedCopy()
-        {
-            string name = SessionState.GetString(NameKey, null);
-            string url = SessionState.GetString(UrlKey, null);
-            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(url))
-            {
-                Fail("the run lost track of what it was updating.");
-                return;
-            }
-
-            PackageInfo pkg = Package;
-            string relative = "Packages/" + name;
-            string root = pkg != null && pkg.source == PackageSource.Embedded && !string.IsNullOrEmpty(pkg.resolvedPath)
-                ? pkg.resolvedPath.Replace('\\', '/').TrimEnd('/')
-                : relative;
-
-            // Never hand a recursive delete anything but <…>/Packages/<package name>.
-            if (root != relative && !root.EndsWith("/" + relative, StringComparison.Ordinal))
-            {
-                Fail($"refusing to delete an unexpected path: {root}");
-                return;
-            }
-
-            try
-            {
-                if (Directory.Exists(root)) Directory.Delete(root, true);
-            }
-            catch (Exception ex)
-            {
-                Fail($"could not delete {root}: {ex.Message}");
-                return;
-            }
-
-            Send(Step.Reinstalling, Client.Add(url));
         }
 
         /// <summary>The fresh Git copy is in — only an update of an embedded copy goes on to make it writable again.</summary>
@@ -526,6 +600,11 @@ namespace AdvancedPS.Editor
 
         private static void Fail(string reason)
         {
+            // Failing mid-swap means the project is sitting there without APS — put the parked copy back before
+            // anything else. Idempotent, so the paths that already restored it can still route through here.
+            if (CurrentStep == Step.Replacing)
+                RestoreBackup(SessionState.GetString(NameKey, null));
+
             ClearState();
             APLogger.LogError($"[APS] Package update stopped: {reason}");
             EditorUtility.DisplayDialog("Advanced Popup System", "Package update stopped: " + reason, "OK");
@@ -533,6 +612,7 @@ namespace AdvancedPS.Editor
 
         private static void ClearState()
         {
+            UnlockReload();
             _request = null;
             EditorApplication.update -= Poll;
             CurrentStep = Step.None;

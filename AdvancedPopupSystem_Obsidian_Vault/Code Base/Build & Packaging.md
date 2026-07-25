@@ -37,8 +37,9 @@ and a *same-name define-swap* (Unity rejects duplicate assembly names even when 
 shipping it: editing layers needs a **writable** package, so a read-only UPM install must be **embedded** first (the
 Layers panel's Customization toggle offers it — [[Layers]]). Embedding costs the **update path** too — Package Manager
 labels an embedded package *Custom* and stops updating it — so APS ships its own (`PackageUpdater`,
-[[Editor & Codegen]]): add the Git URL **while still embedded**, then replace the folder, then re-embed. Deleting first
-would leave the project with no APS at all, deadlocking exactly like the bootstrap above. The Addressable index has no such constraint — it is **data**
+[[Editor & Codegen]]). UPM won't add a package while it is embedded, so the copy has to come out **first**, briefly
+leaving the project with no APS: the same deadlock shape as the bootstrap above, fenced with a move-aside backup and a
+held reload lock rather than avoided. The Addressable index has no such constraint — it is **data**
 (`AddressablePopupIndexAsset`, read at runtime), rescanned from the consumer's prefabs.
 
 ## `FileSearcher` default-content safety net
