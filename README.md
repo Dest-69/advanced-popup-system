@@ -203,7 +203,7 @@ The **APS Editor Window** lists every registered popup and traces active operati
 <p align="center">
   <img width="32%" alt="Editor View 1" src="https://github.com/user-attachments/assets/897b5471-2a7a-4c0a-8b07-b762a8ac9026" />
   <img width="32%" alt="Editor View 2" src="https://github.com/user-attachments/assets/6af2907b-7347-4381-9f8f-f50e44021ece" />
-  <img width="32%" alt="Editor View 3" src="https://github.com/user-attachments/assets/84540c94-f3b6-4871-9595-fb5b2696cba0" />
+  <img width="32%" alt="Editor View 3" src="https://github.com/user-attachments/assets/619ea2f3-07c4-4d03-8d47-7895321e4d5e" />
 </p>
 
 ### Popup Inspector
@@ -212,16 +212,15 @@ Configure animations, escape policy, child popups, and the popup's layer directl
 show → hide cycle right in edit mode (no play mode needed) and restores the popup's state afterwards:
 
 <p align="center">
-  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/9be62d64-fa84-47cd-a7e9-5febf067230b" />
+  <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/86c266fd-5ee4-449c-9adf-96875c761967" />
   <img width="60%" alt="Inspector Settings" src="https://github.com/user-attachments/assets/74f790eb-2b85-490d-a217-2fc0b87e4d3e" />
 </p>
 
-### Animation Showcases
-
+### Showcases
 <p align="center">
-  <img width="32%" alt="Showcase 1" src="https://github.com/user-attachments/assets/2ff31071-2874-480b-bc69-3c5d1ca26164" />
-  <img width="32%" alt="Showcase 2" src="https://github.com/user-attachments/assets/dd874890-5cd0-4188-b173-14c1610d6d8a" />
-  <img width="32%" alt="Showcase 3" src="https://github.com/user-attachments/assets/e8e6678c-e278-4ccc-a368-9dd90af49dd8" />
+  <img width="100%" alt="Showcase 1" src="https://github.com/user-attachments/assets/2ff31071-2874-480b-bc69-3c5d1ca26164" />
+  <img width="100%" alt="Showcase 2" src="https://github.com/user-attachments/assets/dd874890-5cd0-4188-b173-14c1610d6d8a" />
+  <img width="100%" alt="Showcase 3" src="https://github.com/user-attachments/assets/e8e6678c-e278-4ccc-a368-9dd90af49dd8" />
 </p>
 
 ---
