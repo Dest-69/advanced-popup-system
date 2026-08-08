@@ -266,13 +266,22 @@ namespace AdvancedPS.Editor
             if (current != null && NormalizeEol(current) == NormalizeEol(desired))
                 return; // already in sync
 
+            // A Git/registry install lives in Library/PackageCache, which Unity treats as IMMUTABLE: writing there
+            // succeeds at the filesystem level and then raises "asset(s) located in immutable packages were unexpectedly
+            // altered", and Package Manager may drop the change at any time. So do not write — say what is wrong instead.
+            if (!FileSearcher.IsPackageWritable)
+            {
+                WarnUnwritable(names);
+                return;
+            }
+
             try
             {
                 File.WriteAllText(enumFsPath, desired);
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[APS] Failed to regenerate PopupLayerEnum: {ex.Message}");
+                Debug.LogError($"[APS] Failed to regenerate PopupLayerEnum at '{enumFsPath}': {ex.Message}");
                 return;
             }
 
@@ -281,6 +290,27 @@ namespace AdvancedPS.Editor
                 try { AssetDatabase.ImportAsset(FileSearcher.ToAssetPath(enumFsPath)); }
                 catch { /* path not under Assets or DB busy — the on-disk write still stands */ }
             }
+        }
+
+        /// <summary>
+        /// The heal has layers to restore but nowhere to write them. Says so in the consumer's own terms — the symptom
+        /// they actually see is <c>CS0117: 'PopupLayerEnum' does not contain a definition for 'X'</c> in their code after
+        /// an update, which explains nothing on its own. Once per editor session (<see cref="SessionState"/>): the state
+        /// persists across the domain reloads this runs on, and repeating it every reload would be noise.
+        /// </summary>
+        private static void WarnUnwritable(string[] names)
+        {
+            const string warnedKey = "APS_LayerHealUnwritableWarned";
+            if (SessionState.GetBool(warnedKey, false)) return;
+            SessionState.SetBool(warnedKey, true);
+
+            Debug.LogError(
+                $"[APS] Your layers could not be restored into PopupLayerEnum: APS is installed read-only (Git/registry), " +
+                $"and Unity does not allow writing into a package in Library/PackageCache.\n" +
+                $"{StoreFileName} still holds your full list — {string.Join(", ", names)} — but only the layers APS ships " +
+                $"with are compiled, so your code referencing any of the others will not build.\n" +
+                $"Fix: turn on Customization in APS ▸ Layers. It embeds a writable copy of the package and the layers come " +
+                $"straight back from the store; nothing is lost meanwhile.");
         }
 
         #endregion

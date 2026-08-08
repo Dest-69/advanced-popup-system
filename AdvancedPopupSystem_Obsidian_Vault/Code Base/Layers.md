@@ -28,7 +28,20 @@ instead of per-popup.
   `PackageUpdater.BeginEmbed`, which also relocks a lock left over from an install that is no longer embedded, owns the
   panel's **Remove embedded copy** way back out, and the window's version badge + **Update** — [[Editor & Codegen]]); canvas
   order/prefab stay editable regardless (consumer-side asset). On a writable install `LayerCatalog.Reconcile` +
-  `LayerEnumSyncPostprocessor` regenerate the enum from the store and heal it after an update. **Store safety:**
+  `LayerEnumSyncPostprocessor` regenerate the enum from the store and heal it after an update.
+  - **The heal was dead outside `Assets/` until 2026-08-08.** `LayerEnumSyncPostprocessor` resolved the imported asset
+    path with a local helper that returned null for anything not starting with `Assets` — and the enum lives under
+    `Packages/…` in *both* UPM shapes, embedded included. `Reconcile(null, …)` returns immediately, so the pass that
+    exists precisely to survive an update never ran for the installs that need it; it only worked in a project with APS
+    copied into `Assets/` (the dev project — hence unnoticed). Now it goes through `FileSearcher.ToFsPath`, which handles
+    `Packages/`. Reported by a consumer whose `DRAG` layer stopped compiling right after an update.
+  - **Never write into `Library/PackageCache`.** A Git/registry install is *immutable* to Unity: the file is writable at
+    the OS level and the write appears to succeed, then Unity raises *"asset(s) located in immutable packages were
+    unexpectedly altered"* and Package Manager may drop it without warning (observed 2026-08-08). `Reconcile` therefore
+    gates the write on `FileSearcher.IsPackageWritable` and, when it can't write, logs once per session (`SessionState`)
+    naming the store's layers and pointing at the Customization toggle — the consumer's actual symptom is a `CS0117` in
+    *their* code, which explains nothing on its own.
+  **Store safety:**
   `LayerCatalog` writes the store atomically (`.tmp` + `File.Replace` → `.bak`) and distinguishes *missing* (seed
   defaults) from *unreadable* (abort — **never** overwrite real layers on a read hiccup), recovering from `.bak`. Details
   in [[Editor & Codegen]].

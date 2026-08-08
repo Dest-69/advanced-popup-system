@@ -1,13 +1,15 @@
 # Changelog
-## [2.3.0] - 2026-08-08
+## [2.3.1] - 2026-08-08
 ### Added
-- **Order two prefabs of the same popup apart** — **APS ▸ Order** lists popup *prefabs* now, so each gets its own place instead of sharing one.
+- **Order two prefabs of the same popup apart** — **APS ▸ Order** lists popup *prefabs* now, so each gets its own place.
 - **Click a row in APS ▸ Order** to select that prefab in the Project window.
 ### Changed
-- **The Order list is the popups you actually have** — real prefab names and layers, and a class with no prefab no longer sits there waiting to be sorted. *Upgrading: the tab re-reads your prefabs on first open and keeps every position you arranged; each popup prefab gets a hidden id, so expect a one-time change in version control.*
-- **The Order list looks after itself** — prefab saves, deletes and bulk imports all update it; **Rescan Prefabs** only forces what it already does.
-- **APS checks for a new version on every window open**, not once per session — *(sync…)* shows while it looks.
+- **The list shows the popups you actually have** — real prefab names and layers; a class with no prefab is gone from it. *Upgrading: positions are kept; each popup prefab gets a hidden id, so expect a one-time change in version control.*
+- **The list looks after itself** — prefab saves, deletes and bulk imports update it; **Rescan Prefabs** only forces it.
+- **Version check on every window open**, not once per session — *(sync…)* while it looks.
 ### Fixed
+- **Custom layers survive an update** — the restore only ran when APS sat in `Assets/`, so other installs lost them and `PopupLayerEnum.YOUR_LAYER` stopped compiling. The list itself was never lost.
+- **A Git install explains itself** — Unity forbids writing there, so APS points you to **Customization** in **APS ▸ Layers** instead of leaving a bare compile error.
 - **No more "assembly has no scripts" error** from the still-empty custom-transitions folder.
 - **No obsolete-API warning on Unity 6.3.**
 
