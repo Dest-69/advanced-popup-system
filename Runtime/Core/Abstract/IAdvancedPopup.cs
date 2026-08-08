@@ -113,6 +113,21 @@ namespace AdvancedPS.Core.System
         /// instance is skipped. Empty (the default) = "None": never unloads.
         /// </summary>
         public List<string> UnloadSceneGuids = new List<string>();
+        /// <summary>
+        /// Identity of the <b>prefab asset</b> this popup came from — its GUID — so the draw-order catalog can rank two
+        /// prefabs of the same class independently (see PopupOrderConfig). Stamped once per prefab by the APS editor
+        /// tooling and never edited by hand; an instance carries whatever its prefab has, so every copy of one prefab
+        /// shares a slot. Empty for a popup authored straight into a scene: those fall back to their type's slot.
+        /// <para>
+        /// Hidden in the inspector on purpose — it is identity, not a setting. A serialized field is the only way the
+        /// runtime can know which asset an instance came from (there is no AssetDatabase in a build), the same reason
+        /// <see cref="PreloadSceneGuids"/> stores GUIDs.
+        /// </para>
+        /// </summary>
+        public string OrderKey => _orderKey;
+        // Initialized, not left null: only the editor tooling ever writes it, and an unassigned serialized field is a
+        // CS0649 warning in every consumer's console.
+        [SerializeField, HideInInspector] private string _orderKey = string.Empty;
         #endregion
         
         #region Protected

@@ -61,6 +61,12 @@ Do not break these. Deviation only after explicit agreement in the current task.
 `ActivePopups` add/remove).
 - **`CanvasGroup` is required** (`[RequireComponent]`); `RectTransform` + `CanvasGroup` are auto-added in `Init()` if
   missing. Displays animate via the `RectTransform` and `CanvasGroup`.
+- **`IAdvancedPopup._orderKey` is identity, not a setting.** It holds the popup **prefab's own GUID**, written only by
+  `PopupOrderConfigStore` (`EnsureOrderKey`) and read only as `OrderKey` — never hand-edited, never surfaced in the
+  inspector, never reused as a general-purpose id. The rule the tooling enforces is `_orderKey == the prefab's own GUID`
+  (which is what re-stamps a **prefab variant** that inherited its base's value). An empty key is legal and means "rank me
+  by type" — scene-authored popups, immutable package prefabs. Dropping the field would silently collapse two prefabs of
+  one class onto one slot; see [[Hierarchy Order]].
 - **One layer per popup.** `PopupLayer` carries exactly one `PopupLayerEnum` flag (`None` allowed) — layers are
   canvas-bound, multi-membership would make the canvas ambiguous. Matching is any-of bitwise (queries may be masks);
   the inspector is single-select; legacy multi-flag data degrades gracefully (lowest-bit canvas + warnings), never

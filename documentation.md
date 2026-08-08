@@ -147,7 +147,7 @@ the default **Scale** transition ([§4](#4-animations--custom-transitions) to pi
 | :--- | :--- |
 | **Popup Layer** | The single layer this popup belongs to (used by `LayerShow` / `LayerHide`; each layer routes to its own canvas — [§9.5](#95-where-loaded-popups-live--canvas-per-layer)). `None` keeps it out of layer control. |
 | **Modules** | Optional per-popup features — **Draggable**, **Resizable**, **Closable**, **Focusable** ([§6.4](#64-modules-drag-resize-close--focus)). |
-| **Draw Order** | Read-only: where this popup type sits among the popups sharing its canvas. Edit it in `APS ▸ Order` ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)). |
+| **Draw Order** | Read-only: where this popup sits among the popups sharing its canvas. Edit it in `APS ▸ Order` ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)). |
 | **Auto Hide On Init** | Keep `true` so the popup starts hidden. Set `false` only for UI shown immediately on scene start. |
 | **Manual Init** | Keep `false` for scene popups. Set `true` to instantiate at runtime and call `Init()` yourself. Ignored for **Addressable** popups (they always auto-init). |
 | **Inactive** | `true` prevents the popup from ever showing (a hard gate on `Show`). |
@@ -552,9 +552,11 @@ Open from the top **`APS`** menu — one window, four tabs:
   layer editing turns off, your layer list stays in `ProjectSettings/APS_Layers.json`, but the compiled enum falls back
   to the layers APS ships with until you embed it again. Updating either shape is handled by the version line at the
   top of the window ([§5.1](#51-version--updating)).
-- **`APS ▸ Order`** — drag popup types up and down to decide **which one is drawn in front** when several share a canvas
-  ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)). Filtered by layer, since that is the canvas boundary —
-  each layer row in the Layers tab has an **Order** button that jumps straight to its list; the one at the top wins.
+- **`APS ▸ Order`** — drag popup prefabs up and down to decide **which one is drawn in front** when several share a
+  canvas ([§9.6](#96-which-popup-is-in-front--order-inside-a-canvas)); click a row to select that prefab in the Project
+  window. Filtered by layer, since that is the canvas boundary — each layer row in the Layers tab has an **Order**
+  button that jumps straight to its list; the one at the top wins. The list tracks your prefabs on its own;
+  **Rescan Prefabs** in the footer only forces what it already does.
 - **`APS ▸ Displays`** — add a display: APS generates `<Name>Display/<Name>Display.generated.cs` +
   `<Name>Settings.generated.cs` with ready-to-fill stubs into `Assets/AdvancedPopupSystem/Generated/Displays/` (built-in
   displays are listed read-only). Generation never overwrites an existing display; delete removes the pair. The
@@ -567,11 +569,11 @@ Layers, Order and Displays share an **Auto-Save** toggle; with it off, use the *
 
 ### 5.1 Version & updating
 
-The line at the very top of the window, above the tabs, shows the installed version, and — once per editor session —
-checks the Git remote:
+The line at the very top of the window, above the tabs, shows the installed version and checks the Git remote **every
+time you open the window** — you'll see **`(sync…)`** for the moment that takes.
 **`(latest)`** in green means you're current, **`(new x.y.z)`** in amber means you're not, and an **Update** button
 appears next to it. No badge at all just means the check couldn't run (offline, or APS wasn't installed from GitHub);
-nothing else changes.
+nothing else changes. Recompiling with the window already open doesn't re-check — only opening it does.
 
 Update exists because Package Manager can't do it for either shape APS is normally installed in — it doesn't update a
 Git dependency in place, and it doesn't update a *Custom* (embedded) package at all. The button reinstalls APS at the
@@ -962,24 +964,39 @@ AdvancedPopupSystem.UnregisterLayerCanvas(PopupLayerEnum.MENU); // back to the t
 
 The Layers tab decides **which canvas** a popup lands on and that canvas's sorting order, so popups of different layers
 never fight. Inside one canvas the order is Unity's hierarchy order — and APS assigns it from a catalog you author in
-**`APS ▸ Order`**: drag a popup type up to draw it in front of the others, down to put it behind them.
+**`APS ▸ Order`**: drag a popup up to draw it in front of the others, down to put it behind them.
 
+- **The list is your popup prefabs.** One row per prefab, named after it — click a row to select and highlight that
+  prefab in the Project window. Two prefabs of the same popup class are two rows, so you can order them against each
+  other; a class with no prefab never clutters the list. Positions are stored in
+  `Assets/Resources/APS_PopupOrderConfig.asset` (your project, not the package — updates never clobber it).
 - **One layer at a time.** Popups only compete on their own layer's canvas, so the list is filtered by layer — and every
   row in **`APS ▸ Layers`** has a small **Order** button that opens exactly that layer's list (the popup inspector's
-  **Edit Order** button does the same for its own layer). The grouping keeps itself current: APS tags a popup's layer when
-  you set it in the inspector and when its prefab is saved. Only when it can't know — the first time the catalog is
-  created, or after a bulk import — does opening the tab ask whether to re-read the project's popup prefabs.
-- **The catalog is per popup *type*, not per instance.** Every popup type in the project is listed; the position is
-  stored in `Assets/Resources/APS_PopupOrderConfig.asset` (your project, not the package — updates never clobber it).
-  Arranging one layer never disturbs another: a drag rearranges those popups within the slots they already hold.
+  **Edit Order** button does the same for its own layer). Arranging one layer never disturbs another: a drag rearranges
+  those popups within the slots they already hold.
+- **The list maintains itself.** Saving a popup prefab adds or refreshes its row, deleting one removes it, and changing a
+  layer in the inspector regroups it — no buttons to press and nothing to clean up. When APS can't know what changed (a
+  brand-new catalog, or a bulk import such as a VCS checkout) the tab re-reads the project's popup prefabs by itself the
+  next time it's open. **Rescan Prefabs** in the footer is there if you ever want to force it.
 - **Popups you don't order keep show order** — the last one shown is on top, which is what you usually want. New popup
-  types join at the bottom of the list, so adding a popup never pushes it in front of what you already arranged.
+  prefabs join at the bottom of the list, so adding a popup never pushes it in front of what you already arranged.
+- **Copies of one prefab share its slot** and stack among themselves by show order — including the copies
+  `SpawnAsync` makes. Use `BringToFront` / `SendToBack` (below) to order those at runtime.
+- **A popup built straight into a scene** has no prefab to key on, so it isn't listed. It takes the slot of the
+  front-most prefab of its class, or sits at the back when that class has no prefab at all — give it a prefab if you need
+  to place it exactly.
 - **Order is (re)applied on every show**, not once at load: reopening a popup lifts it to its place instead of leaving it
   wherever it happened to be created. That's the fix for "the popup that loaded first is stuck behind the one that loaded
   later, even though I opened it last".
 - **Same position = show order.** Two popups sharing a slot (or both unordered) stack in the order they were shown.
 
 Typical use: pin a loading overlay and a confirm dialog above everything on their canvas, and leave the rest unordered.
+
+> **Coming from an older APS**, where the list held popup *classes*: the tab upgrades itself the first time you open it.
+> It reads your popup prefabs and puts each one where its class already sat, so nothing you arranged moves — a class with
+> two prefabs simply becomes two adjacent rows you can now order apart, and a class with no prefab drops off the list.
+> Each popup prefab is stamped once with its own id (invisible in the inspector) — that is what tells two prefabs of one
+> class apart at runtime.
 
 **In code.** The order also has a runtime side, for window-like UI:
 

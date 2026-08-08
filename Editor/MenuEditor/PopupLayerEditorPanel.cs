@@ -47,6 +47,11 @@ namespace AdvancedPS.Editor
             "This layer is one screen: a single \"back\" (AdvancedPopupSystem.EscapeStep) closes every open popup of the " +
             "layer at once.\nOff — \"back\" closes them one at a time, newest first.");
 
+        private static readonly GUIContent RemoveEmbeddedLabel = new GUIContent(
+            "Remove embedded copy",
+            "Hands APS back to Package Manager as a read-only Git install.\nLayer editing turns off and the enum falls " +
+            "back to the layers APS ships with — your layer list itself stays in ProjectSettings/APS_Layers.json.");
+
         private static readonly GUIContent CanvasLabel = new GUIContent(
             "Canvas",
             "Canvas prefab this layer's popups are instantiated under. Required — clearing it resets to the APS default " +
@@ -171,16 +176,14 @@ namespace AdvancedPS.Editor
 
             GUILayout.Space(5);
             EditorGUILayout.HelpBox(
-                "Embedded copy — APS lives in your project's Packages/ folder, which is why Package Manager lists it " +
-                "as \"Custom\". Update it from the version line at the top of this window. Removing it hands APS back " +
-                "to Package Manager as a read-only install and turns layer editing off.",
+                "Embedded copy — Package Manager lists it as \"Custom\".",
                 MessageType.Info);
 
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             using (new EditorGUI.DisabledScope(PackageUpdater.IsBusy))
             {
-                if (GUILayout.Button("Remove embedded copy", GUILayout.Width(160)))
+                if (GUILayout.Button(RemoveEmbeddedLabel, GUILayout.Width(160)))
                     PackageUpdater.BeginDetach();
             }
             GUILayout.EndHorizontal();

@@ -98,9 +98,10 @@ namespace AdvancedPS.Editor
         }
 
         /// <summary>
-        /// Looks this popup type up in the consumer's Order catalog for the read-only Draw Order row. Loaded straight
-        /// from Resources (not through <see cref="PopupOrderConfig.Loaded"/>) so a catalog created after this editor
-        /// session started is still found, and so the inspector never creates the asset.
+        /// Looks this popup up in the consumer's Order catalog for the read-only Draw Order row — by its own prefab
+        /// first, falling back to its type, exactly as the runtime ranks it. Loaded straight from Resources (not through
+        /// <see cref="PopupOrderConfig.Loaded"/>) so a catalog created after this editor session started is still found,
+        /// and so the inspector never creates the asset.
         /// </summary>
         private void ResolveOrderSlot()
         {
@@ -111,17 +112,11 @@ namespace AdvancedPS.Editor
             if (config?.Order == null) return;
 
             _orderTotal = config.Order.Count;
-            if (targets.Length != 1 || target == null) return;
+            if (targets.Length != 1 || !(target is IAdvancedPopup popup)) return;
 
-            string typeName = target.GetType().FullName;
-            for (int i = 0; i < config.Order.Count; i++)
-            {
-                if (config.Order[i] != null && config.Order[i].TypeName == typeName)
-                {
-                    _orderRank = i;
-                    break;
-                }
-            }
+            int rank = config.GetRank(popup.OrderKey, popup.GetType().FullName);
+            if (rank != PopupOrderConfig.UnrankedRank)
+                _orderRank = rank;
         }
         
         public override void OnInspectorGUI()
@@ -224,8 +219,8 @@ namespace AdvancedPS.Editor
         private static int LowestBit(int mask) => mask & -mask;
 
         /// <summary>
-        /// Read-only row showing this popup type's draw order inside its canvas (front → back, from the APS Order tool)
-        /// plus a shortcut to edit it. The order is per <b>type</b>, not per instance, so there is nothing to edit here —
+        /// Read-only row showing this popup's draw order inside its canvas (front → back, from the APS Order tool) plus a
+        /// shortcut to edit it. The order is authored per <b>prefab</b> in one screen, so there is nothing to edit here —
         /// see <see cref="PopupOrderConfig"/>.
         /// </summary>
         private void DrawOrder()
@@ -264,18 +259,18 @@ namespace AdvancedPS.Editor
         }
 
         /// <summary>
-        /// Records the selected popup type(s) → layer tag in the Order catalog, so the Order tab can group by layer with no
+        /// Records the selected popup(s) → layer tag in the Order catalog, so the Order tab can group by layer with no
         /// project scan. The prefab postprocessor is the other source; a scene-authored popup has only this one. Cold path:
         /// with no catalog asset yet nothing happens — the inspector must never create it. Deferred out of the GUI pass
         /// because it writes and saves an asset.
         /// </summary>
         private void RecordOrderLayer(string layerName)
         {
-            var typeNames = new List<string>(targets.Length);
+            var popups = new List<IAdvancedPopup>(targets.Length);
             for (int i = 0; i < targets.Length; i++)
-                if (targets[i] != null)
-                    typeNames.Add(targets[i].GetType().FullName);
-            if (typeNames.Count == 0) return;
+                if (targets[i] is IAdvancedPopup popup)
+                    popups.Add(popup);
+            if (popups.Count == 0) return;
 
             EditorApplication.delayCall += () =>
             {
@@ -283,8 +278,12 @@ namespace AdvancedPS.Editor
                 if (config == null) return;
 
                 bool changed = false;
-                for (int i = 0; i < typeNames.Count; i++)
-                    changed |= PopupOrderConfigStore.SetLayer(config, typeNames[i], layerName);
+                for (int i = 0; i < popups.Count; i++)
+                {
+                    // The popup may be gone by the time this runs (scene closed, object deleted).
+                    if (popups[i] == null) continue;
+                    changed |= PopupOrderConfigStore.SetLayer(config, popups[i], layerName);
+                }
                 if (changed)
                     PopupOrderConfigStore.Save(config);
             };

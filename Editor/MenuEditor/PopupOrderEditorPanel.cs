@@ -9,9 +9,20 @@ using UnityEngine;
 namespace AdvancedPS.Editor
 {
     /// <summary>
-    /// The APS <b>Order</b> tab. Authors the front-to-back order of popup types inside a canvas — drag a popup up to draw
-    /// it above the others, down to put it behind them — and persists it to the consumer's <see cref="PopupOrderConfig"/>
-    /// asset (see <see cref="PopupOrderConfigStore"/>).
+    /// The APS <b>Order</b> tab. Authors the front-to-back order of popup <b>prefabs</b> inside a canvas — drag a popup up
+    /// to draw it above the others, down to put it behind them — and persists it to the consumer's
+    /// <see cref="PopupOrderConfig"/> asset (see <see cref="PopupOrderConfigStore"/>). Clicking a row selects and pings its
+    /// prefab in the Project window.
+    /// <para>
+    /// Rows are prefabs, not classes: two prefabs of one popup class hold two slots and can be ordered against each other,
+    /// and a class with no prefab never shows up. Everything a row draws (name, type, layer) is cached in the entry by
+    /// whoever discovered the prefab, so drawing the list loads no assets.
+    /// </para>
+    /// <para>
+    /// <b>The list maintains itself.</b> Discovery, the one-time upgrade of a pre-prefab catalog, and dropping rows whose
+    /// prefab is gone all happen on their own (see <see cref="RescanPrefabs"/> and <see cref="PopupOrderPostprocessor"/>) —
+    /// this panel has no cleanup buttons on purpose. <b>Rescan Prefabs</b> in the footer is only the manual override.
+    /// </para>
     /// <para>
     /// Popups only ever compete <b>within their layer's canvas</b> (the Layers tab picks the canvas + its sorting order), so
     /// the list is filtered by layer — the Layers tab links straight into a specific layer's view
@@ -30,9 +41,11 @@ namespace AdvancedPS.Editor
         private static readonly List<int> _slots = new List<int>();
 
         private static PopupOrderConfig _config;
-        // Types that actually exist in the project — anything else in _rows is a stale entry (renamed / deleted class).
-        private static HashSet<string> _known;
         private static ReorderableList _list;
+
+        // Rows whose prefab isn't in the project — transient, until the pass that cleans them up runs. Keyed by entry
+        // instance, not by index: a drag reorders _view, and index-parallel state would go stale.
+        private static readonly HashSet<PopupOrderConfig.Entry> _missing = new HashSet<PopupOrderConfig.Entry>();
 
         // Layer filter: null = all layers, "" = the Unassigned group, otherwise a PopupLayerEnum member name.
         private static string _filterLayer;
@@ -40,7 +53,6 @@ namespace AdvancedPS.Editor
         private static string[] _filterLayers;
 
         private static bool _changed;
-        private static int _removeIndex = -1;
         // A scan is already queued for the next editor tick — don't queue one per repaint.
         private static bool _scanQueued;
 
@@ -50,13 +62,11 @@ namespace AdvancedPS.Editor
         // Shared with the Layers tab on purpose — one Auto-Save preference for the whole window.
         private const string AutoSaveKey = "APS_AutoSaveEnabled";
         private const float RankWidth = 26f;
-        private const float DeleteWidth = 24f;
+        private const float IconWidth = 18f;
         private const float RowHeight = 20f;
 
-        private static GUIContent _deleteIcon;
-        private static GUIContent DeleteIcon =>
-            _deleteIcon ??= new GUIContent(EditorGUIUtility.IconContent("Toolbar Minus").image,
-                "Remove this entry — its popup type no longer exists in the project");
+        private static GUIContent _prefabIcon;
+        private static GUIContent PrefabIcon => _prefabIcon ??= EditorGUIUtility.IconContent("Prefab Icon");
 
         public static void Initialize()
         {
@@ -79,13 +89,10 @@ namespace AdvancedPS.Editor
             if (_config == null || _rows == null || _list == null)
                 LoadState();
 
-            // Refresh the layer grouping when the tab is opened after prefabs changed — deferred out of the GUI pass:
-            // it shows a progress bar and rebuilds the row set, neither of which belongs inside an open layout group.
-            if (PopupOrderConfigStore.IsScanNeeded() && !_scanQueued)
-            {
-                _scanQueued = true;
-                EditorApplication.delayCall += RescanLayers;
-            }
+            // Refresh the catalog when the tab is open and something changed under it — deferred out of the GUI pass: it
+            // shows a progress bar and rebuilds the row set, neither of which belongs inside an open layout group.
+            if (PopupOrderConfigStore.IsScanNeeded())
+                QueueScan();
 
             DrawHeader();
             DrawFilter();
@@ -96,33 +103,19 @@ namespace AdvancedPS.Editor
             if (_view.Count == 0)
             {
                 GUILayout.Label(_filterLayer == null
-                        ? "No popup types found in the project yet."
-                        : "No popup is tagged with this layer yet — open a popup's inspector or press Rescan Layers.",
+                        ? "No popup prefabs found in the project."
+                        : "No popup prefab is on this layer.",
                     APSEditorStyles.WarpedTextStyle);
             }
             else
             {
-                GUILayout.Label("Front — drawn above the others in the same canvas", EditorStyles.miniLabel);
+                GUILayout.Label("Front", EditorStyles.miniLabel);
                 _list.DoLayoutList();
                 GUILayout.Label("Back", EditorStyles.miniLabel);
             }
 
             EditorGUILayout.EndScrollView();
             GUILayout.EndVertical();
-
-            // Applied after the list is drawn — mutating the list inside a draw callback breaks its own bookkeeping.
-            if (_removeIndex >= 0)
-            {
-                if (_removeIndex < _view.Count)
-                {
-                    _rows.Remove(_view[_removeIndex]);
-                    _changed = true;
-                    RebuildView();
-                }
-                _removeIndex = -1;
-            }
-
-            DrawStaleNotice();
 
             GUILayout.FlexibleSpace();
             EditorGUILayoutExtensions.DrawHorizontalLine();
@@ -134,9 +127,8 @@ namespace AdvancedPS.Editor
         private static void DrawHeader()
         {
             EditorGUILayout.HelpBox(
-                "Order inside one canvas: the popup listed higher is drawn in front. Popups of different layers live on " +
-                "different canvases — their Sorting Order in the Layers tab decides, not this list.\n" +
-                "Popups sharing a position (and any type left at the bottom) keep show order: the last one shown is on top.",
+                "Higher = drawn in front, among the popups sharing a canvas. Across layers the canvas Sorting Order " +
+                "decides instead. Click a row to select its prefab.",
                 MessageType.Info);
             GUILayout.Space(5);
         }
@@ -168,68 +160,75 @@ namespace AdvancedPS.Editor
                 headerHeight = 0f,
                 footerHeight = 0f,
                 drawElementCallback = DrawRow,
+                onSelectCallback = PingRow,
                 onReorderCallback = _ => ApplyViewOrder()
             };
         }
 
-        /// <summary>Draws one popup type row: its position in the current view, the type name, and a remove button for a stale entry.</summary>
+        /// <summary>Draws one row: its position in the current view and the prefab it ranks.</summary>
         private static void DrawRow(Rect rect, int index, bool isActive, bool isFocused)
         {
             if (index < 0 || index >= _view.Count) return;
 
             PopupOrderConfig.Entry entry = _view[index];
-            string fullName = entry?.TypeName ?? string.Empty;
-            bool stale = _known != null && !_known.Contains(fullName);
+            bool missing = _missing.Contains(entry);
 
             Rect row = new Rect(rect.x, rect.y + 1f, rect.width, EditorGUIUtility.singleLineHeight);
 
             GUI.Label(new Rect(row.x, row.y, RankWidth, row.height), (index + 1).ToString(), EditorStyles.miniLabel);
+            GUI.Label(new Rect(row.x + RankWidth, row.y, IconWidth, row.height), PrefabIcon);
 
-            Rect deleteRect = new Rect(row.xMax - DeleteWidth, row.y, DeleteWidth, row.height);
-            float labelWidth = (stale ? deleteRect.x : row.xMax) - (row.x + RankWidth) - 4f;
-            Rect labelRect = new Rect(row.x + RankWidth, row.y, labelWidth, row.height);
+            float labelX = row.x + RankWidth + IconWidth + 2f;
+            Rect labelRect = new Rect(labelX, row.y, row.xMax - labelX - 4f, row.height);
 
-            int dot = fullName.LastIndexOf('.');
-            string shortName = dot >= 0 ? fullName.Substring(dot + 1) : fullName;
-            // Only worth showing the layer when the view isn't already scoped to one.
-            string suffix = _filterLayer == null && !string.IsNullOrEmpty(entry?.Layer) ? $"   [{entry.Layer}]" : string.Empty;
-
-            GUI.Label(labelRect,
-                new GUIContent(stale ? $"{shortName}  (missing){suffix}" : shortName + suffix, fullName),
-                stale ? APSEditorStyles.WarningTextStyle : EditorStyles.label);
-
-            if (stale && GUI.Button(deleteRect, DeleteIcon))
-                _removeIndex = index;
+            GUI.Label(labelRect, LabelOf(entry, missing), missing ? APSEditorStyles.WarningTextStyle : EditorStyles.label);
         }
 
-        private static void DrawStaleNotice()
+        /// <summary> Row text: the prefab's name, then the class it is, then the layer when the view spans all of them. </summary>
+        private static GUIContent LabelOf(PopupOrderConfig.Entry entry, bool missing)
         {
-            if (_known == null || _rows == null) return;
+            string typeName = entry?.TypeName ?? string.Empty;
+            int dot = typeName.LastIndexOf('.');
+            string shortType = dot >= 0 ? typeName.Substring(dot + 1) : typeName;
 
-            int stale = 0;
-            for (int i = 0; i < _rows.Count; i++)
-                if (_rows[i] != null && !_known.Contains(_rows[i].TypeName))
-                    stale++;
-            if (stale == 0) return;
+            string name = string.IsNullOrEmpty(entry?.PrefabName) ? shortType : entry.PrefabName;
+            string type = name == shortType ? string.Empty : $"   ({shortType})";
+            // Only worth showing the layer when the view isn't already scoped to one.
+            string layer = _filterLayer == null && !string.IsNullOrEmpty(entry?.Layer) ? $"   [{entry.Layer}]" : string.Empty;
 
-            EditorGUILayout.HelpBox(
-                $"{stale} entr{(stale == 1 ? "y" : "ies")} point at a popup type that no longer exists. Kept in case a " +
-                "class is mid-rename or its assembly failed to compile — remove them when the rename is done.",
-                MessageType.Warning);
+            if (missing)
+                return new GUIContent($"{name}  (no prefab){type}{layer}", typeName);
 
-            if (GUILayout.Button("Remove missing types"))
-            {
-                for (int i = _rows.Count - 1; i >= 0; i--)
-                    if (_rows[i] == null || !_known.Contains(_rows[i].TypeName))
-                        _rows.RemoveAt(i);
-                _changed = true;
-                RebuildView();
-            }
+            return new GUIContent(name + type + layer,
+                $"{typeName}\n{AssetDatabase.GUIDToAssetPath(entry.PrefabGuid)}");
+        }
+
+        /// <summary> Selecting a row reveals its prefab in the Project window — the one place the asset is actually loaded. </summary>
+        private static void PingRow(ReorderableList list)
+        {
+            int index = list?.index ?? -1;
+            if (index < 0 || index >= _view.Count) return;
+
+            PopupOrderConfig.Entry entry = _view[index];
+            if (entry == null || entry.IsTypeOnly) return;
+
+            string path = AssetDatabase.GUIDToAssetPath(entry.PrefabGuid);
+            if (string.IsNullOrEmpty(path)) return;
+
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null) return;
+
+            Selection.activeObject = prefab;
+            EditorGUIUtility.PingObject(prefab);
         }
 
         private static void DrawFooter()
         {
             GUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("Rescan Prefabs", GUILayout.Width(120)))
+                QueueScan();
+
             GUILayout.FlexibleSpace();
 
             GUILayout.Label("Auto-Save", GUILayout.ExpandWidth(false));
@@ -264,6 +263,12 @@ namespace AdvancedPS.Editor
         /// </summary>
         private static void RebuildView()
         {
+            // Resolved once per rebuild: GUIDToAssetPath loads nothing, but a repaint would still run it per row per frame.
+            _missing.Clear();
+            for (int i = 0; i < _rows.Count; i++)
+                if (_rows[i] != null && PopupOrderConfigStore.IsMissing(_rows[i]))
+                    _missing.Add(_rows[i]);
+
             var layers = new List<string> { null, PopupOrderConfigStore.UnassignedLayer };
             var options = new List<string> { "All layers", "Unassigned" };
             foreach (string name in Enum.GetNames(typeof(PopupLayerEnum)))
@@ -309,31 +314,35 @@ namespace AdvancedPS.Editor
 
         #region Persistence
 
-        /// <summary>
-        /// Re-reads the popup prefabs to refresh the layer grouping, then clears the "scan needed" flag so it runs once per
-        /// batch of prefab changes rather than on every repaint or recompile. Unsaved drag edits are flushed first — the
-        /// scan only rewrites tags, but it reloads the working copy afterwards. Always runs deferred (see the call site).
-        /// </summary>
-        private static void RescanLayers()
+        /// <summary> Runs the scan on the next editor tick — never from inside an open IMGUI layout group. </summary>
+        private static void QueueScan()
         {
-            EditorApplication.delayCall -= RescanLayers;
+            if (_scanQueued) return;
+            _scanQueued = true;
+            EditorApplication.delayCall += RescanPrefabs;
+        }
+
+        /// <summary>
+        /// Re-reads the project's popup prefabs into the catalog, then clears the "scan needed" flag so it runs once per
+        /// batch of prefab changes rather than on every repaint or recompile. Unsaved drag edits are flushed first — the
+        /// scan works on the stored order and reloads the working copy afterwards. Always runs deferred (see the call site).
+        /// <para>
+        /// It does <b>not</b> ask. The pass opens every prefab in the project, so it shows a cancelable progress bar, but a
+        /// confirm dialog for something the tool needs in order to be correct is just a chore — and the signal that raises
+        /// it is deliberately rare (a new catalog, a pre-prefab catalog to upgrade, or a bulk import nobody could inspect).
+        /// </para>
+        /// </summary>
+        private static void RescanPrefabs()
+        {
+            EditorApplication.delayCall -= RescanPrefabs;
             _scanQueued = false;
 
             try
             {
-                // Ask first — the scan opens every prefab in the project, so it is the user's call, not a surprise
-                // freeze. Declining clears the flag too: the offer returns when popup prefabs change again.
-                if (!EditorUtility.DisplayDialog("Advanced Popup System",
-                        "Popup prefabs changed — re-read them to refresh the layer grouping in APS ▸ Order?\n\n" +
-                        "This opens every prefab in the project once, so it can take a moment in a large project. " +
-                        "It only affects how this list is grouped; the order itself is untouched.",
-                        "Rescan", "Not now"))
-                    return;
-
                 if (_config == null) LoadState();
                 if (_changed) SaveChanges();
 
-                if (PopupOrderConfigStore.ScanPrefabLayers(_config))
+                if (PopupOrderConfigStore.ScanPrefabs(_config))
                 {
                     PopupOrderConfigStore.Save(_config);
                     LoadState();
@@ -341,11 +350,11 @@ namespace AdvancedPS.Editor
             }
             finally
             {
-                // Even a declined, cancelled or failed scan must clear the flag, or the panel would ask on every repaint.
+                // Even a cancelled or failed scan clears the flag, or the panel would rescan on every repaint.
                 PopupOrderConfigStore.ClearScanNeeded();
             }
 
-            // The panel is static and holds no window reference; repaint so the refreshed grouping shows immediately
+            // The panel is static and holds no window reference; repaint so the refreshed list shows immediately
             // without waiting for the next mouse move (RepaintAllViews, not GetWindow — never steal focus).
             InternalEditorUtility.RepaintAllViews();
         }
@@ -354,18 +363,15 @@ namespace AdvancedPS.Editor
         {
             _config = PopupOrderConfigStore.LoadOrCreate();
 
-            List<string> discovered = PopupOrderConfigStore.DiscoverPopupTypes();
-            _known = new HashSet<string>(discovered);
-
-            // New popup types join the catalog on open, so the list always mirrors the project.
-            if (PopupOrderConfigStore.Reconcile(_config, discovered))
-                PopupOrderConfigStore.Save(_config);
+            // A catalog still holding the pre-prefab (per-class) layout upgrades itself: the scan expands every class row
+            // into its prefabs in place, so no authored position moves.
+            if (PopupOrderConfigStore.NeedsUpgrade(_config))
+                PopupOrderConfigStore.MarkScanNeeded();
 
             _rows = new List<PopupOrderConfig.Entry>(_config.Order);
             RebuildView();
 
             _changed = false;
-            _removeIndex = -1;
         }
 
         private static void SaveChanges()

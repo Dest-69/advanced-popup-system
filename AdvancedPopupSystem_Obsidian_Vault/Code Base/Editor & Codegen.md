@@ -56,6 +56,11 @@ the way back out.
 - **UI split by meaning, not by mechanism.** Updating is a property of the *install*, so it lives on the version line in
   `PopupSystemEditor.DrawVersionBar` (badge + **Update**, shown only when `UpdateAvailable && CanUpdate`). Embedding and
   **Remove embedded copy** are the two directions of the Customization toggle, so they stay in the Layers panel.
+- **The remote check runs per window *open*, not per session** (user request, 2026-08-08). `EnsureLatestChecked(force)`:
+  `Open()` passes true — a deliberate action is worth one small GET — while `OnEnable` passes false, because it also fires
+  on **every domain reload** and would otherwise hit the remote on each recompile. `IsCheckingLatest` drives a
+  `(sync…)` badge whose dots cycle off `EditorApplication.timeSinceStartup`, padded to constant width so the centered row
+  doesn't jitter; the window repaints only while a check is in flight.
 - **The lock must not outlive the install it was taken against.** `Unlocked` is a `PlayerPrefs` flag while writability
   is a property of the install, so removing the embedded copy (or reinstalling from Git) used to strand the panel on a
   permanent *"Embedding… once Unity finishes recompiling"* — an embed that was never coming. `SyncLockWithPackage`
@@ -108,13 +113,16 @@ add/rename/delete go through the codegen path above and re-sync the SO. Runtime 
 
 ## Popup order panel (`PopupOrderEditorPanel` → `PopupOrderConfigStore`)
 
-The **Order** tab: a drag-sortable list of popup types (front → back), **filtered by layer** (the canvas boundary), persisted
-to the consumer's `PopupOrderConfig` asset. Store mirrors `LayerCanvasConfigStore` (`LoadOrCreate`/`Reconcile`/`Save` in
-`Assets/Resources/`); types come from `TypeCache` (no prefab load — the editor-perf rule), layer tags from the inspector /
-`PopupOrderPostprocessor` / a prefab scan the panel runs on open, gated by a `SessionState` flag so it fires after real
-prefab changes rather than on every recompile. Reached from the Layers tab's per-row **Order** button and
-the popup inspector's *Edit Order*. Panel/store specifics, the deferred-removal gotcha, the filtered-drag mapping and the
-postprocessor cost budget: [[Hierarchy Order]].
+The **Order** tab: a drag-sortable list of popup **prefabs** (front → back), **filtered by layer** (the canvas boundary),
+persisted to the consumer's `PopupOrderConfig` asset; clicking a row selects/pings the prefab. Store mirrors
+`LayerCanvasConfigStore` (`LoadOrCreate`/`Save` in `Assets/Resources/`). Rows come from prefabs, not `TypeCache`:
+`SyncPrefab` per changed prefab (`PopupOrderPostprocessor`) and a full `t:Prefab` `ScanPrefabs` the panel runs itself,
+gated by a `SessionState` flag so it fires after real prefab changes rather than on every recompile — drawing the list
+itself loads nothing (the editor-perf rule), since each row caches the prefab's name/type/layer. Each discovered prefab is
+stamped with its GUID in `IAdvancedPopup._orderKey`, the runtime's per-prefab identity. **The panel has no cleanup UI**:
+discovery, the per-type→per-prefab migration and dropping dead rows all run on their own, leaving one manual override
+(*Rescan Prefabs*). Reached from the Layers tab's per-row **Order** button and the popup inspector's *Edit Order*.
+Panel/store specifics, the migration, the filtered-drag mapping and the postprocessor cost budget: [[Hierarchy Order]].
 
 ## Display generation (`PopupDisplaysEditorPanel`)
 
@@ -124,6 +132,12 @@ built-ins — read-only, shown but not renamable/deletable) and `FileSearcher.Cu
 only on the custom folder; **Add** writes `<Name>Display/…generated.cs` from string templates **only if the folder
 doesn't exist** (never overwrites your bodies). Names validated to letters-only, then `RemoveDisplaySuffix` +
 `"Display"`/`"Settings"` ([[Displays & Animations]], [[Display — Custom]]).
+
+`FileSearcher.CustomDisplaysFolderPath` creates that folder + its `.asmdef` the moment anything **resolves the path** —
+opening the tab is enough — so it exists long before the first display does. An assembly definition with no scripts is a
+hard Unity **error**, which is why the getter also writes `AssemblyMarker.cs` (one `internal static` type) beside it: the
+asmdef must never stand alone. Found 2026-08-08 as a permanent console error in a consumer project; the marker also heals
+an already-created empty folder, since `EnsureFile` runs on every resolve.
 
 ## FileSearcher (paths)
 

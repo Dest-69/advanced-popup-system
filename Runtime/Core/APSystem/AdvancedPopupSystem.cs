@@ -480,7 +480,11 @@ namespace AdvancedPS.Core
         private static int RankOf(IAdvancedPopup popup)
         {
             PopupOrderConfig config = PopupOrderConfig.Loaded;
-            return config == null ? PopupOrderConfig.UnrankedRank : config.GetRank(popup.GetType().FullName);
+            // Prefab key first (two prefabs of one class rank apart), type name as the fallback for a scene-authored
+            // popup that has no prefab to key on — see PopupOrderConfig.GetRank.
+            return config == null
+                ? PopupOrderConfig.UnrankedRank
+                : config.GetRank(popup.OrderKey, popup.GetType().FullName);
         }
         #endregion
 

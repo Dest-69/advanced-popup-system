@@ -167,14 +167,21 @@ namespace AdvancedPS.Editor
         /// </summary>
         private static string InstalledVersion => PackageVersionHelper.GetVersion();
 
+        /// <summary>True while a remote check is in flight — the window shows a "sync" badge for it.</summary>
+        public static bool IsCheckingLatest => _versionRequest != null;
+
         /// <summary>
-        /// Reads <c>package.json</c> off the Git remote once per editor session (the APS window kicks it off on open).
-        /// Deliberately reads the raw file at the ref the install actually tracks — a pinned branch/tag, else the
-        /// default branch — so the answer is "what an update would give me", not "what the newest tag is". Silent on
-        /// failure: a missing badge is the right amount of noise for a nice-to-have, and the editor must never stall or
-        /// spam on a network hiccup.
+        /// Reads <c>package.json</c> off the Git remote. Deliberately reads the raw file at the ref the install actually
+        /// tracks — a pinned branch/tag, else the default branch — so the answer is "what an update would give me", not
+        /// "what the newest tag is". Silent on failure: a missing badge is the right amount of noise for a nice-to-have,
+        /// and the editor must never stall or spam on a network hiccup.
         /// </summary>
-        public static void EnsureLatestChecked(Action onDone = null)
+        /// <param name="force">
+        /// Ask again even if this ref was already checked. The APS window passes true when the user <b>opens</b> it — one
+        /// small GET for a deliberate action — and false from <c>OnEnable</c>, which also fires on every domain reload and
+        /// would otherwise hit the remote on each recompile.
+        /// </param>
+        public static void EnsureLatestChecked(Action onDone = null, bool force = false)
         {
             if (_versionRequest != null) return;
 
@@ -184,7 +191,7 @@ namespace AdvancedPS.Editor
             // "Already checked" is scoped to what was checked, not to the session: nothing to ask (no Git URL yet) must
             // not count as an answer, and an install that changes ref — detach, a re-pin — deserves a fresh look.
             // Re-evaluating is nearly free, since GitUrl is cached per domain.
-            if (SessionState.GetString(LatestUrlKey, string.Empty) == rawUrl) return;
+            if (!force && SessionState.GetString(LatestUrlKey, string.Empty) == rawUrl) return;
             SessionState.SetString(LatestUrlKey, rawUrl);
 
             _versionRequest = UnityWebRequest.Get(rawUrl);

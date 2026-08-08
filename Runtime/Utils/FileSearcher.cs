@@ -71,6 +71,22 @@ namespace AdvancedPS.Core.Utils
             "    \"noEngineReferences\": false\n" +
             "}\n";
 
+        /// <summary>
+        /// A single type that keeps the custom-displays assembly compilable while the folder holds no display yet. Unity
+        /// reports a hard error for an <c>.asmdef</c> with no scripts, and this folder exists from the moment the Displays
+        /// panel resolves its path — long before anyone generates a display into it.
+        /// </summary>
+        private const string DisplaysMarkerFileName = "AssemblyMarker.cs";
+
+        private const string DisplaysMarkerContent =
+            "// Keeps the AdvancedPS.Generated.Displays assembly compilable while it holds no custom display yet:\n" +
+            "// Unity reports an error for an assembly definition with no scripts. APS creates this file next to the\n" +
+            "// .asmdef and never touches it again — safe to delete once you have generated a display of your own.\n" +
+            "namespace AdvancedPS.Core\n" +
+            "{\n" +
+            "    internal static class GeneratedDisplaysAssemblyMarker { }\n" +
+            "}\n";
+
         private static bool _loggedFail;
 
         private static void LogFailOnce(string message)
@@ -171,8 +187,8 @@ namespace AdvancedPS.Core.Utils
         }
 
         /// <summary>
-        /// Absolute FS path of the consumer-side custom-displays folder. Ensures the folder and the
-        /// <see cref="DisplaysAsmdefName"/> asmdef exist. Null on IO failure.
+        /// Absolute FS path of the consumer-side custom-displays folder. Ensures the folder, the
+        /// <see cref="DisplaysAsmdefName"/> asmdef and its marker type exist. Null on IO failure.
         /// </summary>
         public static string CustomDisplaysFolderPath
         {
@@ -184,6 +200,9 @@ namespace AdvancedPS.Core.Utils
                     string dir = GeneratedRootFs + "/" + DisplaysSubfolder;
                     Directory.CreateDirectory(dir);
                     EnsureFile(dir + "/" + DisplaysAsmdefName + ".asmdef", DisplaysAsmdefContent);
+                    // The asmdef must never stand alone: an assembly definition with no scripts is a compile error, and
+                    // this folder stays empty until the user generates their first display (see DisplaysMarkerContent).
+                    EnsureFile(dir + "/" + DisplaysMarkerFileName, DisplaysMarkerContent);
                     return dir;
                 }
                 catch (Exception ex)

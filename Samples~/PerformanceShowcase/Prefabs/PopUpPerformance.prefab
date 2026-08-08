@@ -134,7 +134,6 @@ MonoBehaviour:
   canvasGroup: {fileID: 0}
   IsBeVisible: 0
   IsVisible: 0
-  DeepPopups: []
   Modules:
     Features: -1
     Drag:
@@ -161,11 +160,14 @@ MonoBehaviour:
       Cursors: {fileID: 0}
     Close:
       CloseButton: {fileID: 0}
+    Focus:
+      FocusZone: {fileID: 0}
   Addressable: 1
   AddressableLoadMode: 0
   PoolCapacity: -1
   PreloadSceneGuids: []
   UnloadSceneGuids: []
+  _orderKey: ede10b259eeabf146b09259b289b6920
 --- !u!225 &5260147549247655233
 CanvasGroup:
   m_ObjectHideFlags: 0

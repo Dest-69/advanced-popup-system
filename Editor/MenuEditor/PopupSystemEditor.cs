@@ -32,6 +32,10 @@ namespace AdvancedPS.Editor
             var window = GetWindow<PopupSystemEditor>(WindowTitle);
             window.titleContent = new GUIContent(WindowTitle);
             currentTab = tab;
+
+            // Opening the window is a deliberate action, so it is worth one small GET at the remote — unlike OnEnable,
+            // which also runs on every domain reload. The badge shows "sync…" until the answer lands (DrawVersionBar).
+            PackageUpdater.EnsureLatestChecked(() => { if (window != null) window.Repaint(); }, force: true);
         }
 
         [MenuItem("APS/Layers")]
@@ -64,8 +68,8 @@ namespace AdvancedPS.Editor
                 bannerTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(System.IO.Path.Combine(imagesPath, "AP_bundleBlack.png"));
             
             Version = PackageVersionHelper.GetVersion();
-            // Once per editor session, and only while the window is actually open — repaint when the answer lands.
-            // The check outlives the window, so the callback has to survive it being closed first.
+            // Not forced: OnEnable also fires on every domain reload, and one GET per recompile is noise. Opening the
+            // window does force it (see Open). The check outlives the window, so the callback survives it being closed.
             PackageUpdater.EnsureLatestChecked(() => { if (this != null) Repaint(); });
 
             // Initialize and load necessary resources
@@ -138,17 +142,23 @@ namespace AdvancedPS.Editor
 
             string latest = PackageUpdater.LatestVersion;
             bool updateAvailable = PackageUpdater.UpdateAvailable;
-            if (!string.IsNullOrEmpty(latest))
+            bool checking = PackageUpdater.IsCheckingLatest;
+
+            if (checking || !string.IsNullOrEmpty(latest))
             {
                 // The window multiplies text by GUI.contentColor (black on the light skin), which would swallow the
                 // style's colour — neutralise it for the badge only.
                 var prevContent = GUI.contentColor;
                 GUI.contentColor = Color.white;
-                GUILayout.Label(updateAvailable ? $"(new {latest})" : "(latest)",
-                    updateAvailable ? APSEditorStyles.VersionNewStyle : APSEditorStyles.VersionOkStyle,
+                GUILayout.Label(checking ? SyncLabel() : updateAvailable ? $"(new {latest})" : "(latest)",
+                    checking || !updateAvailable ? APSEditorStyles.VersionOkStyle : APSEditorStyles.VersionNewStyle,
                     GUILayout.ExpandWidth(false));
                 GUI.contentColor = prevContent;
             }
+
+            // Only while a check is in flight — a few seconds of animation, then the window goes idle again.
+            if (checking)
+                Repaint();
 
             if (updateAvailable && PackageUpdater.CanUpdate)
             {
@@ -163,6 +173,16 @@ namespace AdvancedPS.Editor
 
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
+        }
+
+        /// <summary>
+        /// "sync" with an ellipsis that cycles while the remote check runs. The dots are padded to a constant width so
+        /// the badge — and the row's centered layout — doesn't jitter as they come and go.
+        /// </summary>
+        private static string SyncLabel()
+        {
+            int dots = (int)(EditorApplication.timeSinceStartup * 2.5d) % 4;
+            return "(sync" + new string('.', dots).PadRight(3) + ")";
         }
 
         private void DrawTabs()

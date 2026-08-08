@@ -27,7 +27,13 @@ namespace AdvancedPS.Editor
         {
             if (Settings.InspectorView != InspectorEnum.APSInspector) return;
             
+            // InstanceIDToObject is obsolete from Unity 6.3 on, but the package still supports 2021.3 — hence the gate.
+            // EntityId converts implicitly from the int the hierarchy callback hands us, so the call itself is unchanged.
+#if UNITY_6000_3_OR_NEWER
+            Object obj = EditorUtility.EntityIdToObject(instanceID);
+#else
             Object obj = EditorUtility.InstanceIDToObject(instanceID);
+#endif
             if (popupIcon != null && obj is GameObject go && go.GetComponent<IAdvancedPopup>() != null)
             {
                 Rect rect = new Rect(selectionRect.x + selectionRect.width - 16, selectionRect.y, 16, 16);
