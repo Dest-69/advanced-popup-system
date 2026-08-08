@@ -13,6 +13,8 @@ its own conventions that **differ from a typical game project** (it is a public 
 
 ## Comments & XML docs
 
+- **Length and tone are a hard rule** — short, dry, facts only; rationale that needs a paragraph goes in the vault.
+  See [[Invariants]] "Comments & changelog".
 - **Public API is documented with XML `///` comments** — this is a library; keep summaries on public types/members
   (and `<param>` where non-obvious). Match the existing density; don't strip existing XML docs.
 - Generated display stubs carry `/* Your code here */` markers at the fill-in points — leave them until you implement.

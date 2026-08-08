@@ -24,6 +24,17 @@ Do not break these. Deviation only after explicit agreement in the current task.
   Keep the runtime lean — do not add heavy deps to `dest-69.advanced-popup-system.asmdef`. DoTween is **optional**,
   isolated behind the `DOTWEEN` define in its own assembly (see [[Project Map]]).
 
+## Comments & changelog
+
+- **Comments are short and dry.** State the contract, the constraint, the gotcha — nothing else. Do not narrate how a
+  bug was found, restate the code below, or argue with the reader. A reason gets **one clause**; if it needs a paragraph
+  it belongs in this vault, not in the file. Keep an XML `<summary>` to a few lines; a `<para>` block has to earn itself
+  with a second, separate fact.
+- **`CHANGELOG.md` is for users, not for the implementation.** One line per change, phrased as what is different for
+  someone *using* APS. No class or method names, no mechanism, no post-mortem — that is what the vault is for. The only
+  detail worth extra words is an action the user must take when upgrading. Entries and version bumps stay user-gated
+  (above, [[Shipped Docs]]).
+
 ## Generated code & codegen
 
 - **`PopupLayerEnum` SHIPS inside the package**, in its own assembly `AdvancedPS.Generated.Layers`

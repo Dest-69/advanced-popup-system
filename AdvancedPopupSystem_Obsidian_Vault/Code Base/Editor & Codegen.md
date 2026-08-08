@@ -77,6 +77,13 @@ the way back out.
   permanent *"Embedding… once Unity finishes recompiling"* — an embed that was never coming. `SyncLockWithPackage`
   relocks whenever the package reads read-only and no embed is actually in flight (`EmbedInProgress` = a `Client.Embed`
   fired this session, or a running run). `BeginEmbed` is the only embed entry point, so "we asked" is always recorded.
+- **`BeginEmbed` polls its own request — fire-and-forget was a dead end.** Its caller is usually the layer heal, running
+  while the consumer's scripts are red, and **Unity will not reload the domain while a compile error stands**: no
+  `InitializeOnLoad` and no `Resume` is coming to notice the package turned writable, so an unpolled embed leaves the
+  copy carrying the shipped default enum forever. On success it drops **both** package caches (its own and
+  `FileSearcher`'s — each still describes the deleted read-only copy) and runs `LayerCatalog.Reconcile()`; that write
+  unblocks the compile, which is what lets the domain reload. `Finish` reconciles for the same reason when the end state
+  is writable — otherwise its *"your layers were restored"* line is a claim nothing performed ([[Layers]]).
 - **One state machine, three intents** (`UpdateGit`, `UpdateEmbedded`, `Detach`) over `Client.Add`/`Embed`. A Git
   install is a plain re-add; `Detach` stops before the re-embed. The other two must first get the embedded copy out of
   the way, and that is the whole difficulty:
@@ -154,6 +161,15 @@ an already-created empty folder, since `EnsureFile` runs on every resolve.
 
 Resolves the package via `UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(FileSearcher).Assembly)` (works
 under `Packages/` **or** `Assets/`), with a folder-name (`advanced-popup-system`) AssetDatabase search as fallback.
+**The `PackageInfo` cache is not domain-lifetime.** Package Manager moves the package with no reload involved (update →
+new `@hash`, embed → `Packages/`, detach → back), and where it matters most no reload can happen at all — the consumer's
+scripts are red. A domain-held cache then serves a deleted folder for the rest of the session and `IsPackageWritable`
+answers for the previous install shape; that is how the layer heal came to read and report the *old* `@hash`
+([[Layers]]). `Pkg` drops the cache once `resolvedPath` stops existing (one `Directory.Exists`, the only swap signal
+needing no reload); `InvalidatePackage()` drops it explicitly after a UPM request.
+**A null `PackageInfo` is not proof of "loose in Assets"** — equally "the package layer hasn't answered yet", and taking
+the second for the first is a licence to write into `Library/PackageCache`, which Unity reverts on the next resolve
+(leaving a compiled enum that no longer matches its source). Only a root resolving under `Assets/` counts as writable.
 **Package paths** — `ImagesFolderPath` (asset path, for `LoadAssetAtPath`), `BuiltinDisplaysFolderPath` (real FS), and
 `LayersEnumFilePath` (the shipped enum — writable only when the package is). **Consumer path** —
 `CustomDisplaysFolderPath` (`Assets/AdvancedPopupSystem/Generated/Displays/`, ensures folder + asmdef). **Writability** —

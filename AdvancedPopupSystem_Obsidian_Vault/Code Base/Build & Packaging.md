@@ -57,6 +57,11 @@ Read-only package assets (images, built-in displays) are resolved via
 threw `TypeInitializationException` when the folder wasn't found (poisoning every icon site + the heal under UPM) is
 gone: accessors are lazy and return `null` on failure. `FolderRenamePrevention` still guards the folder-name fallback.
 
+The resolution is **cached but not for the domain's lifetime**: an update/embed/detach moves the package with no domain
+reload, and mid-update there may be no reload *at all* (red consumer scripts abort it), so a domain-lifetime cache
+serves a deleted `@hash` folder and a stale writability answer for the rest of the session — the failure that stranded
+the layer heal ([[Layers]], mechanism in [[Editor & Codegen]]).
+
 ## Dev-only tooling never reaches consumers — two mechanisms, one per channel
 
 `Editor/Build/` (the exporter + `APSSampleDevMode`) is kept away from consumers **twice**, because the two distribution

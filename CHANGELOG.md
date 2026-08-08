@@ -9,7 +9,7 @@
 - **Version check on every window open**, not once per session — *(sync…)* while it looks.
 ### Fixed
 - **The Update button always appears when a new version is found** — however you installed APS. It used to show up only for a Git URL or a customized copy, leaving everyone else *(new x.y.z)* and nothing to press. A registry install updates in one click too; a copy APS can't safely replace for you — a folder in `Assets/`, a `file:` path, a `.tgz` — says what it needs and opens Releases. Hover the button to see what it will do.
-- **Custom layers survive an update** — the restore only ran when APS sat in `Assets/`, so other installs lost them and `PopupLayerEnum.YOUR_LAYER` stopped compiling. A read-only install now makes itself writable and brings them back by itself; the list was never lost either way.
+- **Custom layers survive an update** — the restore only ran when APS sat in `Assets/`, so other installs lost them and `PopupLayerEnum.YOUR_LAYER` stopped compiling. A read-only install now makes itself writable and brings them back by itself; the list was never lost either way. *Upgrading from 2.3.1 or earlier: if a layer stops compiling, turn on Customization in APS ▸ Layers and restart Unity once.*
 - **No more "assembly has no scripts" error** from the still-empty custom-transitions folder.
 - **No obsolete-API warning on Unity 6.3.**
 

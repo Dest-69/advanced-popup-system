@@ -14,7 +14,8 @@ they get reused, not re-written ([[Code Style]]).
 - **`APLogger`** — level-filtered logging (`Log`/`LogWarning`/`LogError`/`LogException`). Detail: [[Settings & Logging]].
 - **`FileSearcher`** — UPM-aware package resolution (`PackageInfo.FindForAssembly`, folder-name fallback) for the
   package's image / enum / built-in-display paths, the consumer-side `CustomDisplaysFolderPath`, `IsPackageWritable` /
-  `EmbedPackage` (the enum ships in the package, so editing layers needs a writable copy), and `ToAssetPath`/`ToFsPath`.
+  `EmbedPackage` / `InvalidatePackage` (the enum ships in the package, so editing layers needs a writable copy — and the
+  resolution is re-done whenever a package swap invalidates it), and `ToAssetPath`/`ToFsPath`.
   Lazy, non-throwing. Detail: [[Editor & Codegen]].
 - **`TaskUtils`** — `OperationCancelled(token)` and `UpdateCancellationTokenSource(...)`. Detail:
   [[Operations & Cancellation]].

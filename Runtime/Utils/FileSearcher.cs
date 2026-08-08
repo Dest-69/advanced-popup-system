@@ -274,19 +274,39 @@ namespace AdvancedPS.Core.Utils
         private static PackageInfo _pkg;
         private static bool _pkgResolved;
 
-        /// <summary>The UPM package this assembly belongs to, or null when APS is a loose/embedded folder under Assets.</summary>
+        /// <summary>
+        /// The UPM package this assembly belongs to, or null when APS is a loose/embedded folder under Assets. Cached,
+        /// but dropped once <see cref="CacheWentStale"/>: an update/embed/detach moves the package with no domain
+        /// reload, and while the consumer's scripts are red there is no reload at all.
+        /// </summary>
         private static PackageInfo Pkg
         {
             get
             {
-                if (!_pkgResolved)
-                {
-                    try { _pkg = PackageInfo.FindForAssembly(typeof(FileSearcher).Assembly); }
-                    catch { _pkg = null; }
-                    _pkgResolved = true;
-                }
+                if (_pkgResolved && !CacheWentStale()) return _pkg;
+
+                try { _pkg = PackageInfo.FindForAssembly(typeof(FileSearcher).Assembly); }
+                catch { _pkg = null; }
+                _pkgResolved = true;
                 return _pkg;
             }
+        }
+
+        /// <summary>
+        /// True when the cached <see cref="PackageInfo"/> points at a folder that is gone — the only swap signal that
+        /// needs no domain reload. One <c>Directory.Exists</c>, cheap enough for the per-repaint lookups that read this.
+        /// </summary>
+        private static bool CacheWentStale()
+        {
+            string root = _pkg?.resolvedPath;
+            return !string.IsNullOrEmpty(root) && !Directory.Exists(root);
+        }
+
+        /// <summary>Drops the cached <see cref="PackageInfo"/>. Call after a UPM request that changes the install shape (embed/detach/re-add).</summary>
+        public static void InvalidatePackage()
+        {
+            _pkg = null;
+            _pkgResolved = false;
         }
 
         /// <summary>
@@ -299,9 +319,15 @@ namespace AdvancedPS.Core.Utils
             get
             {
                 PackageInfo pkg = Pkg;
-                if (pkg == null) return true; // loose in Assets
-                return pkg.source == UnityEditor.PackageManager.PackageSource.Embedded
-                    || pkg.source == UnityEditor.PackageManager.PackageSource.Local;
+                if (pkg != null)
+                    return pkg.source == UnityEditor.PackageManager.PackageSource.Embedded
+                        || pkg.source == UnityEditor.PackageManager.PackageSource.Local;
+
+                // Null means "loose in Assets" or "the package layer has not answered yet". Reading the second as the
+                // first writes into Library/PackageCache, which Unity reverts — so only a root under Assets/ counts.
+                string root = PackageRootFsPath();
+                return !string.IsNullOrEmpty(root)
+                       && root.StartsWith(Application.dataPath.Replace('\\', '/'), StringComparison.Ordinal);
             }
         }
 
@@ -312,11 +338,16 @@ namespace AdvancedPS.Core.Utils
         /// Embeds the package (copies it from the read-only cache into <c>Packages/</c>, writable) so layers can be
         /// edited. No-op when APS is loose in Assets. Unity recompiles afterwards; editing is available once it settles.
         /// </summary>
-        public static void EmbedPackage()
+        /// <returns>
+        /// The in-flight request, or null when there is no package to embed. Poll it to act on completion — no domain
+        /// reload is guaranteed to follow (see <c>PackageUpdater.BeginEmbed</c>).
+        /// </returns>
+        public static UnityEditor.PackageManager.Requests.EmbedRequest EmbedPackage()
         {
             PackageInfo pkg = Pkg;
-            if (pkg != null && !string.IsNullOrEmpty(pkg.name))
-                UnityEditor.PackageManager.Client.Embed(pkg.name);
+            return pkg != null && !string.IsNullOrEmpty(pkg.name)
+                ? UnityEditor.PackageManager.Client.Embed(pkg.name)
+                : null;
         }
 
         /// <summary>Asset-database path of the package root (<c>Packages/…</c> or <c>Assets/…</c>), no trailing '/'. Null if unresolved.</summary>

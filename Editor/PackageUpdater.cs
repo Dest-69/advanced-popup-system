@@ -173,11 +173,56 @@ namespace AdvancedPS.Editor
                 SessionState.SetBool(EmbedPendingKey, false);
         }
 
-        /// <summary>Embeds the package so the layer enum can be regenerated in place, remembering that we asked.</summary>
+        /// <summary>
+        /// Embeds the package so the layer enum can be regenerated in place, remembering that we asked, and reconciles
+        /// once the writable copy lands. The poll is required: the caller is usually the layer heal, and Unity does not
+        /// reload the domain while a compile error stands, so nothing else would notice the package turned writable.
+        /// A reload landing mid-request kills this closure — <see cref="ClearEmbedPending"/> and
+        /// <c>LayerEnumSyncPostprocessor.SyncOnLoad</c> cover that.
+        /// </summary>
         public static void BeginEmbed()
         {
             SessionState.SetBool(EmbedPendingKey, true);
-            FileSearcher.EmbedPackage();
+
+            EmbedRequest request = FileSearcher.EmbedPackage();
+            if (request == null)
+            {
+                // Loose folder under Assets/ — writable already.
+                SessionState.SetBool(EmbedPendingKey, false);
+                return;
+            }
+
+            double deadline = EditorApplication.timeSinceStartup + RequestTimeout;
+
+            void PollEmbed()
+            {
+                if (!request.IsCompleted && EditorApplication.timeSinceStartup < deadline) return;
+
+                EditorApplication.update -= PollEmbed;
+                SessionState.SetBool(EmbedPendingKey, false);
+
+                if (!request.IsCompleted)
+                {
+                    APLogger.LogError($"[APS] Embedding a writable copy of the package did not answer within " +
+                                      $"{RequestTimeout:0} seconds. Your layers are safe in ProjectSettings/APS_Layers.json " +
+                                      "— turn Customization off and on again in APS ▸ Layers to retry.");
+                    return;
+                }
+
+                if (request.Status != StatusCode.Success)
+                {
+                    APLogger.LogError("[APS] Could not embed a writable copy of the package: " +
+                                      (request.Error?.message ?? "the Package Manager request failed.") +
+                                      " Your layers are safe in ProjectSettings/APS_Layers.json.");
+                    return;
+                }
+
+                InvalidatePackage();
+                FileSearcher.InvalidatePackage();
+                LayerCatalog.Reconcile();
+            }
+
+            EditorApplication.update += PollEmbed;
         }
 
         /// <summary>
@@ -722,6 +767,12 @@ namespace AdvancedPS.Editor
         private static void Finish()
         {
             InvalidatePackage();
+            FileSearcher.InvalidatePackage();
+
+            // The fresh copy carries the enum APS ships with, so the layers have to be written back — that is what makes
+            // the "restored" line below true. Not after a Detach: there the shipped default is the intended end state.
+            if (FileSearcher.IsPackageWritable) LayerCatalog.Reconcile();
+
             Intent intent = CurrentIntent;
             string from = SessionState.GetString(FromVersionKey, "?");
             string to = Package?.version ?? "?";

@@ -47,6 +47,14 @@ instead of per-popup.
     not while `EmbedInProgress`; once per session, so a failing embed can't loop; and never when
     `PackageUpdater.DetachedThisSession` — *Remove embedded copy* is deliberate and its dialog warned about exactly this
     fallback (that flag is set in `BeginDetach`). Batch mode logs only: CI must not rewrite `Packages/`.
+  - **The heal could not run in the case it was written for** (found 2026-08-09). **Unity aborts the domain reload while
+    a compile error stands** — and that error is what the heal exists to clear, so the *newly installed* `HealUnwritable`
+    never loads. What keeps running is the **previously installed** APS (only `OnPostprocessAllAssets` still fires),
+    against the `@hash` folder Package Manager has just deleted. Two causes, both fixed: `FileSearcher` re-resolves its
+    cached `PackageInfo` once `resolvedPath` stops existing (a package swap needs no reload to be noticed —
+    [[Editor & Codegen]]), and `PackageUpdater.BeginEmbed` **polls** its `Client.Embed` and reconciles on success instead
+    of firing and forgetting. **A fix here only protects updates from the version that ships it onward** — during the
+    broken window the old code is what runs; anyone stranded by an older version embeds by hand and restarts the editor.
   **Store safety:**
   `LayerCatalog` writes the store atomically (`.tmp` + `File.Replace` → `.bak`) and distinguishes *missing* (seed
   defaults) from *unreadable* (abort — **never** overwrite real layers on a read hiccup), recovering from `.bak`. Details
