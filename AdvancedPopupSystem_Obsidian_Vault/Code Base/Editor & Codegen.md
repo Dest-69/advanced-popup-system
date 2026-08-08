@@ -54,8 +54,19 @@ package **Custom** and updates neither it *nor* a Git dependency (a Git URL has 
 the way back out.
 
 - **UI split by meaning, not by mechanism.** Updating is a property of the *install*, so it lives on the version line in
-  `PopupSystemEditor.DrawVersionBar` (badge + **Update**, shown only when `UpdateAvailable && CanUpdate`). Embedding and
-  **Remove embedded copy** are the two directions of the Customization toggle, so they stay in the Layers panel.
+  `PopupSystemEditor.DrawVersionBar` (badge + **Update**). Embedding and **Remove embedded copy** are the two directions
+  of the Customization toggle, so they stay in the Layers panel.
+- **Badge and button share one gate — `UpdateAvailable`, nothing else.** The old `UpdateAvailable && CanUpdate` was a
+  bug: the check answers for *every* shape (it needs only a GitHub URL, which the package's own `package.json` `url`
+  supplies when the manifest entry isn't a Git one) while `CanUpdate` was Embedded/Git — so registry/`file:`/tarball/
+  `Assets/` installs got *(new x.y.z)* and nothing to press. `Route` (`Reinstall`/`Registry`/`Manual`) replaces it and
+  has **no "can't" member** on purpose: `BeginUpdate` dispatches on it, so every shape owes the button an action.
+  `Registry` → `Client.Add("name@version")` through the same state machine, asking for the version the *badge* shows (a
+  registry that lacks it answers with UPM's own error — better than installing something else; opening the Package
+  Manager window was rejected, a second button elsewhere is not an update). `Manual` is the only hand-off — APS will not
+  delete and re-import a copy it didn't put there — and names the shape + opens Releases. `UpdateTooltip` says which
+  route the button got before it is pressed. Related: `GitUrl` caches a *miss* only when a `PackageInfo` was there to
+  ask, so a resolve taken before the package layer is up can't pin "no route" for the whole domain.
 - **The remote check runs per window *open*, not per session** (user request, 2026-08-08). `EnsureLatestChecked(force)`:
   `Open()` passes true — a deliberate action is worth one small GET — while `OnEnable` passes false, because it also fires
   on **every domain reload** and would otherwise hit the remote on each recompile. `IsCheckingLatest` drives a
@@ -88,7 +99,7 @@ the way back out.
 - **The Git URL is recovered, not stored** — the consumer's `manifest.json` entry first (embedding doesn't rewrite it,
   and it is the only source that keeps a pinned branch/tag), then the repository the package declares in its own
   `package.json` (default branch, so `.git` is appended). A registry version or a `file:` path fails the Git-URL test,
-  which is the point: it is what gates `CanUpdate` down to Embedded/Git installs.
+  which is the point: it is what sorts an install into `Reinstall` vs. the other routes.
 - **The latest version is read off the remote, not from a release feed** — raw `package.json` at the ref the install
   actually tracks (`#pin`, else `HEAD`, which spares us guessing `main` vs `master`), so the badge answers "what an
   update would give me". GitHub-only URL rewriting; once per session, polled from `EditorApplication.update` because

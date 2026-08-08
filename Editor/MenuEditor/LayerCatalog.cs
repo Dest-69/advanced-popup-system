@@ -271,7 +271,7 @@ namespace AdvancedPS.Editor
             // altered", and Package Manager may drop the change at any time. So do not write — say what is wrong instead.
             if (!FileSearcher.IsPackageWritable)
             {
-                WarnUnwritable(names);
+                HealUnwritable(names, enumFsPath);
                 return;
             }
 
@@ -293,24 +293,45 @@ namespace AdvancedPS.Editor
         }
 
         /// <summary>
-        /// The heal has layers to restore but nowhere to write them. Says so in the consumer's own terms — the symptom
-        /// they actually see is <c>CS0117: 'PopupLayerEnum' does not contain a definition for 'X'</c> in their code after
-        /// an update, which explains nothing on its own. Once per editor session (<see cref="SessionState"/>): the state
-        /// persists across the domain reloads this runs on, and repeating it every reload would be noise.
+        /// The store has layers the compiled enum lacks, and the package is read-only — a Git/registry install lives in
+        /// <c>Library/PackageCache</c>, which Unity treats as immutable (writing there raises "assets in immutable
+        /// packages were unexpectedly altered" and Package Manager drops the change on the next resolve, so a patch there
+        /// is not a fix). The only thing that actually restores them is a writable copy, so <b>embed one and say so</b> —
+        /// no prompt: the project does not compile in this state, and customized layers already imply an embedded
+        /// install. Unity recompiles once, the next heal writes the enum, and the layers are back.
+        /// <para>
+        /// Guarded four ways: only when the enum is genuinely <b>missing</b> names (a reorder or a removal leaves the
+        /// consumer's code compiling and is not worth changing their install for); not while an embed is already in
+        /// flight; once per session, so a failing embed cannot loop; and never right after the user handed the copy back
+        /// themselves (<see cref="PackageUpdater.DetachedThisSession"/> — that dialog already warned about this exact
+        /// fallback). In batch mode it only logs: CI must not rewrite the project's <c>Packages/</c>.
+        /// </para>
         /// </summary>
-        private static void WarnUnwritable(string[] names)
+        private static void HealUnwritable(string[] names, string enumFsPath)
         {
-            const string warnedKey = "APS_LayerHealUnwritableWarned";
-            if (SessionState.GetBool(warnedKey, false)) return;
-            SessionState.SetBool(warnedKey, true);
+            var compiled = new HashSet<string>(ParseNamesFromSource(SafeRead(enumFsPath)));
+            string[] missing = names.Select(Sanitize)
+                                    .Where(n => !string.IsNullOrEmpty(n) && !compiled.Contains(n))
+                                    .ToArray();
+            if (missing.Length == 0) return;
 
-            Debug.LogError(
-                $"[APS] Your layers could not be restored into PopupLayerEnum: APS is installed read-only (Git/registry), " +
-                $"and Unity does not allow writing into a package in Library/PackageCache.\n" +
-                $"{StoreFileName} still holds your full list — {string.Join(", ", names)} — but only the layers APS ships " +
-                $"with are compiled, so your code referencing any of the others will not build.\n" +
-                $"Fix: turn on Customization in APS ▸ Layers. It embeds a writable copy of the package and the layers come " +
-                $"straight back from the store; nothing is lost meanwhile.");
+            const string triedKey = "APS_LayerHealEmbedTried";
+            if (SessionState.GetBool(triedKey, false) || PackageUpdater.EmbedInProgress) return;
+            SessionState.SetBool(triedKey, true);
+
+            string list = string.Join(", ", missing);
+            if (PackageUpdater.DetachedThisSession || Application.isBatchMode)
+            {
+                Debug.LogError($"[APS] Layers {list} are in {StoreFileName} but not in the compiled PopupLayerEnum, and " +
+                               "APS is installed read-only so they cannot be regenerated. Code using them will not build — " +
+                               "enable Customization in APS ▸ Layers to embed a writable copy.");
+                return;
+            }
+
+            Debug.Log($"[APS] Restoring your layers ({list}) after the update: APS is installed read-only, so it is " +
+                      "embedding a writable copy of itself. Unity recompiles once and the layers come back from " +
+                      $"{StoreFileName} — nothing else changes.");
+            PackageUpdater.BeginEmbed();
         }
 
         #endregion

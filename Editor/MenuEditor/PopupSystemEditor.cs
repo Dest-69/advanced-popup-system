@@ -129,10 +129,13 @@ namespace AdvancedPS.Editor
 
         /// <summary>
         /// Installed version, how it compares to the Git remote, and the update itself — Package Manager offers no
-        /// update for either shape APS can be installed in (see <see cref="PackageUpdater"/>), so this row is the one
-        /// place that does. Drawn above the tabs: it is about the window, not about whichever tab is open. It degrades
-        /// quietly — no remote answer (offline, non-GitHub host) means no badge, and an install nobody but its owner
-        /// should touch means no button.
+        /// update for either shape APS is normally installed in (see <see cref="PackageUpdater"/>), so this row is the
+        /// one place that does. Drawn above the tabs: it is about the window, not about whichever tab is open. It
+        /// degrades quietly — no remote answer (offline, non-GitHub host) means no badge.
+        ///
+        /// <b>Badge and button share one gate.</b> Whenever the check says a newer version exists the button is there —
+        /// saying "you are out of date" and leaving nothing to press is the one outcome this row must not produce. What
+        /// pressing it does is <see cref="PackageUpdater.Route"/>'s business.
         /// </summary>
         private void DrawVersionBar()
         {
@@ -160,13 +163,16 @@ namespace AdvancedPS.Editor
             if (checking)
                 Repaint();
 
-            if (updateAvailable && PackageUpdater.CanUpdate)
+            if (updateAvailable)
             {
                 GUILayout.Space(6);
                 using (new EditorGUI.DisabledScope(PackageUpdater.IsBusy))
                 {
-                    if (GUILayout.Button(PackageUpdater.IsBusy ? "Updating…" : "Update",
-                            GUILayout.Width(70), GUILayout.Height(16)))
+                    var label = new GUIContent(PackageUpdater.IsBusy ? "Updating…" : "Update",
+                        PackageUpdater.IsBusy ? "APS is reinstalling itself — Unity recompiles a few times."
+                                              : PackageUpdater.UpdateTooltip);
+
+                    if (GUILayout.Button(label, GUILayout.Width(70), GUILayout.Height(16)))
                         PackageUpdater.BeginUpdate();
                 }
             }

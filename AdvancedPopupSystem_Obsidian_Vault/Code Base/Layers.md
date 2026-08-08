@@ -37,10 +37,16 @@ instead of per-popup.
     `Packages/`. Reported by a consumer whose `DRAG` layer stopped compiling right after an update.
   - **Never write into `Library/PackageCache`.** A Git/registry install is *immutable* to Unity: the file is writable at
     the OS level and the write appears to succeed, then Unity raises *"asset(s) located in immutable packages were
-    unexpectedly altered"* and Package Manager may drop it without warning (observed 2026-08-08). `Reconcile` therefore
-    gates the write on `FileSearcher.IsPackageWritable` and, when it can't write, logs once per session (`SessionState`)
-    naming the store's layers and pointing at the Customization toggle — the consumer's actual symptom is a `CS0117` in
-    *their* code, which explains nothing on its own.
+    unexpectedly altered"* and Package Manager drops it on the next resolve — verified 2026-08-08, twice: the patch
+    survived until the package re-resolved into a new `@hash` folder. So `Reconcile` gates the write on
+    `FileSearcher.IsPackageWritable`.
+  - **A read-only install heals itself by embedding** (`HealUnwritable`, user request 2026-08-08: fix it automatically,
+    no dialogs). A writable copy is the only real fix, and customized layers already imply an embedded install, so it
+    calls `PackageUpdater.BeginEmbed()` and logs what it is doing — no prompt, since the project does not compile in this
+    state. Four guards: only when the enum is genuinely **missing** store names (a reorder/removal still compiles);
+    not while `EmbedInProgress`; once per session, so a failing embed can't loop; and never when
+    `PackageUpdater.DetachedThisSession` — *Remove embedded copy* is deliberate and its dialog warned about exactly this
+    fallback (that flag is set in `BeginDetach`). Batch mode logs only: CI must not rewrite `Packages/`.
   **Store safety:**
   `LayerCatalog` writes the store atomically (`.tmp` + `File.Replace` → `.bak`) and distinguishes *missing* (seed
   defaults) from *unreadable* (abort — **never** overwrite real layers on a read hiccup), recovering from `.bak`. Details

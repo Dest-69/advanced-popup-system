@@ -74,7 +74,9 @@ namespace AdvancedPS.Editor
             /// <summary>Embedded copy → newest revision, embedded again.</summary>
             UpdateEmbedded = 1,
             /// <summary>Embedded copy → hand it back to Package Manager as a read-only Git install.</summary>
-            Detach = 2
+            Detach = 2,
+            /// <summary>Registry install → <c>name@version</c>. Mechanically the same plain Add as <see cref="UpdateGit"/>, kept apart so the messages can tell the truth about where the copy came from.</summary>
+            UpdateRegistry = 3
         }
 
         /// <summary>Where the embedded copy is parked while its replacement installs. Under <c>Library/</c>: never scanned by UPM or the AssetDatabase, same volume as <c>Packages/</c> so the move is a rename.</summary>
@@ -107,16 +109,51 @@ namespace AdvancedPS.Editor
         public static bool IsEmbedded => Package?.source == PackageSource.Embedded;
 
         /// <summary>
-        /// True when this install is one APS can reinstall itself: embedded (Package Manager refuses) or from a Git URL
-        /// (Package Manager offers no update either — a Git dependency has to be re-added). A local path or a loose
-        /// folder under <c>Assets/</c> is whoever put it there's business.
+        /// How this install gets to a newer version. Deliberately has no "it can't" member: the window offers
+        /// <b>Update</b> whenever <see cref="UpdateAvailable"/>, and that check answers for every shape APS can be
+        /// installed in — so every shape owes the button an action (see <see cref="BeginUpdate"/>).
         /// </summary>
-        public static bool CanUpdate
+        public enum UpdateRoute
+        {
+            /// <summary>APS reinstalls itself from its Git URL — embedded or Git, the two shapes Package Manager won't update.</summary>
+            Reinstall = 0,
+            /// <summary>A registry install: APS adds <c>name@version</c> itself, so the button updates rather than delegating.</summary>
+            Registry = 1,
+            /// <summary>A local path/tarball, a loose folder under <c>Assets/</c>, anything unrecognised — say what this shape needs and open the download.</summary>
+            Manual = 2
+        }
+
+        /// <summary>
+        /// Which route this install takes. <see cref="UpdateRoute.Reinstall"/> needs a Git URL to re-add; without one
+        /// even an embedded copy is a hand-made folder nobody but its owner should replace, so it falls through to
+        /// <see cref="UpdateRoute.Manual"/>.
+        /// </summary>
+        public static UpdateRoute Route
         {
             get
             {
                 PackageSource? source = Package?.source;
-                return (source == PackageSource.Embedded || source == PackageSource.Git) && GitUrl != null;
+                if ((source == PackageSource.Embedded || source == PackageSource.Git) && GitUrl != null)
+                    return UpdateRoute.Reinstall;
+
+                return source == PackageSource.Registry ? UpdateRoute.Registry : UpdateRoute.Manual;
+            }
+        }
+
+        /// <summary>What the <b>Update</b> button is about to do — the button is offered for every shape, so it has to say which one it got.</summary>
+        public static string UpdateTooltip
+        {
+            get
+            {
+                switch (Route)
+                {
+                    case UpdateRoute.Reinstall:
+                        return "Reinstall APS at the newest revision of the Git URL it came from. Unity recompiles a few times.";
+                    case UpdateRoute.Registry:
+                        return "Install the newest APS from the package registry it came from. Unity recompiles.";
+                    default:
+                        return "APS cannot replace this copy on its own — this explains what this install needs and opens the Releases page.";
+                }
             }
         }
 
@@ -142,6 +179,15 @@ namespace AdvancedPS.Editor
             SessionState.SetBool(EmbedPendingKey, true);
             FileSearcher.EmbedPackage();
         }
+
+        /// <summary>
+        /// The user handed the embedded copy back this session (<see cref="BeginDetach"/>). The layer heal reads this so
+        /// it does not immediately embed again to restore layers — undoing a deliberate action is worse than the
+        /// fallback the detach dialog already warned about.
+        /// </summary>
+        public static bool DetachedThisSession => SessionState.GetBool(DetachedKey, false);
+
+        private const string DetachedKey = "APS_PkgDetachedThisSession";
 
         #endregion
 
@@ -280,15 +326,30 @@ namespace AdvancedPS.Editor
         #region Entry points
 
         /// <summary>
-        /// Reinstalls APS at the newest revision of the Git URL it came from — embedding it again afterwards if that is
-        /// how it was installed, so layer editing keeps working. User-confirmed; no-op unless <see cref="CanUpdate"/>.
-        /// Consumer state (layers, settings, canvases, custom displays) lives outside the package and survives; the
-        /// layer enum is healed from <c>ProjectSettings/APS_Layers.json</c> by <see cref="LayerEnumSyncPostprocessor"/>.
+        /// Moves this install to the newest version by whichever <see cref="Route"/> its shape allows. The dispatch
+        /// exists because the version check speaks about <b>every</b> install shape: a badge that says an update exists
+        /// next to no button at all is a dead end, so the button is never the thing that goes missing.
         /// </summary>
         public static void BeginUpdate()
         {
-            if (IsBusy || !CanUpdate) return;
+            if (IsBusy) return;
 
+            switch (Route)
+            {
+                case UpdateRoute.Reinstall: BeginReinstall(); return;
+                case UpdateRoute.Registry: BeginRegistryUpdate(); return;
+                default: ExplainManualUpdate(); return;
+            }
+        }
+
+        /// <summary>
+        /// Reinstalls APS at the newest revision of the Git URL it came from — embedding it again afterwards if that is
+        /// how it was installed, so layer editing keeps working. User-confirmed. Consumer state (layers, settings,
+        /// canvases, custom displays) lives outside the package and survives; the layer enum is healed from
+        /// <c>ProjectSettings/APS_Layers.json</c> by <see cref="LayerEnumSyncPostprocessor"/>.
+        /// </summary>
+        private static void BeginReinstall()
+        {
             PackageInfo pkg = Package;
             string url = GitUrl;
             bool embedded = pkg.source == PackageSource.Embedded;
@@ -307,6 +368,77 @@ namespace AdvancedPS.Editor
                 return;
 
             Start(embedded ? Intent.UpdateEmbedded : Intent.UpdateGit, pkg, url);
+        }
+
+        /// <summary>
+        /// Registry install: a plain <c>Add</c> of <c>name@version</c>, run through the same state machine as the rest
+        /// so it survives the recompiles — the button updates here rather than opening Package Manager, since a second
+        /// button in another window is not an update. The version asked for is the one the badge shows (read off
+        /// GitHub): a registry that has not published it answers with UPM's own error, which <see cref="Fail"/> passes
+        /// on — better than silently installing whatever that registry considers newest.
+        /// </summary>
+        private static void BeginRegistryUpdate()
+        {
+            PackageInfo pkg = Package;
+            string version = LatestVersion;
+            if (pkg == null || string.IsNullOrEmpty(version))
+            {
+                ExplainManualUpdate();
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("Update Advanced Popup System",
+                    $"Update {pkg.name} {pkg.version} → {version} from its package registry.\n\n" +
+                    "Your layers, settings, canvases and custom displays live outside the package and are kept.\n\n" +
+                    "Unity will recompile.",
+                    "Update", "Cancel"))
+                return;
+
+            Start(Intent.UpdateRegistry, pkg, pkg.name + "@" + version);
+        }
+
+        /// <summary>
+        /// Nothing here can safely replace this copy: a <c>file:</c> path or a tarball belongs to whoever pointed UPM at
+        /// it, and a loose folder under <c>Assets/</c> would have to be deleted and re-imported — the user's call, not a
+        /// button's. So the button does the one useful thing left: names what this shape needs, and opens the download.
+        /// </summary>
+        private static void ExplainManualUpdate()
+        {
+            string version = LatestVersion != null ? "Advanced Popup System v" + LatestVersion : "A newer Advanced Popup System";
+            string releases = ReleasesUrl;
+
+            PackageInfo pkg = Package;
+            string how = pkg == null
+                ? "This copy sits in your Assets folder, so it updates the way it got there: delete the " +
+                  "advanced-popup-system folder and import the new package over it. Your layers, settings, canvases and " +
+                  "generated displays live outside that folder and are kept."
+                : $"This copy is installed as {SourceLabel(pkg.source)}, which APS cannot replace on its own — update it " +
+                  "where it lives, or reinstall APS from its Git URL (Package Manager ▸ Install package from git URL), " +
+                  "which keeps the Update button working from then on.";
+
+            if (releases == null)
+            {
+                EditorUtility.DisplayDialog("Update Advanced Popup System", $"{version} is out.\n\n{how}", "OK");
+                return;
+            }
+
+            if (EditorUtility.DisplayDialog("Update Advanced Popup System", $"{version} is out.\n\n{how}",
+                    "Open Releases", "Cancel"))
+                Application.OpenURL(releases);
+        }
+
+        /// <summary>Install shapes named the way whoever made them would recognise — for the manual-update dialog.</summary>
+        private static string SourceLabel(PackageSource source)
+        {
+            switch (source)
+            {
+                case PackageSource.Local: return "a local folder (a \"file:\" entry in Packages/manifest.json)";
+                case PackageSource.LocalTarball: return "a local .tgz tarball";
+                case PackageSource.Registry: return "a package registry";
+                case PackageSource.Embedded: return "a copy in your Packages/ folder with no Git URL to restore it from";
+                case PackageSource.Git: return "a Git dependency whose URL could not be read back";
+                default: return "a package shape APS does not recognise";
+            }
         }
 
         /// <summary>
@@ -339,6 +471,8 @@ namespace AdvancedPS.Editor
                     "Remove & reinstall", "Cancel"))
                 return;
 
+            // Recorded before the run starts: the layer heal must not "fix" this by embedding again (see DetachedThisSession).
+            SessionState.SetBool(DetachedKey, true);
             Start(Intent.Detach, pkg, url);
         }
 
@@ -350,8 +484,10 @@ namespace AdvancedPS.Editor
             SessionState.SetString(FromVersionKey, pkg.version ?? "?");
             SessionState.SetInt(RetryKey, 0);
 
-            if (intent == Intent.UpdateGit)
-                Send(Step.Reinstalling, Client.Add(url)); // Nothing in the way — a plain re-add moves it to the newest revision.
+            // Nothing in the way — a plain re-add moves a read-only install to the newest revision. Only an embedded
+            // copy has to be got out of UPM's way first.
+            if (intent == Intent.UpdateGit || intent == Intent.UpdateRegistry)
+                Send(Step.Reinstalling, Client.Add(url));
             else
                 ReplaceEmbeddedCopy(pkg, url);
         }
@@ -539,7 +675,7 @@ namespace AdvancedPS.Editor
                     {
                         if (TakeRetry() && !string.IsNullOrEmpty(url)) Send(Step.Reinstalling, Client.Add(url));
                         else
-                            Fail($"the Git copy did not resolve. Packages/manifest.json still points at {url} — " +
+                            Fail($"the reinstalled copy did not resolve. Packages/manifest.json still asks for {url} — " +
                                  "reopen the project (or Package Manager ▸ Refresh) once you are online.");
                         return;
                     }
@@ -595,7 +731,7 @@ namespace AdvancedPS.Editor
                 ? $"Advanced Popup System is a read-only Package Manager install again (v{to}).\n\nLayer editing is " +
                   "off — enable Customization in APS ▸ Layers to embed it again. Your layer list is still in " +
                   "ProjectSettings/APS_Layers.json."
-                : (from == to ? $"Reinstalled {to} from Git — already the newest revision." : $"Updated {from} → {to}.") +
+                : (from == to ? $"Reinstalled {to} — that was already the newest version." : $"Updated {from} → {to}.") +
                   (intent == Intent.UpdateEmbedded
                       ? "\n\nThe copy is embedded again, so layer editing still works, and your layers were restored " +
                         "from ProjectSettings/APS_Layers.json."
@@ -660,10 +796,15 @@ namespace AdvancedPS.Editor
             get
             {
                 if (_gitUrlResolved) return _gitUrl;
-                _gitUrlResolved = true;
                 _gitUrl = null;
 
                 PackageInfo pkg = Package;
+
+                // A miss is cached only when there was a package to ask. Asking before the package layer is up would
+                // otherwise pin "no Git URL" for the whole domain — and with it the update route — while the badge,
+                // which lives in SessionState and outlives any single domain, still says an update exists.
+                _gitUrlResolved = pkg != null;
+
                 if (pkg != null)
                 {
                     string fromManifest = ReadManifestDependency(pkg.name);
@@ -673,7 +814,24 @@ namespace AdvancedPS.Editor
                 string declared = ReadDeclaredRepository(pkg?.resolvedPath ?? FileSearcher.PackageRootPath);
                 if (!IsGitUrl(declared)) return null;
 
+                _gitUrlResolved = true;
                 return _gitUrl = declared.EndsWith(".git", StringComparison.OrdinalIgnoreCase) ? declared : declared + ".git";
+            }
+        }
+
+        /// <summary>
+        /// The repository's Releases page — where a manual update comes from. Derived from <see cref="GitUrl"/>, which
+        /// is non-null whenever the version check answered at all (it reads raw <c>package.json</c> off that same URL),
+        /// so a shape that got a badge always gets a link to go with it.
+        /// </summary>
+        private static string ReleasesUrl
+        {
+            get
+            {
+                Match match = Regex.Match(GitUrl ?? string.Empty, @"github\.com[:/]([^/]+)/([^/#?]+?)(?:\.git)?([?#].*)?$");
+                return match.Success
+                    ? $"https://github.com/{match.Groups[1].Value}/{match.Groups[2].Value}/releases"
+                    : null;
             }
         }
 

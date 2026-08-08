@@ -575,12 +575,19 @@ time you open the window** — you'll see **`(sync…)`** for the moment that ta
 appears next to it. No badge at all just means the check couldn't run (offline, or APS wasn't installed from GitHub);
 nothing else changes. Recompiling with the window already open doesn't re-check — only opening it does.
 
-Update exists because Package Manager can't do it for either shape APS is normally installed in — it doesn't update a
-Git dependency in place, and it doesn't update a *Custom* (embedded) package at all. The button reinstalls APS at the
-newest revision of the Git URL it came from, and re-embeds it afterwards if that's how it was installed, so layer
-editing keeps working. If your dependency pins a branch or tag (`….git#v2.2.0`) that pin is respected — you'll stay on
-it. Your layers, settings, canvases and generated displays live outside the package and are kept; hand-edits made
-*inside* the package folder are not. Unity recompiles a few times along the way.
+**Whenever the badge says a newer version exists, the button is there** — however you installed APS. What it does
+depends on the install, and hovering it says which:
+
+| Your install | **Update** does |
+| :--- | :--- |
+| Package Manager, Git URL | Re-adds APS at the newest revision — Package Manager keeps a Git dependency on the revision it first fetched. |
+| A customized (embedded) copy | Same, then re-embeds it so layer editing keeps working (Package Manager leaves a *Custom* package alone). |
+| Package Manager, from a registry | Installs the new version from that registry, right there. |
+| A folder in `Assets/`, a `file:` path, a `.tgz` | APS won't replace a copy it didn't put there — it says what this one needs and opens **Releases**. |
+
+A pinned branch or tag (`….git#v2.2.0`) is respected — you'll stay on it. Your layers, settings, canvases and generated
+displays live outside the package and are kept either way; hand-edits made *inside* the package folder are not. Unity
+recompiles a few times along the way.
 
 ---
 

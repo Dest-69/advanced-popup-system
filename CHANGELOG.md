@@ -1,5 +1,5 @@
 # Changelog
-## [2.3.1] - 2026-08-08
+## [2.3.2] - 2026-08-09
 ### Added
 - **Order two prefabs of the same popup apart** — **APS ▸ Order** lists popup *prefabs* now, so each gets its own place.
 - **Click a row in APS ▸ Order** to select that prefab in the Project window.
@@ -8,8 +8,8 @@
 - **The list looks after itself** — prefab saves, deletes and bulk imports update it; **Rescan Prefabs** only forces it.
 - **Version check on every window open**, not once per session — *(sync…)* while it looks.
 ### Fixed
-- **Custom layers survive an update** — the restore only ran when APS sat in `Assets/`, so other installs lost them and `PopupLayerEnum.YOUR_LAYER` stopped compiling. The list itself was never lost.
-- **A Git install explains itself** — Unity forbids writing there, so APS points you to **Customization** in **APS ▸ Layers** instead of leaving a bare compile error.
+- **The Update button always appears when a new version is found** — however you installed APS. It used to show up only for a Git URL or a customized copy, leaving everyone else *(new x.y.z)* and nothing to press. A registry install updates in one click too; a copy APS can't safely replace for you — a folder in `Assets/`, a `file:` path, a `.tgz` — says what it needs and opens Releases. Hover the button to see what it will do.
+- **Custom layers survive an update** — the restore only ran when APS sat in `Assets/`, so other installs lost them and `PopupLayerEnum.YOUR_LAYER` stopped compiling. A read-only install now makes itself writable and brings them back by itself; the list was never lost either way.
 - **No more "assembly has no scripts" error** from the still-empty custom-transitions folder.
 - **No obsolete-API warning on Unity 6.3.**
 
